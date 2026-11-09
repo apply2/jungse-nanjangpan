@@ -421,7 +421,8 @@ func _dance_start(e: PlayerController, s: Dictionary) -> void:
 		return
 	var h := _head(e)
 	confetti(h + Vector3(0, 0.3, 0), int(FX.confetti), 4.5)
-	combat.num.emit(h + Vector3(0, 0.2, 0), String(FX.dance_text), "dance")
+	if Trumpet.caused_by(combat, e, combat.me):  # 글자는 춤을 건 음유시인(나)에게만 — 멀리·벽 뒤 다른 사람 화면엔 안 뜸
+		combat.num.emit(h + Vector3(0, 0.2, 0), String(FX.dance_text), "dance")
 
 
 func _dance_end(s: Dictionary) -> void:

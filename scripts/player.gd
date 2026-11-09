@@ -44,6 +44,7 @@ var fan_cd := 0.0         # 팡파레 재사용 대기
 var dance_t := 0.0        # 춤추는 남은 시간
 var dance_immune := 0.0   # 춤이 끝난 뒤 다시 안 추는 남은 시간
 var dance_log: Array = [] # 원뿔 안에 있었던 기록 [시각, 시간] — 최근 DANCE.window초만 남김
+var dance_by: Array = []  # 이번 춤을 건 음유시인들 (춤이 시작될 때 원뿔 안에 들리던 연주자) — "춤춰라!"는 이들만 봄
 var dance_sway := 0.0     # 춤 때문에 yaw에 더한 출렁임 (다음 프레임에 빼고 새로 더함)
 var tr_ticks := {}        # 트럼펫 피해 주기: 연주자 → 쌓인 시간
 var has_sniper := false   # 대물 저격총을 주웠음 (Q로 원래 무기와 바꿈)
@@ -76,6 +77,8 @@ var orbit := false     # 나: 메뉴·결과 화면 뒤에서 맵을 빙 도는 
 var menu_angle := 0.0
 var helmet := true
 var invuln := 0.0      # 무적 남은 시간
+var star_t := 0.0      # 황금 붕어빵 무적 남은 시간 (피해·넉백·남이 넘어뜨림·둔화·춤 막음)
+var star_hits := {}    # 몸박치기: 대상 → 다시 때릴 수 있기까지 남은 시간
 var no_hit_t := 0.0    # 마지막으로 맞은 뒤 지난 시간
 var regen_acc := 0.0
 var respawn := 0.0
@@ -194,6 +197,8 @@ func spawn_at(p: Vector3) -> void:
 	v_rec_v = 0.0
 	stagger = 0.0
 	slow_t = 0.0
+	star_t = 0.0
+	star_hits.clear()
 	trip_cd = 0.0
 	fast_t = 0.0
 	has_chicken = false

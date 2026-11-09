@@ -1,7 +1,7 @@
 extends SceneTree
 ## 음유시인 자동 테스트 (4.5단계, HTML에 없는 새 병과 — CLAUDE.md "음유시인 명세" 기준)
 ## 원뿔 안/밖, 벽 뒤 차단, 피해 주기, 누적 0.75초 춤, 1.5초 창, 3초 면역, 넘어짐 우선, 숨 소진·헐떡임,
-## 삑사리, 팡파레, 춤 중 공격 가능, 봇 조준 오차 ×2.5, 베레모·볼·HUD 숨 막대를 확인한다.
+## 삑사리, 팡파레, 춤 중 공격 불가(모든 무기), 봇 조준 오차 ×2.5, 베레모·볼·HUD 숨 막대를 확인한다.
 ## 실행: godot --headless --fixed-fps 60 --path . -s tests/test_bard.gd
 ## 통과하면 "ALL PASS"와 종료 코드 0, 실패하면 FAIL 줄과 종료 코드 1.
 
@@ -189,16 +189,70 @@ func _run() -> void:
 	check("넘어지면 춤은 멈추고 남은 시간은 사라짐", dm.dance_t <= 0 and dm.fall_t > 0, "dance_t=%.2f" % dm.dance_t)
 	await wait(secs(3.5))
 
-	# ── 춤추는 중에도 공격 가능 ──
+	# ── 춤추는 중엔 공격 못 함 (모든 병과·특수무기) ──
 	await setup(6.0)
+	for cls: String in ["barbarian", "archer", "crossbow", "cleric"]:
+		put(dm, HERE + Vector3(6, 0, 0), cls, PI / 2)
+		await wait(2)
+		dm.dance_t = 1.5
+		var n0: int = C.projectiles.size()
+		dm.scripted_input = PLAY
+		await wait(30)
+		dm.scripted_input = IDLE
+		await wait(2)
+		check("춤추는 중엔 공격 안 나감: " + cls, C.projectiles.size() == n0 and not dm.charging, "투사체 %d → %d" % [n0, C.projectiles.size()])
+	for w: String in ["sniper", "ak", "chicken"]:
+		put(dm, HERE + Vector3(6, 0, 0), "archer", PI / 2)
+		dm.wep = w
+		dm.has_sniper = w == "sniper"
+		dm.has_ak = w == "ak"
+		dm.has_chicken = w == "chicken"
+		dm.ammo = 5
+		dm.ak_ammo = 25
+		await wait(2)
+		dm.dance_t = 1.0
+		var a0: int = dm.ammo + dm.ak_ammo
+		var n1: int = C.projectiles.size()
+		dm.scripted_input = PLAY
+		await wait(20)
+		dm.scripted_input = IDLE
+		check("춤추는 중엔 특수무기도 안 나감: " + w, dm.ammo + dm.ak_ammo == a0 and C.projectiles.size() == n1 and dm.wep == w, "")
+		dm.has_sniper = false
+		dm.has_ak = false
+		dm.has_chicken = false
+	# 대조: 춤 안 추면 같은 입력으로 나간다 (위 시험이 헛돌지 않았는지)
 	put(dm, HERE + Vector3(6, 0, 0), "barbarian", PI / 2)
 	await wait(2)
-	dm.dance_t = 1.5
-	var n0: int = C.projectiles.size()
+	var n3: int = C.projectiles.size()
 	dm.scripted_input = PLAY
-	await wait(3)
+	await wait(5)
 	dm.scripted_input = IDLE
-	check("춤추는 중에도 돌멩이를 던짐", C.projectiles.size() > n0, "")
+	check("(대조) 춤 안 추면 같은 입력으로 돌멩이가 나감", C.projectiles.size() > n3, "")
+	# 음유시인: 연주·팡파레 둘 다 안 됨, 춤이 끝나면 다시 됨
+	put(dm, HERE + Vector3(6, 0, 0), "bard", PI / 2)
+	await wait(2)
+	dm.dance_t = 1.0
+	dm.scripted_input = {"f": 0.0, "r": 0.0, "jump": false, "crouch": false, "sprint": false, "fire": true, "aim": true}
+	await wait(20)
+	check("춤추는 음유시인은 연주·팡파레 못 함", not dm.playing and dm.fan_cd <= 0, "playing=%s fan_cd=%.2f" % [dm.playing, dm.fan_cd])
+	dm.dance_t = 0.0
+	dm.dance_immune = 3.0
+	await wait(3)
+	check("춤이 끝나면 다시 연주", dm.playing, "")
+	dm.scripted_input = IDLE
+	# 활: 당기던 중에 춤에 걸리면 놓침 (춤 끝나고 놓아도 안 나감)
+	put(dm, HERE + Vector3(6, 0, 0), "archer", PI / 2)
+	await wait(2)
+	dm.scripted_input = PLAY
+	await wait(30)
+	var drew: bool = dm.charging
+	dm.dance_t = 1.0
+	await wait(20)
+	var n2: int = C.projectiles.size()
+	dm.scripted_input = IDLE  # 춤추는 중에 놓아도 안 나감
+	await wait(3)
+	check("당기던 활은 춤에 걸리면 놓침", drew and C.projectiles.size() == n2, "drew=%s 투사체 %d→%d" % [drew, n2, C.projectiles.size()])
+	dm.dance_immune = 0.0
 
 	# ── 봇 조준 오차 ×2.5 ──
 	put(dm, HERE + Vector3(6, 0, 0), "archer", PI / 2)

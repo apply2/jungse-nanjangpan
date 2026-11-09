@@ -41,6 +41,10 @@ var _vig_mat: ShaderMaterial
 var _hurt := 0.0       # 붉은 테두리 세기 (HTML hurt)
 var _dance: DanceEdge  # 내가 춤에 걸리면: 분홍 테두리 + 테두리를 도는 음표 (트럼펫 이펙트 7)
 var _dirs: DmgDir
+var _star: StarEdge          # 황금 붕어빵 무적 (1인칭): 금색 비네트 두근 + 테두리 반짝이
+var _star_box: VBoxContainer # 화면 위 가운데: "무적 3.2초" + 금색 막대
+var _star_lbl: Label
+var _star_bar: ProgressBar
 var _timer: Label
 var _leader: RichTextLabel
 var _feed: VBoxContainer
@@ -137,6 +141,20 @@ func _ready() -> void:
 	_dance.add_child(_dance.vig)
 	_dance.visible = false
 	root.add_child(_dance)
+	_star = StarEdge.new()
+	_star.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_star.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ssm := ShaderMaterial.new()
+	ssm.shader = sh
+	var scol := GameData.col(GameData.STAR_FX.gold)
+	ssm.set_shader_parameter("col", Vector3(scol.r, scol.g, scol.b))
+	_star.vig = ColorRect.new()
+	_star.vig.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_star.vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_star.vig.material = ssm
+	_star.add_child(_star.vig)
+	_star.visible = false
+	root.add_child(_star)
 	# 특수 아이템 안내 줄 (위에서 70 / 94 / 118px)
 	for kv in [["sniper", 70, GOLD], ["horse", 94, Color("#ffb37a")], ["ak", 118, Color("#ff9a6a")]]:
 		var l := UiKit.label("", 15, kv[2], root)
@@ -151,6 +169,7 @@ func _ready() -> void:
 	_build_feed(root)
 	_build_vitals(root)
 	_build_weapon(root)
+	_build_star_bar(root)
 
 	# 큰 문구 (HTML #banner: 위에서 24%)
 	_banner = VBoxContainer.new()
@@ -364,6 +383,38 @@ func show_death(a: PlayerController, kind: String, head: bool) -> void:
 
 
 ## 새 경기·메뉴로 갈 때 남은 알림을 치운다 (HTML clearMatchObjects의 nums·feed 부분)
+## 황금 붕어빵 무적 남은 시간 (화면 위 가운데, 아이템 안내 줄 아래)
+func _build_star_bar(root: Control) -> void:
+	_star_box = VBoxContainer.new()
+	_star_box.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_star_box.offset_top = 146
+	_star_box.offset_left = -120
+	_star_box.offset_right = 120
+	_star_box.add_theme_constant_override("separation", 4)
+	_star_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_star_box)
+	_star_lbl = UiKit.label("", 20, GOLD, _star_box)
+	_star_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UiKit.shadow(_star_lbl, Color(0, 0, 0, 0.7), 1, 2)
+	_star_bar = ProgressBar.new()
+	_star_bar.show_percentage = false
+	_star_bar.custom_minimum_size = Vector2(240, 10)
+	_star_bar.max_value = float(GameData.ITEM.golden_fish.dur)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0, 0, 0, 0.45)
+	bg.set_corner_radius_all(5)
+	bg.border_color = Color(GOLD, 0.8)
+	bg.set_border_width_all(1)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = GOLD
+	fill.set_corner_radius_all(5)
+	_star_bar.add_theme_stylebox_override("background", bg)
+	_star_bar.add_theme_stylebox_override("fill", fill)
+	_star_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_star_box.add_child(_star_bar)
+	_star_box.visible = false
+
+
 func clear() -> void:
 	for n in _nums:
 		(n.l as Node).queue_free()
@@ -453,6 +504,14 @@ func _process(dt: float) -> void:
 	_vignette.visible = vig > 0.001
 	_dirs.tick(dt)
 	_dance.tick(dt, e.alive and e.dance_t > 0)
+	var starred := e.alive and e.star_t > 0
+	_star.tick(dt, starred and not e.tp_view(), e.star_t)
+	_star_box.visible = starred
+	if starred:
+		_star_lbl.text = "무적 %.1f초" % e.star_t
+		_star_bar.value = e.star_t
+		var c := StarFx.flash_color(e.star_t, Time.get_ticks_msec() / 1000.0)  # 막대도 같이 번쩍
+		(_star_bar.get_theme_stylebox("fill") as StyleBoxFlat).bg_color = c if c.a > 0 else GOLD
 	_vm.player = e
 	_update_weapon()
 	_update_anims(dt)
@@ -622,7 +681,7 @@ func _update_weapon() -> void:
 			st = "말 타는 중 %.1f초 · 찌르면 70 피해 + 멀리 날림" % maxf(0.0, e.mounted)
 			ring = e.mounted / GameData.HORSE_TIME
 			ring_col = Color("#ffb37a")
-	_w_state.text = "넘어져서 공격 불가" if e.fall_t > 0 else st
+	_w_state.text = "넘어져서 공격 불가" if e.fall_t > 0 else ("춤추느라 공격 불가" if e.dance_t > 0 else st)
 	_breath.visible = e.wep == "trumpet"
 	if _breath.visible:
 		_breath.value = e.breath
@@ -869,4 +928,55 @@ class DanceEdge extends Control:
 			draw_circle(Vector2(-4, 10), 8.5, c)                       # 머리
 			draw_rect(Rect2(2.5, -22, 3.5, 32), c)                     # 기둥
 			draw_colored_polygon(PackedVector2Array([Vector2(2.5, -22), Vector2(15, -12), Vector2(14, -6), Vector2(2.5, -14)]), c)  # 깃발
+		draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## 황금 붕어빵 무적일 때 1인칭 화면: 가장자리 금색 비네트가 맥박처럼 두근 + 테두리를 따라 떠다니는 반짝이 (별을 직접 그림).
+## 끝나기 1초 전부터는 비네트가 빠르게 깜빡임. 수치는 GameData.STAR_FX
+class StarEdge extends Control:
+	var vig: ColorRect
+	var k := 0.0
+	var t := 0.0
+	var left := 0.0
+
+	func tick(dt: float, on: bool, star_left: float) -> void:
+		k = move_toward(k, 1.0 if on else 0.0, dt * 5.0)
+		t += dt
+		left = star_left
+		visible = k > 0.001
+		if visible:
+			var F: Dictionary = GameData.STAR_FX
+			var beat := 0.55 + 0.45 * absf(sin(t * PI * float(F.vig_hz)))  # 두근두근
+			if left < float(F.end_t) and int(floor(t * float(F.end_hz))) % 3 == 2:
+				beat = 0.15
+			(vig.material as ShaderMaterial).set_shader_parameter("alpha", k * float(F.vig_alpha) * beat)
+			queue_redraw()
+
+	func _edge_point(u: float, m: float) -> Vector2:
+		var w := size.x - 2 * m
+		var h := size.y - 2 * m
+		var d := fposmod(u, 1.0) * 2.0 * (w + h)
+		if d < w:
+			return Vector2(m + d, m)
+		d -= w
+		if d < h:
+			return Vector2(m + w, m + d)
+		d -= h
+		if d < w:
+			return Vector2(m + w - d, m + h)
+		return Vector2(m, m + h - (d - w))
+
+	func _draw() -> void:
+		var F: Dictionary = GameData.STAR_FX
+		var n := int(F.edge_sparks)
+		for i in n:
+			var p := _edge_point(float(i) / n - t * 0.05 + sin(i * 2.3) * 0.02, 30.0 + sin(t * 2.5 + i * 1.9) * 14.0)
+			var tw := absf(sin(t * 4.0 + i * 1.3))  # 반짝반짝
+			var c := GameData.col(F.gold if i % 3 != 0 else F.white)
+			c.a = k * (0.35 + 0.65 * tw)
+			var r := 7.0 + 9.0 * tw
+			var q := r * 0.22
+			draw_set_transform(p, t * 1.5 + i, Vector2.ONE)
+			draw_colored_polygon(PackedVector2Array([Vector2(0, -r), Vector2(q, -q), Vector2(r, 0), Vector2(q, q),
+				Vector2(0, r), Vector2(-q, q), Vector2(-r, 0), Vector2(-q, -q)]), c)  # 네 갈래 별
 		draw_set_transform_matrix(Transform2D.IDENTITY)

@@ -9,6 +9,8 @@ extends Node
 ## 같은 파일이 이미 나오고 있으면 다시 시작하지 않는다 (키가 달라도 파일이 같으면 그대로 이어서).
 ## 오토로드라 씬이 바뀌어도 끊기지 않는다. 일시정지 중에도 돈다.
 ## 웹: 브라우저는 클릭 전엔 소리를 막으니, 첫 클릭(또는 키) 뒤에 재생을 시작한다.
+## 덮어쓰는 곡 (play_override / end_override — 황금 붕어빵 무적 같은 잠깐 곡):
+##   원래 곡은 멈추지 않고 소리만 줄였다가 다 줄면 일시정지(stream_paused) → 끝나면 멈췄던 자리부터 다시 키운다.
 
 var key := ""          # 지금 고른 곡 (BGM 키). 멈췄으면 ""
 var in_match := false  # 경기 중인가 (Main이 알려 줌)
@@ -22,6 +24,14 @@ var _paths := ["", ""]     # 플레이어마다 걸린 파일
 var _active := 0           # 지금 커지고 있는(또는 다 커진) 쪽
 var _unlocked := true      # 웹: 첫 입력 전엔 false
 var _pending := ""         # 웹: 잠금이 풀리면 틀 곡
+var override_key := ""     # 덮어쓰는 곡 (없으면 "")
+var _ov: AudioStreamPlayer # 덮어쓰는 곡 플레이어
+var _ov_gain := 0.0
+var _ov_target := 0.0
+var _ov_rate := 1.0
+var _duck := 1.0           # 원래 곡 크기 배율 (덮어쓰는 동안 0)
+var _duck_target := 1.0
+var _duck_rate := 1.0
 
 
 func _ready() -> void:
@@ -33,6 +43,10 @@ func _ready() -> void:
 		p.volume_db = linear_to_db(0.0001)
 		add_child(p)
 		_p.append(p)
+	_ov = AudioStreamPlayer.new()
+	_ov.bus = bus
+	_ov.volume_db = linear_to_db(0.0001)
+	add_child(_ov)
 	_unlocked = not OS.has_feature("web")
 	set_process_input(not _unlocked)
 	play_bgm("menu", GameData.MUSIC.start_fade)  # 게임 켜면 1초 페이드인
@@ -76,11 +90,11 @@ func play_bgm(k: String, fade_sec := 1.5) -> void:
 		_pending = k
 		return
 	var path: String = GameData.BGM[k]
-	if _paths[_active] == path and _p[_active].playing:
+	if _paths[_active] == path and _alive(_active):
 		_fade(_active, 1.0, fade_sec)  # 같은 곡 — 멈추는 중이었으면 다시 키우기만
 		return
 	var nxt := 1 - _active
-	if not (_paths[nxt] == path and _p[nxt].playing):  # 막 빠지던 곡이면 그 자리에서 되살림
+	if not (_paths[nxt] == path and _alive(nxt)):  # 막 빠지던 곡이면 그 자리에서 되살림
 		var s: AudioStream = load(path)
 		if "loop" in s:
 			s.set("loop", true)  # 끝과 처음이 이어지게 만든 루프 음원
@@ -93,12 +107,53 @@ func play_bgm(k: String, fade_sec := 1.5) -> void:
 	_active = nxt
 
 
+func _alive(i: int) -> bool:  # 나오는 중이거나, 덮어쓰기 때문에 잠깐 멈춘 중
+	return _p[i].playing or (_p[i].stream_paused and _paths[i] != "")
+
+
 ## 음악 멈추기 (fade_sec초 동안 작아짐)
 func stop_bgm(fade_sec := 1.0) -> void:
 	key = ""
 	_pending = ""
 	for i in 2:
 		_fade(i, 0.0, fade_sec)
+
+
+## 잠깐 다른 곡으로 덮어쓰기 (fade초 만에). 원래 곡은 소리만 줄였다가 일시정지해 둔다.
+func play_override(k: String, fade := 0.2) -> void:
+	if not GameData.BGM.has(k) or not _unlocked:
+		return
+	if override_key != k or not _ov.playing:
+		var s: AudioStream = load(GameData.BGM[k])
+		if "loop" in s:
+			s.set("loop", true)
+		_ov.stream = s
+		_ov.stream_paused = false
+		_ov.play()
+		if override_key == "":
+			_ov_gain = 0.0
+	override_key = k
+	_ov_target = 1.0
+	_ov_rate = 1.0 / fade if fade > 0 else INF
+	_duck_target = 0.0
+	_duck_rate = 1.0 / fade if fade > 0 else INF
+
+
+## 덮어쓰기 끝: fade초 동안 원래 곡을 멈췄던 자리부터 다시 키운다 (fade 0이면 바로)
+func end_override(fade := 0.8) -> void:
+	if override_key == "":
+		return
+	override_key = ""
+	_ov_target = 0.0
+	_ov_rate = 1.0 / fade if fade > 0 else INF
+	_duck_target = 1.0
+	_duck_rate = 1.0 / fade if fade > 0 else INF
+	for p in _p:
+		p.stream_paused = false
+	if fade <= 0:
+		_ov_gain = 0.0
+		_duck = 1.0
+		_ov.stop()
 
 
 ## 지금 실제로 크게 나오고 있는 파일 (테스트용)
@@ -112,13 +167,20 @@ func _fade(i: int, to: float, sec: float) -> void:
 
 
 func _process(dt: float) -> void:
+	_duck = move_toward(_duck, _duck_target, _duck_rate * dt)
+	_ov_gain = move_toward(_ov_gain, _ov_target, _ov_rate * dt)
+	_ov.volume_db = linear_to_db(maxf(_ov_gain, 0.0001))
+	if _ov_gain <= 0.0 and _ov_target <= 0.0 and _ov.playing:
+		_ov.stop()
 	for i in 2:
 		var g: float = move_toward(_gain[i], _target[i], _rate[i] * dt)
 		_gain[i] = g
-		_p[i].volume_db = linear_to_db(maxf(g, 0.0001))
+		_p[i].volume_db = linear_to_db(maxf(g * _duck, 0.0001))
 		if g <= 0.0 and _target[i] <= 0.0 and _p[i].playing:
 			_p[i].stop()
 			_paths[i] = ""
+		# 덮어쓰는 동안 원래 곡은 다 줄면 일시정지 (끝나면 그 자리부터 이어서)
+		_p[i].stream_paused = _duck <= 0.0 and _duck_target <= 0.0
 
 
 ## 웹: 첫 클릭·키 입력에서 소리 잠금이 풀린다

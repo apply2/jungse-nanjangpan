@@ -35,6 +35,13 @@ func _ready() -> void:
 	combat.hurt.connect(hud.on_hurt)
 	combat.dmg_dir.connect(hud.dmg_dir)
 	player.class_changed.connect(Music.on_class_changed)  # 내 병과 기준으로 BGM
+	combat.star_changed.connect(func(e: PlayerController, on: bool) -> void:
+		if e != player:  # 남이 먹었을 땐 BGM 안 바뀜
+			return
+		if on:
+			Music.play_override("star", GameData.MUSIC.star_in)  # 황금 붕어빵: 메탈로 빠르게
+		else:
+			Music.end_override(GameData.MUSIC.star_out))      # 끝나면 원래 곡을 멈췄던 자리부터
 	Sfx.listener = player
 	Sfx.listener_cam = player.cam
 	combat.killed.connect(_on_killed)
@@ -287,6 +294,10 @@ func _set_state(s: String) -> void:
 		Music.set_match(true, player.cls)
 	elif s == "menu":
 		Music.set_match(false)
+	if s == "menu" or s == "ended":  # 경기가 끝나면 무적 곡은 바로 원래 곡으로
+		Music.end_override(0.0)
+		if player.star_t > 0:
+			combat.end_star(player)
 	if s != "playing":
 		combat.stop_hit_stop()
 	if s != "playing":

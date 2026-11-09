@@ -127,28 +127,35 @@ static func update_victims(combat: Combat, dt: float) -> void:
 			continue
 		var heard := false
 		var ticks := {}
+		var by: Array = []
 		for b in bards:
 			if not reaches(combat, b, v, W.range, W.half_angle):
 				continue
 			heard = true
+			by.append(b)
 			var acc: float = float(v.tr_ticks.get(b, 0.0)) + dt
 			if acc >= float(W.tick):
 				acc -= float(W.tick)
 				combat.damage(v, b, W.dmg, "trumpet", false, _push_dir(b, v), v.global_position + Vector3(0, v.mount_h + 1.3, 0))
-				combat.bard_fx.tick_hit(v)  # 머리 위로 작은 음표
+				if v.star_t <= 0:
+					combat.bard_fx.tick_hit(v)  # 머리 위로 작은 음표
 			ticks[b] = acc
 		v.tr_ticks = ticks
 		if not v.alive:
 			continue
-		_dance_tick(combat, v, heard, now, dt)
+		_dance_tick(combat, v, heard, now, dt, by)
 		if v.is_local and not v.is_bot:  # 춤추는 동안 내 조준이 좌우로 출렁 (봇은 조준 오차로 대신)
 			var sway := sin(now * TAU * float(D.sway_hz)) * float(D.sway) if v.dance_t > 0 else 0.0
 			v.yaw += sway - v.dance_sway
 			v.dance_sway = sway
 
 
-static func _dance_tick(combat: Combat, v: PlayerController, heard: bool, now: float, dt: float) -> void:
+static func _dance_tick(combat: Combat, v: PlayerController, heard: bool, now: float, dt: float, by: Array = []) -> void:
 	var D: Dictionary = GameData.DANCE
+	if v.star_t > 0:  # 황금 붕어빵 무적: 춤 안 걸리고, 추던 것도 멈춤 (면역은 안 붙음)
+		v.dance_t = 0.0
+		v.dance_log.clear()
+		return
 	if v.dance_t > 0:
 		v.dance_t -= dt
 		if v.fall_t > 0:  # 넘어짐이 우선: 춤은 멈추고 남은 시간은 사라짐
@@ -173,9 +180,20 @@ static func _dance_tick(combat: Combat, v: PlayerController, heard: bool, now: f
 		sum += float(x[1])
 	if sum >= float(D.need) - 1e-6:
 		v.dance_t = D.dur
+		v.dance_by = by.duplicate()
 		v.dance_log.clear()
 		if v.is_local:
 			combat.toast.emit("몸이 멋대로 춤춘다!")
+
+
+## "춤춰라!"를 볼 사람인가: 내가 이 춤을 건 음유시인일 때만.
+## 친구 캐릭터의 춤은 친구 컴퓨터가 정해서 누가 걸었는지 모르니, 내가 연주 중이고 원뿔 안에 들리면 내가 건 걸로 본다.
+static func caused_by(combat: Combat, v: PlayerController, me: PlayerController) -> bool:
+	if me == null or me == v:
+		return false
+	if v.is_remote:
+		return me.alive and me.playing and reaches(combat, me, v, GameData.WEAPONS.trumpet.range, GameData.WEAPONS.trumpet.half_angle)
+	return v.dance_by.has(me)
 
 
 ## 지금까지 원뿔 안에 있었던 시간 (최근 DANCE.window초) — HUD·테스트용

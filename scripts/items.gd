@@ -18,6 +18,9 @@ var runaways: Array[Dictionary] = []  # 시간이 끝나 달아나는 말 {h, di
 var sniper_timer := 0.0
 var ak_timer := 0.0
 var horse_timer := 30.0
+## 황금 붕어빵 (사용자 요청 — HTML에 없음). 닿으면 바로 먹고 GameData.ITEM.golden_fish.dur초 무적
+var fish := {"active": false, "pos": Vector3.ZERO, "life": 0.0, "t": 0.0, "seq": 0}
+var fish_timer := 20.0
 
 
 func _ready() -> void:
@@ -31,6 +34,7 @@ func _ready() -> void:
 	horse.group = g
 	horse.pillar = _pillar(g, 1.2, 0xff8a3d, 0.22)
 	g.visible = false
+	_build_fish_item()
 
 
 ## 빛기둥: 반지름 r, 높이 60, 더해지는(밝아지는) 반투명 — 안개 영향 없음
@@ -112,6 +116,9 @@ func clear() -> void:
 	ak.active = false
 	(ak.group as Node3D).visible = false
 	ak_timer = rr(I.ak_first)
+	fish.active = false
+	(fish.group as Node3D).visible = false
+	fish_timer = rr(I.golden_fish.first)
 
 
 # ── 대물 저격총 / AK-47 ──────────────────────────────────────
@@ -150,6 +157,10 @@ func announce(key: String) -> void:
 			banner.emit("기사의 말이 나타났다!", "")
 			if me_in:
 				Sfx.play("neigh", horse.pos)
+		"gf":
+			banner.emit("황금 붕어빵이 나타났다!", "먹으면 %d초 동안 무적" % int(GameData.ITEM.golden_fish.dur))
+			if me_in:
+				Sfx.play("bell")
 
 
 func spawn_ak() -> void:
@@ -421,7 +432,7 @@ func lance_check(e: PlayerController) -> void:
 				combat.damage(v, e, GameData.WEAPONS.lance.dmg, "lance", h.head, f, a + d * float(h.t))
 			continue
 		var vp := v.global_position
-		if not v.is_remote and v.mounted <= 0 and v.fall_t <= 0 and Vector2(vp.x - ep.x, vp.z - ep.z).length() < float(I.trample_r) and absf(vp.y - ep.y) < float(I.trample_h):
+		if not v.is_remote and v.mounted <= 0 and v.fall_t <= 0 and v.star_t <= 0 and Vector2(vp.x - ep.x, vp.z - ep.z).length() < float(I.trample_r) and absf(vp.y - ep.y) < float(I.trample_h):
 			var aw := Vector3(vp.x - ep.x, 0, vp.z - ep.z).normalized()
 			v.velocity += aw * float(I.trample_kb)
 			v.velocity.y = I.trample_up
@@ -486,7 +497,8 @@ func update_horses(dt: float) -> void:
 		if sp > 2 and e.horse.hoof_t <= 0:  # 다그닥
 			e.horse.hoof_t = 0.28
 			Sfx.play("hoof", e.global_position)
-		lance_check(e)
+		if e.dance_t <= 0:  # 춤추는 동안엔 창도 안 찌름
+			lance_check(e)
 		if e.mounted <= 0:
 			dismount(e)
 			if e.is_local:
@@ -502,3 +514,154 @@ func update_horses(dt: float) -> void:
 		if r.life <= 0:
 			g.queue_free()
 			runaways.remove_at(i)
+
+
+# ── 황금 붕어빵 ──────────────────────────────────────────────
+## 붕어빵 모양: 납작한 타원 몸통(구) + 부채꼴 꼬리(납작한 원뿔) + 등지느러미 + 동그란 눈 + 비늘 줄 3개.
+## 금색에 살짝 발광. 주위에 작은 반짝이 네 개가 돈다. 빛기둥·바닥 고리는 저격총과 같은 모양 (금색)
+func _build_fish_item() -> void:
+	var G: Dictionary = GameData.ITEM.golden_fish
+	var g := Node3D.new()
+	add_child(g)
+	var holder := Node3D.new()
+	holder.position.y = G.y
+	g.add_child(holder)
+	var body := Node3D.new()
+	body.scale = Vector3.ONE * float(G.scale)
+	holder.add_child(body)
+	var gold := StandardMaterial3D.new()
+	gold.albedo_color = GameData.col(G.col)
+	gold.roughness = 0.45
+	gold.metallic = 0.3
+	gold.emission_enabled = true
+	gold.emission = GameData.col(G.col)
+	gold.emission_energy_multiplier = G.glow
+	var dark := gold.duplicate() as StandardMaterial3D  # 비늘 줄·지느러미: 조금 진한 금색
+	dark.albedo_color = GameData.col(G.col_dark)
+	dark.emission = GameData.col(G.col_dark)
+	_fish_part(body, Meshes.sph(), gold, Vector3.ZERO, Vector3(0.5, 0.32, 0.15))  # 몸통 (앞 = +X)
+	_fish_part(body, Meshes.cone(), gold, Vector3(-0.6, 0, 0), Vector3(0.3, 0.3, 0.05), Vector3(0, 0, -PI / 2))  # 꼬리: 뾰족한 쪽이 몸통으로
+	_fish_part(body, Meshes.cone(), dark, Vector3(-0.02, 0.33, 0), Vector3(0.2, 0.16, 0.04), Vector3(0, 0, 0.35))  # 등지느러미
+	for z: float in [-1.0, 1.0]:
+		_fish_part(body, Meshes.sph(), GameData.mat(0xffffff), Vector3(0.33, 0.08, 0.1 * z), Vector3(0.065, 0.065, 0.04))  # 눈
+		_fish_part(body, Meshes.sph(), GameData.mat(0x1d1a24), Vector3(0.35, 0.08, 0.13 * z), Vector3(0.035, 0.035, 0.02))
+		for i in 3:  # 비늘 무늬 줄 (몸통 옆면에 세로로)
+			var x := 0.12 - 0.15 * i
+			var k := sqrt(maxf(0.0, 1.0 - pow(x / 0.5, 2)))
+			_fish_part(body, Meshes.box(), dark, Vector3(x, 0, 0.15 * k * z), Vector3(0.025, 0.42 * k, 0.03), Vector3(0, 0, 0.25))
+	var sparks: Array[MeshInstance3D] = []
+	var smat := StarFx.spark_mat()
+	for i in int(G.sparkles):
+		var s := MeshInstance3D.new()
+		s.mesh = StarFx.star_mesh()
+		s.material_override = smat
+		s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		s.scale = Vector3.ONE * 0.22
+		holder.add_child(s)
+		sparks.append(s)
+	fish.pillar = _pillar(g, 0.7, G.col, 0.28)
+	var rmt := StandardMaterial3D.new()
+	rmt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rmt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	rmt.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	rmt.cull_mode = BaseMaterial3D.CULL_DISABLED
+	rmt.albedo_color = Color(GameData.col(G.ring_col), 0.75)
+	var ring := MeshInstance3D.new()
+	ring.mesh = Meshes.flat_ring(0.9 / 1.3)
+	ring.material_override = rmt
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ring.position.y = 0.04
+	g.add_child(ring)
+	fish.ring = ring
+	fish.holder = holder
+	fish.body = body
+	fish.sparks = sparks
+	fish.group = g
+	g.visible = false
+
+
+func _fish_part(parent: Node3D, mesh: Mesh, mt: Material, pos: Vector3, scl: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
+	var m := MeshInstance3D.new()
+	m.mesh = mesh
+	m.material_override = mt
+	m.position = pos
+	m.rotation = rot
+	m.scale = scl
+	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(m)
+	return m
+
+
+## SNIPER_SPOTS 중 다른 특수 아이템(저격총·AK·말)과 apart m 이상 떨어진 곳에
+func spawn_fish() -> void:
+	var G: Dictionary = GameData.ITEM.golden_fish
+	var spots: Array = GameData.SNIPER_SPOTS
+	var others: Array[Vector3] = []
+	for it: Dictionary in [sniper, ak, horse]:
+		if it.active:
+			others.append(it.pos)
+	var opts := spots.filter(func(q: Vector3) -> bool:
+		return others.all(func(o: Vector3) -> bool: return Vector2(q.x - o.x, q.z - o.z).length() >= float(G.apart)))
+	var q: Vector3 = opts.pick_random() if opts.size() > 0 else spots.pick_random()
+	_place(fish, q, G.life)
+	announce("gf")
+
+
+## 먹음: 무적 시작 (또 먹으면 다시 dur초). 나는 "냠!" + 차임 + 화면 문구, 남이면 배너 + 그 자리에서 작게 반짝 소리
+func eat_fish(e: PlayerController) -> void:
+	fish.active = false
+	(fish.group as Node3D).visible = false
+	combat.give_star(e)
+	if e.is_local:
+		Sfx.play("nyam")
+		Sfx.play("chime")
+		combat.toast.emit("황금 붕어빵! %d초 무적" % int(GameData.ITEM.golden_fish.dur))
+	else:
+		ate_fx(e)
+
+
+func ate_fx(e: PlayerController) -> void:
+	banner.emit("%s이(가) 황금 붕어빵을 먹었다!" % e.ent_name, "")
+	Sfx.play("chime", e.global_position)
+
+
+## 15~25초마다 40% 확률로 나타남 (맵에 하나만, 누가 무적이면 안 나옴). 빙글빙글 둥실둥실, 닿으면 바로 먹음
+func update_fish(dt: float) -> void:
+	var G: Dictionary = GameData.ITEM.golden_fish
+	var starred := combat.ents.any(func(e: PlayerController) -> bool: return e.alive and e.star_t > 0)
+	if not fish.active and not starred and combat.authority():
+		fish_timer -= dt
+		if fish_timer <= 0:
+			fish_timer = randf_range(float(G.spawn_min), float(G.spawn_max))
+			if randf() < float(G.chance):
+				spawn_fish()
+	if not fish.active:
+		return
+	fish.t += dt
+	fish.life -= dt
+	var t: float = fish.t
+	var holder: Node3D = fish.holder
+	holder.rotation.y += dt * float(G.spin)
+	holder.position.y = float(G.y) + sin(t * float(G.bob_hz)) * float(G.bob)
+	(fish.body as Node3D).rotation.z = sin(t * 3.0) * 0.12  # 살랑살랑
+	var sparks: Array = fish.sparks
+	for i in sparks.size():  # 주위를 도는 반짝이
+		var s: MeshInstance3D = sparks[i]
+		var a := t * 2.4 + TAU * i / sparks.size()
+		s.position = Vector3(cos(a) * 0.95, sin(t * 3.0 + i * 1.7) * 0.3, sin(a) * 0.95)
+		s.scale = Vector3.ONE * (0.16 + 0.08 * absf(sin(t * 5.0 + i)))
+	((fish.pillar as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.a = 0.2 + sin(t * 4) * 0.08
+	var rs := (1 + sin(t * 3) * 0.12) * 1.3
+	(fish.ring as Node3D).scale = Vector3(rs, rs, rs)
+	if fish.life <= 0:
+		fish.active = false
+		(fish.group as Node3D).visible = false
+		return
+	for e in combat.ents:
+		if not e.is_remote and e.alive and e.global_position.distance_to(fish.pos) < float(G.pick_r):
+			if not combat.authority():  # 친구대전 손님: 방장에게 달라고 하고 허락을 기다림
+				if e.is_local:
+					combat.net.request("gf")
+				return
+			eat_fish(e)
+			return

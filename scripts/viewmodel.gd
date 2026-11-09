@@ -9,6 +9,9 @@ var player: PlayerController
 
 var _vp: SubViewport
 var _root: Node3D
+var _star_mat: StandardMaterial3D  # 황금 붕어빵 무적: 손·무기에 덮어씌우는 금색 ↔ 흰색
+var _star_geos: Array = []
+var _star_on := false
 var _vm := {}        # 무기 키 → 노드
 var _stone_rock: Node3D
 var _bow := {}       # s1, s2, arrow, hand, tz, ty
@@ -144,6 +147,25 @@ func _build() -> void:
 	_build_items()
 
 
+## 황금 붕어빵 무적이면 1인칭 손·무기도 금색 ↔ 흰색으로 번쩍 (StarFx.flash_color와 같은 박자)
+func _star_flash(e: PlayerController) -> void:
+	var c := StarFx.flash_color(e.star_t, Time.get_ticks_msec() / 1000.0)
+	var on := c.a > 0
+	if not on and not _star_on:
+		return
+	if not _star_mat:
+		_star_mat = StandardMaterial3D.new()
+		_star_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_star_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_star_geos = _root.find_children("*", "GeometryInstance3D", true, false)
+	_star_mat.albedo_color = c
+	if on != _star_on:
+		for g in _star_geos:
+			if is_instance_valid(g):
+				g.material_overlay = _star_mat if on else null
+	_star_on = on
+
+
 func _rx(m: Node3D, x: float) -> Node3D:
 	m.rotation.x = x
 	return m
@@ -229,6 +251,7 @@ func _process(dt: float) -> void:
 	var win := get_window().size
 	if _vp.size != win:
 		_vp.size = win
+	_star_flash(e)
 	var w := e.wep
 	for k: String in _vm:
 		(_vm[k] as Node3D).visible = k == w

@@ -83,8 +83,12 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 			var d := o.global_position.distance_to(epos)
 			if d > float(B.sight):
 				continue
+			if o.star_t > 0 and e.star_t <= 0:  # 무적인 적은 노리지 않는다 (도망감)
+				continue
 			var v := combat.los(eye, o.eye_pos())
 			var s := d * (1.0 if v else float(B.hidden_mul)) - (float(B.keep_bonus) if o == target else 0.0)
+			if e.star_t > 0:  # 무적이면 그냥 가장 가까운 적
+				s = d
 			if s < bs:
 				bs = s
 				best = o
@@ -128,6 +132,7 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 	var free_hands := not e.has_sniper and not e.has_ak
 	var go_item: bool = it.sniper.active and free_hands and epos.distance_to(it.sniper.pos) < float(B.item_seek) and not busy
 	var go_ak: bool = it.ak.active and free_hands and epos.distance_to(it.ak.pos) < float(B.item_seek) and not busy
+	var go_fish: bool = it.fish.active and e.star_t <= 0 and epos.distance_to(it.fish.pos) < float(B.fish_seek) and not busy
 	var go_horse: bool = it.horse.active and e.mounted <= 0 and epos.distance_to(it.horse.pos) < float(B.horse_seek) and not busy
 	if e.mounted > 0:
 		move = (Vector3(t.global_position.x - epos.x, 0, t.global_position.z - epos.z)) if t else wp - epos
@@ -135,8 +140,12 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 		move = (it.horse.pos as Vector3) - epos
 	elif go_item:
 		move = (it.sniper.pos as Vector3) - epos
+	elif go_fish:  # 황금 붕어빵 (저격총과 같은 우선순위)
+		move = (it.fish.pos as Vector3) - epos
 	elif go_ak:
 		move = (it.ak.pos as Vector3) - epos
+	elif t and e.star_t > 0:  # 무적: 엄폐·거리 유지 없이 가장 가까운 적에게 돌진 (몸박치기)
+		move = Vector3(t.global_position.x - epos.x, 0, t.global_position.z - epos.z)
 	elif t:
 		var to := Vector3(t.global_position.x - epos.x, 0, t.global_position.z - epos.z)
 		var d := to.length()
@@ -179,12 +188,21 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 			resting = true
 		elif resting and e.breath >= float(GameData.WEAPONS.trumpet.breath_max) - 0.05:
 			resting = false
-		if resting and t and e.mounted <= 0:
+		if resting and t and e.mounted <= 0 and e.star_t <= 0:
 			var away := Vector3(epos.x - t.global_position.x, 0, epos.z - t.global_position.z)
 			if away.length_squared() > 1e-4:
 				move = away.normalized() + Vector3(-away.z, 0, away.x).normalized() * strafe * 0.5
 	else:
 		resting = false
+	# 무적인 적에게서 도망 (내가 무적이 아닐 때)
+	if e.star_t <= 0:
+		for o in combat.ents:
+			if o == e or not o.alive or o.star_t <= 0:
+				continue
+			var away := Vector3(epos.x - o.global_position.x, 0, epos.z - o.global_position.z)
+			var ad := away.length()
+			if ad < float(B.star_avoid) and ad > 0.001:
+				move = away / ad * 2.0 + Vector3(-away.z, 0, away.x) / ad * strafe * 0.6
 	# 말 탄 사람 피하기
 	if e.mounted <= 0:
 		for o in combat.ents:
@@ -265,6 +283,8 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 	var aligned := absf(diff) < align_lim and (e.wep == "trumpet" or absf(dp - e.pitch) < float(B.aligned_pitch))
 	# 멀리 있는 적을 쫓을 때만 달림
 	var sprint := t != null and not want_fire and not e.charging and t.global_position.distance_to(epos) > float(B.sprint_dist)
+	if e.star_t > 0 and t and not e.charging:  # 무적 돌진은 달리기
+		sprint = true
 	var held: bool
 	if e.wep == "bow":  # 원하는 만큼 당겼으면 놓는다
 		held = (want_fire and aligned and (e.cd > 0 or e.charge < want_charge)) or (e.charging and e.charge < want_charge and want_fire)

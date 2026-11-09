@@ -13,10 +13,12 @@ signal num(pos: Vector3, text: String, style: String)  # 내가 때린 데미지
 signal hitmark(is_kill: bool)  # 내가 맞혔을 때 조준점 X 표시
 signal hurt(dmg: float)        # 내가 맞음 → 붉은 테두리 (HTML hurt)
 signal dmg_dir(from: Vector3)  # 내가 맞음 → 때린 사람 쪽에 붉은 호 (HTML dmgDir)
+signal star_changed(e: PlayerController, on: bool)  # 황금 붕어빵 무적 시작·끝 (Main이 내 것만 보고 BGM을 바꿈)
 
 var world: WorldBuilder
 var fx: Fx
 var bard_fx: BardFx         # 음유시인 트럼펫 이펙트 (scripts/fx/bard_fx.gd — 보기만 함)
+var star_fx: StarFx         # 황금 붕어빵 무적 반짝임 (scripts/fx/star_fx.gd — 보기만 함)
 var items: Items            # 닭·말·저격총·AK
 var me: PlayerController    # 내 캐릭터 (스코프·3인칭 판단)
 var net: Net = null         # 친구대전 중이면 Net (아니면 null)
@@ -42,6 +44,10 @@ func _ready() -> void:
 	bard_fx.name = "BardFx"
 	bard_fx.combat = self
 	add_child(bard_fx)
+	star_fx = StarFx.new()
+	star_fx.name = "StarFx"
+	star_fx.combat = self
+	add_child(star_fx)
 	items = Items.new()
 	items.name = "Items"
 	items.combat = self
@@ -91,6 +97,7 @@ func _physics_process(dt: float) -> void:
 	_tick_timers(dt)
 	items.update_sniper(dt)
 	items.update_ak(dt)
+	items.update_fish(dt)
 	for e in ents:
 		if e.alive and not e.is_remote:  # 친구 캐릭터는 받은 사건으로만 쏜다
 			if e.swap_req:
@@ -136,6 +143,11 @@ func _tick_timers(dt: float) -> void:
 			continue
 		if e.alive:
 			e.invuln = maxf(0.0, e.invuln - dt)
+			if e.star_t > 0:  # 황금 붕어빵 무적
+				_star_touch(e, dt)
+				e.star_t -= dt
+				if e.star_t <= 0:
+					end_star(e)
 			# 체력 재생: REGEN_DELAY초 동안 안 맞으면 1씩 차오른다
 			var mh := float(GameData.class_hp(e.cls))
 			e.no_hit_t += dt
@@ -183,6 +195,7 @@ func clear_match_objects() -> void:
 	stop_hit_stop()
 	fx.clear()
 	bard_fx.clear()
+	star_fx.clear()
 	items.clear()
 
 
@@ -283,10 +296,54 @@ func ground_below(pt: Vector3) -> float:
 	return o.y + d.y * t if t <= 1 else 0.0
 
 
+# ── 황금 붕어빵 무적 ─────────────────────────────────────────
+## 먹으면 dur초 무적 (또 먹으면 다시 dur초로). 피해·넉백·남이 넘어뜨림·성수 둔화·춤을 막는다
+func give_star(e: PlayerController) -> void:
+	var was := e.star_t > 0
+	e.star_t = float(GameData.ITEM.golden_fish.dur)
+	e.slow_t = 0.0
+	e.dance_t = 0.0
+	e.dance_log.clear()
+	if not was:
+		e.star_hits.clear()
+		star_changed.emit(e, true)
+
+
+## 무적 끝 (시간이 다 됐거나 죽었을 때)
+func end_star(e: PlayerController) -> void:
+	e.star_t = 0.0
+	e.star_hits.clear()
+	star_changed.emit(e, false)
+
+
+## 무적 중에 적과 몸이 닿으면 피해 20 + 큰 넉백 (같은 적은 again초에 한 번). 친구는 친구 쪽에서 피해를 받는다
+func _star_touch(e: PlayerController, dt: float) -> void:
+	var G: Dictionary = GameData.ITEM.golden_fish
+	for k in e.star_hits.keys():
+		e.star_hits[k] = float(e.star_hits[k]) - dt
+	var ep := e.global_position
+	for v in ents:
+		if v == e or not v.alive or v.invuln > 0 or v.star_t > 0:
+			continue
+		var vp := v.global_position
+		var d := Vector3(vp.x - ep.x, 0, vp.z - ep.z)
+		if d.length() > float(G.touch_r) or absf(vp.y - ep.y) > float(G.touch_h):
+			continue
+		if float(e.star_hits.get(v, 0.0)) > 0:
+			continue
+		e.star_hits[v] = G.again
+		var dir := d.normalized() if d.length_squared() > 1e-4 else Vector3(-sin(e.yaw), 0, -cos(e.yaw))
+		Sfx.play("thud", vp)
+		if v.is_remote:
+			net.event(["st", v.peer, dir])
+		else:
+			damage(v, e, GameData.WEAPONS.star.dmg, "star", false, dir, vp + Vector3(0, 1.0, 0))
+
+
 # ── 피해 ─────────────────────────────────────────────────────
 ## v가 a에게 kind 무기로 base만큼 맞음. dir = 날아온 방향(넉백 방향), pt = 맞은 지점(없으면 null)
 func damage(v: PlayerController, a: PlayerController, base: float, kind: String, head: bool, dir: Vector3, pt: Variant = null) -> void:
-	if not v.alive or v.invuln > 0:
+	if not v.alive or v.invuln > 0 or v.star_t > 0:  # 황금 붕어빵 무적: 피해·넉백 다 막음
 		return
 	if mp() and not v.is_local:  # 친구대전: 피해는 맞은 사람 쪽에서만 판정 (HTML damage)
 		return
@@ -441,14 +498,18 @@ func weapon_update(e: PlayerController, held: bool, dt: float) -> void:
 					Sfx.play("reload")
 		else:
 			e.charge_t = 0.0
-	# 음유시인은 숨이 다른 무기를 들고 있어도 돌아온다. 연주·팡파레는 트럼펫을 들고 넘어지지 않았을 때만
+	# 춤추는 동안엔 어떤 무기로도 공격 못 함 (사용자 요청 — 연주·팡파레·던지기·쏘기·활 당기기 전부)
+	var dancing := e.dance_t > 0
+	# 음유시인은 숨이 다른 무기를 들고 있어도 돌아온다. 연주·팡파레는 트럼펫을 들고 넘어지지·춤추지 않았을 때만
 	if GameData.CLASSES[e.cls].weapon == "trumpet":
-		var can := e.wep == "trumpet" and e.swap_t <= 0 and e.fall_t <= 0
+		var can := e.wep == "trumpet" and e.swap_t <= 0 and e.fall_t <= 0 and not dancing
 		Trumpet.update(self, e, held and can, dt)
 		if can and e.aim_held:
 			Trumpet.try_fanfare(self, e)
-	if e.swap_t > 0 or e.fall_t > 0:
+	if e.swap_t > 0 or e.fall_t > 0 or dancing:
 		e.trig_prev = held
+		if dancing and e.charging:  # 당기던 활은 놓침 (춤 끝나고 놓아도 안 나감)
+			e.reset_charge()
 		return
 	match e.wep:
 		"bow":
@@ -801,7 +862,7 @@ func update_projectiles(dt: float) -> void:
 			if hit_e and th <= tw:
 				var cdir := Vector3(vel.x, 0, vel.z).normalized()
 				damage(hit_e, p.owner, p.dmg, "chicken", false, cdir, pt)
-				if hit_e.alive and hit_e.fall_t <= 0 and hit_e.mounted <= 0:
+				if hit_e.alive and hit_e.fall_t <= 0 and hit_e.mounted <= 0 and hit_e.star_t <= 0:
 					hit_e.trip()
 			items.spawn_chicken(Vector3(pt.x, ground_below(pt), pt.z), GameData.ITEM.chicken_no_pick)
 			projectiles.remove_at(i)
@@ -897,6 +958,8 @@ func _update_world_arrows(dt: float) -> void:
 func kill(v: PlayerController, a: PlayerController, kind: String, head: bool, dir: Vector3) -> void:
 	v.deaths += 1
 	v.respawn = GameData.RESPAWN
+	if v.star_t > 0:
+		end_star(v)
 	v.charging = false
 	if a and a != v and not mp():  # 친구대전에선 죽인 사람이 처치 사건을 받고 스스로 센다
 		a.kills += 1
@@ -1163,6 +1226,8 @@ func update_zones(dt: float) -> void:
 		# 안에 있으면 느려짐 (던진 사람은 빼고)
 		for v in ents:
 			if not v.alive or v == thrower or not _in_zone(z, v):
+				continue
+			if v.star_t > 0:  # 황금 붕어빵 무적: 둔화 안 걸림
 				continue
 			v.slow_t = float(H.slow_hold)
 			if (not v.is_local or tp_on()) and randf() < dt * 6:

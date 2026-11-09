@@ -217,7 +217,8 @@ func _run() -> void:
 	await wait(2)
 	bard.scripted_input = IDLE
 	var c: Dictionary = bx.counts()
-	check("춤 시작: 디스코 조명 + 색종이 20 + '춤춰라!'", c.discos == 1 and c.bits >= int(FX.confetti) and nums.has(String(FX.dance_text)), "%s %s" % [c, nums])
+	check("춤 시작: 디스코 조명 + 색종이 20", c.discos == 1 and c.bits >= int(FX.confetti), "%s" % c)
+	check("남(봇)이 건 춤이면 내 화면엔 '춤춰라!' 안 뜸", not nums.has(String(FX.dance_text)) and dm.dance_by.has(bard), "%s" % [nums])
 	var dmesh = bx._st[dm.get_instance_id()].disco
 	var col0: Color = dmesh.material_override.albedo_color
 	await wait(secs(0.25))
@@ -317,5 +318,29 @@ func _run() -> void:
 	check("매치 정리 뒤 자식 노드 수가 처음과 같음", bx.get_child_count() - bx._wave_pool.size() == base_children, "%d" % (bx.get_child_count() - bx._wave_pool.size()))
 	check("음파 고리 풀이 커지지 않음 (8명 동시 ≤ 20)", bx._wave_pool.size() <= 20, "pool=%d" % bx._wave_pool.size())
 
+	# ── '춤춰라!'는 춤을 건 음유시인(나)만 본다 ──
+	for e in C.ents:
+		e.dance_t = 0.0
+		e.dance_immune = 0.0
+		e.dance_log.clear()
+	put(p, HERE, "bard", -PI / 2)
+	put(dm, HERE + Vector3(6, 0, 0), "archer", PI / 2)
+	await wait(2)
+	nums.clear()
+	p.scripted_input = PLAY
+	for f in secs(1.2):
+		await physics_frame
+		if dm.dance_t > 0:
+			break
+	await wait(3)
+	p.scripted_input = IDLE
+	check("내가 건 춤이면 '춤춰라!'가 뜸", dm.dance_t > 0 and nums.has(String(FX.dance_text)), "%s" % [nums])
+	check("caused_by: 건 사람만 참", C.items != null and Trumpet_caused(dm, p) and not Trumpet_caused(dm, bots[2]), "")
+	p.dance_t = 0.0
+
 	print("ALL PASS" if fails == 0 else "%d FAILED" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+func Trumpet_caused(v, me) -> bool:  # 테스트 스크립트에선 class_name을 바로 못 써서 스크립트를 불러 부름
+	return load("res://scripts/trumpet.gd").caused_by(C, v, me)

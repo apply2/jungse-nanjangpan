@@ -145,6 +145,7 @@ const WEAPONS := {
 		"kb": 1.2, "up": 0, "hip": 0.03, "ads": 0.006, "bloom": 0.006, "max_bloom": 0.05, "speed_mul": 0.95, "zoom": 1.6, "swap": 0.3},
 	"chicken": {"name": "닭", "dmg": 1, "kb": 5, "up": 3, "speed": 24, "lift": 5, "grav": 18, "radius": 0.3},
 	"lance": {"name": "마상창", "dmg": 70, "kb": 28, "up": 9},
+	"star": {"name": "황금 붕어빵", "dmg": 20, "kb": 18, "up": 6},  # 무적 몸박치기 (큰 넉백)
 	"holy": {"name": "성수", "cd": 0.4, "max_charges": 3, "recharge": 3.0, "slow": 0.35,  # slow: 웅덩이 속 이동 배율 (65% 느려짐, 사용자 요청으로 0.25→0.35)
 		 "speed": 19, "lift": 5.5,
 		"grav": 20, "radius": 0.14, "kb": 0, "dmg": 8, "tick_every": 0.5, "dur": 3.0, "area": 3.0},
@@ -199,7 +200,7 @@ const WEAPONS := {
 
 # ── 춤 디버프 (트럼펫, 4.5단계) ──────────────────────────────
 # 원뿔 안에 window초 동안 누적 need초 이상 있으면 dur초 동안 춤. 끝나면 immune초 동안 다시 안 춤
-# 춤추는 동안 이동 ×speed, 봇 조준 오차 ×bot_err. 공격은 가능, 조작은 안 뺏음 (명세: 바꾸지 말 것)
+# 춤추는 동안 이동 ×speed, 봇 조준 오차 ×bot_err. 공격은 못 함 (사용자 요청으로 바꿈), 이동 조작은 안 뺏음
 # 넘어짐(fall_t)이 우선 — 넘어지면 춤은 멈추고 남은 시간은 사라짐
 # 아래 연출 값은 명세에 없어서 정함: sway 플레이어 조준 출렁(라디안)·sway_hz 출렁 빠르기,
 # spin_every 몇 초마다 한 바퀴·spin_t 한 바퀴 도는 시간 (춤 음표는 WEAPONS.trumpet.fx)
@@ -247,7 +248,8 @@ const BOT := {
 	"strafe_k": 0.9,
 	"pref": {"barbarian": 4.0, "archer": 22.0, "crossbow": 30.0, "cleric": 15.0, "bard": 8.0},  # 병과별 선호 거리
 	"pref_sniper": 28.0, "pref_ak": 16.0,
-	"item_seek": 45.0, "horse_seek": 40.0,  # 이 거리 안의 저격총·AK / 말은 주우러 감
+	"item_seek": 45.0, "horse_seek": 40.0, "fish_seek": 40.0,  # 황금 붕어빵은 40m
+	"star_avoid": 10.0,          # 무적인 적에게서 이만큼은 도망감 (대상으로도 안 고름)  # 이 거리 안의 저격총·AK / 말은 주우러 감
 	"item_busy": 8.0,            # 단, 보이는 적이 이보다 가까우면 싸움이 먼저
 	"pref_band": 5.0,            # 선호 거리 ±5m면 다가가지도 물러나지도 않음
 	"fire_range": {"stone": 15.5, "holy": 32.0, "chicken": 26.0, "crossbow": 85.0, "ak": 60.0},  # 없으면 제한 없음
@@ -315,9 +317,31 @@ const ITEM := {
 	"chicken_grab_r": 1.2, "chicken_flee_r": 4.5, "chicken_walk": 1.2, "chicken_run": 5.0,
 	"chicken_no_pick": 1.2, # 던진 닭은 이만큼 지나야 다시 잡힘
 	"chicken_speed": 1.05,  # 들고 있으면 이동 속도 배율
+	# 황금 붕어빵 (사용자 요청 — HTML에 없음): 먹으면 dur초 무적. 맵에 하나만, 누가 무적이면 안 나옴
+	"golden_fish": {
+		"dur": 5.0, "spawn_min": 15.0, "spawn_max": 25.0, "chance": 0.4, "life": 40.0,
+		"first": [15.0, 25.0],  # 경기 시작 뒤 첫 판정
+		"apart": 12.0,          # 다른 특수 아이템과 이만큼 떨어진 SNIPER_SPOTS에
+		"pick_r": 1.6,          # 닿으면 바로 먹음
+		"col": 0xf3b33d, "col_dark": 0xc98a1e, "ring_col": 0xffd56b, "glow": 0.35,  # 금색 + 살짝 발광 (비늘 줄은 진한 금색)
+		"spin": 1.8, "bob": 0.18, "bob_hz": 2.2, "y": 1.0, "scale": 1.6, "sparkles": 4,
+		# 몸 박치기: 무적 중에 적과 몸이 닿으면 (같은 적은 again초에 한 번)
+		"touch_r": 0.9, "touch_h": 1.6, "again": 0.5,
+	},
 }
 const SNIPER_SPOTS := [Vector3(0, 2, 3), Vector3(-36, 0, -12), Vector3(36, 0, 8), Vector3(-6, 0, -36),
 	Vector3(6, 0, 36), Vector3(28, 3.9, 12), Vector3(-24, 0, 22), Vector3(24, 0, -20)]
+# 황금 붕어빵 무적 연출 (마리오카트 스타 느낌 — 보기만 함). scripts/fx/star_fx.gd가 씀
+const STAR_FX := {
+	"gold": 0xffc93c, "white": 0xfffbe8,
+	"flash_hz": 8.0, "end_hz": 16.0, "end_t": 1.0,  # 몸 번쩍임 초당 횟수 / 끝나기 end_t초 전부터 빨라지고 중간중간 꺼짐
+	"overlay_a": 0.78, "emit": 0.9,                   # 덮어씌우는 색 진하기, 발광 세기
+	"spark_every": 0.035, "spark_life": 0.7, "spark_up": 1.8, "spark_size": 0.16, "spark_r": 0.55,  # 몸 둘레 별 반짝이
+	"trail_every": 0.03, "trail_life": 0.55, "trail_size": 0.09, "trail_speed": 2.0,  # 움직이면 금가루 꼬리 (이 속도 넘을 때)
+	"pool": 220,                                       # 반짝이 MultiMesh 최대 개수
+	"light_range": 4.0, "light_energy": 1.6, "light_max": 2,  # 은은한 금빛 (웹은 빛 개수 제한 → 가장 가까운 2명만)
+	"vig_alpha": 0.75, "vig_hz": 2.2, "edge_sparks": 16,      # 1인칭: 금색 비네트 두근, 테두리 반짝이
+}
 const HORSE_SPOTS := [Vector3(-30, 0, 0), Vector3(30, 0, -4), Vector3(2, 0, 30), Vector3(-12, 0, -32),
 	Vector3(34, 0, 32), Vector3(-34, 0, -30), Vector3(-20, 0, 22)]
 
@@ -344,11 +368,13 @@ const BGM := {
 	"match": "res://audio/bgm_scotland_silly.ogg",       # 일반 매치 (65초 루프)
 	"match_bard": "res://audio/bgm_scotland_edm_v2.ogg", # 내가 음유시인일 때 (60초 루프)
 	"menu": "res://audio/bgm_scotland_silly.ogg",
+	"star": "res://audio/bgm_metal_heavy_loop.ogg",     # 황금 붕어빵 무적 (play_override)
 }
 const MUSIC := {
 	"fade": 1.5,        # 곡 바꿀 때 크로스페이드(초)
 	"stop_fade": 1.0,   # stop_bgm 기본
 	"start_fade": 1.0,  # 게임 켤 때(웹은 첫 클릭 뒤) 페이드인
+	"star_in": 0.2, "star_out": 0.8,  # 황금 붕어빵: 무적 곡으로 빠르게 / 끝나면 원래 곡으로
 	"bard_cls": "bard", # 이 병과면 match_bard (CLASSES에 있을 때만)
 }
 const VOL_DEFAULT := {"master": 0.8, "music": 0.7, "sfx": 0.8}  # 설정 화면 기본값
