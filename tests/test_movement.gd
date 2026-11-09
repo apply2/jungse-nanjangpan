@@ -19,6 +19,7 @@ func _initialize() -> void:
 	var G0 = root.get_node("GameData")  # 저장된 설정과 상관없이 같은 조건으로
 	G0.save_enabled = false
 	G0.hitstop_enabled = false
+	G0.land_trip_override = 0.0  # 착지 넘어짐 끔 (무작위라)
 	G0.third_person = true
 	G0.difficulty = "normal"
 	G0.mouse_sens = 1.2
@@ -108,5 +109,20 @@ func _run() -> void:
 				p.scripted_input = IDLE
 			if el == 60:
 				check("점프 높이", absf(peak - 1.39) < 0.05, "%.2f m (HTML 1.39)" % peak)
+				G.land_trip_override = 1.0  # 착지 넘어짐: 확률 1이면 무조건
+				setup(Vector3(-25, 0, 18), 0, inp(0.0, false, false, true))
+		8:
+			if el == 3:
+				p.scripted_input = IDLE
+			if el > 10 and p.grounded:
+				check("착지 넘어짐 (확률 1)", p.fall_t > 0, "fall_t=%.2f" % p.fall_t)
+				G.land_trip_override = 0.0
+				setup(Vector3(-25, 0, 18), 0, inp(0.0, false, false, true))
+		9:
+			if el == 3:
+				p.scripted_input = IDLE
+			if el > 10 and p.grounded:
+				check("착지 안 넘어짐 (확률 0)", p.fall_t <= 0, "fall_t=%.2f" % p.fall_t)
+				check("착지 넘어짐 확률 20%", is_equal_approx(float(G.LAND_TRIP), 0.2), "%.2f" % G.LAND_TRIP)
 				print("ALL PASS" if fails == 0 else "%d FAILED" % fails)
 				quit(1 if fails > 0 else 0)

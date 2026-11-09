@@ -15,6 +15,7 @@ signal lobby_leave                                # 대기실: 방 나가기
 signal lobby_start                                # 대기실: 게임 시작 (방장) / 진행 중인 게임 참가
 signal lobby_class(cls: String)                   # 대기실: 내 병과
 
+const SETTINGS_SCENE := preload("res://scenes/ui/settings_panel.tscn")
 const PAGES := ["main", "diff", "class", "settings", "exit", "friend", "lobby"]
 
 var cur_page := "main"
@@ -27,8 +28,8 @@ var _pause_cards: GridContainer
 var _end_title: Label
 var _end_sub: RichTextLabel
 var _end_table: PanelContainer
-var _sens: Array[Dictionary] = []  # 감도 슬라이더 두 개 (설정 / 일시정지) — 같이 움직임
-var _view_btns := {}
+var _pause_main: VBoxContainer  # 일시정지 첫 화면
+var _pause_set: VBoxContainer   # 일시정지 → 설정
 var _friend_status: Label
 var _nick: LineEdit
 var _code_in: LineEdit
@@ -150,50 +151,6 @@ func _pagehead(parent: Node, title: String, back_to: String, back_text := "← �
 	return vb
 
 
-## 감도 슬라이더 묶음 (HTML .sens)
-func _sens_row(parent: Node) -> void:
-	var pc := PanelContainer.new()
-	pc.add_theme_stylebox_override("panel", UiKit.box(UiKit.ink(0.7), Color.TRANSPARENT, 0, 8, Vector4(14, 8, 14, 8)))
-	parent.add_child(pc)
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 10)
-	pc.add_child(hb)
-	UiKit.label("마우스 감도", 14, UiKit.c("parch"), hb).size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var s := HSlider.new()
-	var R: Array = GameData.SENS_RANGE
-	s.min_value = R[0]
-	s.max_value = R[1]
-	s.step = R[2]
-	s.custom_minimum_size = Vector2(130, 20)
-	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	s.focus_mode = Control.FOCUS_NONE
-	var track := UiKit.box(Color(1, 1, 1, 0.18), Color.TRANSPARENT, 0, 3)
-	track.content_margin_top = 3
-	track.content_margin_bottom = 3
-	s.add_theme_stylebox_override("slider", track)
-	var fill := UiKit.box(UiKit.c("gold"), Color.TRANSPARENT, 0, 3)
-	fill.content_margin_top = 3
-	fill.content_margin_bottom = 3
-	s.add_theme_stylebox_override("grabber_area", fill)
-	s.add_theme_stylebox_override("grabber_area_highlight", fill)
-	hb.add_child(s)
-	var out := UiKit.label("", 14, UiKit.c("parch"), hb)
-	out.custom_minimum_size.x = 34
-	out.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_sens.append({"s": s, "o": out})
-	s.value_changed.connect(func(v: float) -> void:
-		GameData.mouse_sens = v
-		GameData.save_settings()
-		_sync_sens())
-	_sync_sens()
-
-
-func _sync_sens() -> void:
-	for d in _sens:
-		(d.s as HSlider).set_value_no_signal(GameData.mouse_sens)
-		(d.o as Label).text = "%.1f" % GameData.mouse_sens
-
-
 func _actions(parent: Node) -> HBoxContainer:
 	var hb := HBoxContainer.new()
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -250,8 +207,6 @@ func _build_main() -> void:
 	var st := UiKit.navbtn("설정", "", "sub")
 	st.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	st.pressed.connect(func() -> void:
-		_sync_view()
-		_sync_sens()
 		show_page("settings"))
 	row.add_child(st)
 	var ex := UiKit.navbtn("나가기", "", "sub")
@@ -342,79 +297,12 @@ func select_class(k: String) -> void:
 
 
 # ── 설정 ─────────────────────────────────────────────────────
+## 본문은 scenes/ui/settings_panel.tscn (일시정지 화면도 같은 걸 씀)
 func _build_settings() -> void:
 	var pg := _sheet(screens.menu, true)
 	pages.settings = pg
 	_pagehead(pg, "설정", "main")
-	var grid := HBoxContainer.new()
-	grid.alignment = BoxContainer.ALIGNMENT_CENTER
-	grid.add_theme_constant_override("separation", 12)
-	pg.add_child(grid)
-	_sens_row(grid)
-	var seg := PanelContainer.new()
-	seg.add_theme_stylebox_override("panel", UiKit.box(UiKit.ink(0.7), Color.TRANSPARENT, 0, 8, Vector4(14, 6, 8, 6)))
-	grid.add_child(seg)
-	var sh := HBoxContainer.new()
-	sh.add_theme_constant_override("separation", 6)
-	seg.add_child(sh)
-	var sl := UiKit.label("시점", 14, UiKit.c("parch"), sh)
-	sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	sh.add_child(_spacer(6))
-	for v in [["tp", "3인칭", true], ["fp", "1인칭", false]]:
-		var b := Button.new()
-		b.text = v[1]
-		b.add_theme_font_size_override("font_size", 16)
-		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		b.focus_mode = Control.FOCUS_NONE
-		var tp: bool = v[2]
-		b.pressed.connect(func() -> void:
-			GameData.third_person = tp
-			GameData.save_settings()
-			_sync_view())
-		sh.add_child(b)
-		_view_btns[v[0]] = b
-	_sync_view()
-
-	var keys := PanelContainer.new()
-	keys.add_theme_stylebox_override("panel", UiKit.box(UiKit.ink(0.72), Color(61 / 255.0, 70 / 255.0, 128 / 255.0, 0.7), 1, 8, Vector4(18, 14, 18, 14)))
-	pg.add_child(keys)
-	var kg := GridContainer.new()
-	kg.columns = 2
-	kg.add_theme_constant_override("h_separation", 18)
-	kg.add_theme_constant_override("v_separation", 8)
-	keys.add_child(kg)
-	for kv in [["W A S D", "이동"], ["Space", "점프"], ["Shift", "달리기 · 공격하면 풀림"], ["Ctrl / C", "달리다 누르면 슬라이드, 서 있으면 앉기"],
-			["클릭", "공격 · 활은 누르고 당겼다 놓기"], ["우클릭", "조준 (석궁 · 저격총)"], ["Q", "저격총 ↔ 원래 무기"], ["Tab", "점수판"],
-			["V", "3인칭 ↔ 1인칭 시점"], ["Esc", "마우스 풀기 · 일시정지"]]:
-		var cell := HBoxContainer.new()
-		cell.add_theme_constant_override("separation", 10)
-		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		kg.add_child(cell)
-		var dt := PanelContainer.new()
-		dt.add_theme_stylebox_override("panel", UiKit.drop(UiKit.box(UiKit.c("parch"), Color.TRANSPARENT, 0, 4, Vector4(8, 3, 8, 3)), UiKit.c("gold_deep"), 2))
-		dt.custom_minimum_size.x = 84
-		dt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var kl := UiKit.label(kv[0], 14, UiKit.c("ink"), dt)
-		kl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		cell.add_child(dt)
-		UiKit.label(kv[1], 13, UiKit.c("mute"), cell).size_flags_vertical = Control.SIZE_SHRINK_CENTER
-
-
-func _spacer(w: float) -> Control:
-	var c := Control.new()
-	c.custom_minimum_size.x = w
-	return c
-
-
-## 시점 버튼 둘 중 지금 것을 금색으로 (HTML .seg button[aria-pressed])
-func _sync_view() -> void:
-	for k: String in _view_btns:
-		var b: Button = _view_btns[k]
-		var on := (k == "tp") == GameData.third_person
-		var pad := Vector4(14, 6, 14, 6)
-		var n := UiKit.box(UiKit.c("gold") if on else Color.TRANSPARENT, UiKit.c("gold") if on else UiKit.c("line"), 2, 6, pad)
-		var h := UiKit.box(UiKit.c("gold") if on else Color(1, 1, 1, 0.05), UiKit.c("gold"), 2, 6, pad)
-		UiKit._style_button(b, n, h, n, UiKit.c("ink") if on else UiKit.c("parch"))
+	pg.add_child(SETTINGS_SCENE.instantiate())
 
 
 # ── 나가기 (웹) ──────────────────────────────────────────────
@@ -590,6 +478,7 @@ func _field(ph: String, max_len: int) -> LineEdit:
 # ── 일시정지 ─────────────────────────────────────────────────
 func _build_pause() -> void:
 	var pg := _sheet(screens.pause, false, 22)
+	_pause_main = pg
 	_head2("일시정지", pg)
 	var sub := UiKit.rich(15, UiKit.c("parch"), pg)
 	sub.text = "[center]병과를 바꾸면 %s 적용됩니다.[/center]" % UiKit.gold("다음 부활부터")
@@ -601,10 +490,35 @@ func _build_pause() -> void:
 	var resume := UiKit.primary("계속하기")
 	resume.pressed.connect(func() -> void: resume_requested.emit())
 	act.add_child(resume)
-	_sens_row(act)
+	var st := UiKit.ghost("설정")
+	st.pressed.connect(func() -> void: _pause_page(true))
+	act.add_child(st)
 	var quit := UiKit.ghost("메뉴로 나가기")
 	quit.pressed.connect(func() -> void: menu_requested.emit("main"))
 	act.add_child(quit)
+	# 일시정지 → 설정 (메인 메뉴 설정과 같은 씬)
+	_pause_set = _sheet(screens.pause, true)
+	var hb := HBoxContainer.new()
+	_pause_set.add_child(hb)
+	var left := HBoxContainer.new()
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(left)
+	var b := UiKit.back()
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.pressed.connect(func() -> void: _pause_page(false))
+	left.add_child(b)
+	_head2("설정", hb)
+	var right := Control.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(right)
+	_pause_set.add_child(SETTINGS_SCENE.instantiate())
+	_pause_set.visible = false
+
+
+## 일시정지 화면: 첫 화면 ↔ 설정
+func _pause_page(settings: bool) -> void:
+	_pause_main.visible = not settings
+	_pause_set.visible = settings
 
 
 func open_pause(next_cls: String) -> void:
@@ -612,7 +526,7 @@ func open_pause(next_cls: String) -> void:
 		GameData.chosen_cls = k
 		GameData.save_settings()
 		next_class_picked.emit(k))
-	_sync_sens()
+	_pause_page(false)
 	show_screen("pause")
 
 
@@ -665,6 +579,10 @@ func show_page(id: String) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if (screens.pause as Control).visible and _pause_set.visible and event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()  # 일시정지 설정에서 Esc = 뒤로
+		_pause_page(false)
+		return
 	if not (screens.menu as Control).visible:
 		return
 	if cur_page == "class":  # 병과 고르는 화면에선 숫자키(1~5)로 바로 고름

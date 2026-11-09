@@ -5,6 +5,7 @@ extends Node
 
 # ── 공통 상수 (HTML 386번째 줄) ──────────────────────────────
 const FALL_TIME := 0.6       # 넘어져 있는 시간(초)
+const LAND_TRIP := 0.2       # 점프하고 착지할 때 넘어질 확률 (사용자 요청으로 다시 넣음)
 const HEADSHOT := 1.5        # 투구 쓴 머리 배율
 const BARE_HEAD := 2.0       # 투구 벗겨진 머리 배율
 const SPRINT := 1.35         # 달리기 배율 (Shift)
@@ -337,6 +338,21 @@ const UI := {
 }
 
 # ── 연출 (8단계: HTML impactFx·makeRagdoll·updateCamera·updateHUD) ──
+# ── 오디오 (Music 오토로드·설정 화면) ──
+## 배경음악 목록. 같은 파일이면 키가 바뀌어도 이어서 튼다 (menu는 나중에 메뉴 전용 곡으로 바꿀 자리)
+const BGM := {
+	"match": "res://audio/bgm_scotland_silly.ogg",       # 일반 매치 (65초 루프)
+	"match_bard": "res://audio/bgm_scotland_edm_v2.ogg", # 내가 음유시인일 때 (60초 루프)
+	"menu": "res://audio/bgm_scotland_silly.ogg",
+}
+const MUSIC := {
+	"fade": 1.5,        # 곡 바꿀 때 크로스페이드(초)
+	"stop_fade": 1.0,   # stop_bgm 기본
+	"start_fade": 1.0,  # 게임 켤 때(웹은 첫 클릭 뒤) 페이드인
+	"bard_cls": "bard", # 이 병과면 match_bard (CLASSES에 있을 때만)
+}
+const VOL_DEFAULT := {"master": 0.8, "music": 0.7, "sfx": 0.8}  # 설정 화면 기본값
+const VOL_BUS := {"master": "Master", "music": "Music", "sfx": "SFX"}  # default_bus_layout.tres
 const SFX_VOL := 1.0          # 효과음 전체 크기 (HTML은 따로 없음 = 1)
 const HITSTOP_SCALE := 0.12   # 히트스톱 동안 시간이 이만큼 느리게 흐름
 # 내가 맞혔을 때 히트스톱 길이(초) — 처치 0.1, 닭 0.04, 헤드샷 0.055(AK 0.025), 무거운 무기 0.045, 그 외 0.02(AK 0)
@@ -363,10 +379,11 @@ const NET := {
 	"dead_wait": 0.5, "revive_guard": 1.0,  # 죽음 사건보다 상태가 먼저 와도 잠깐 기다림 / 죽은 직후 옛 상태로 안 살아남
 }
 var hitstop_enabled := true   # false면 히트스톱 안 함 (자동 테스트용 — 프레임 수로 시간을 재니까)
+var land_trip_override := -1.0  # 테스트: 0 이상이면 착지 넘어짐 확률을 이걸로
 var squeak_override := -1.0   # 테스트: 0 이상이면 트럼펫 삑사리 확률을 이걸로 (무작위 때문에 테스트가 흔들리지 않게)
 
 # ── 런타임 설정 (user://settings.cfg에 저장 — HTML localStorage aa-cls / aa-diff / aa-sens / aa-view) ──
-const SETTINGS_PATH := "user://settings.cfg"
+var settings_path := "user://settings.cfg"  # 테스트는 다른 파일로 바꿔서 내 설정을 안 건드림
 var difficulty := "normal"
 var chosen_cls := "archer"   # AI대전에서 고른 내 병과
 var ai_enabled := true       # false면 봇이 가만히 서 있음 (자동 테스트용)
@@ -374,6 +391,7 @@ var save_enabled := true     # false면 설정을 파일에 쓰지 않음 (자�
 var mouse_sens := 1.2
 var third_person := true
 var nick := ""               # 친구대전 닉네임 (HTML aa-nick)
+var volumes: Dictionary = VOL_DEFAULT.duplicate()  # 0~1, 설정 화면 슬라이더 (master / music / sfx)
 
 var _mat_cache := {}
 
@@ -382,6 +400,7 @@ func _ready() -> void:
 	_setup_input()
 	_setup_font_fallbacks()
 	load_settings()
+	apply_volumes()
 
 
 ## 도현 폰트에 없는 글자(· … ⚠)를 Noto에서 빌려 온다. PC는 시스템 폰트로 대신 그리지만
@@ -396,7 +415,7 @@ func load_settings() -> void:
 	if not save_enabled:  # 테스트: -s 모드에선 오토로드 _ready가 테스트 준비보다 늦게 돌 수 있다
 		return
 	var cf := ConfigFile.new()
-	if cf.load(SETTINGS_PATH) != OK:
+	if cf.load(settings_path) != OK:
 		return
 	var c: String = cf.get_value("game", "cls", chosen_cls)
 	if CLASSES.has(c):
@@ -407,6 +426,8 @@ func load_settings() -> void:
 	mouse_sens = clampf(float(cf.get_value("game", "sens", mouse_sens)), SENS_RANGE[0], SENS_RANGE[1])
 	third_person = bool(cf.get_value("game", "third_person", third_person))
 	nick = str(cf.get_value("game", "nick", nick))
+	for k: String in VOL_DEFAULT:
+		volumes[k] = clampf(float(cf.get_value("audio", k, volumes[k])), 0.0, 1.0)
 
 
 func save_settings() -> void:
@@ -418,7 +439,26 @@ func save_settings() -> void:
 	cf.set_value("game", "sens", mouse_sens)
 	cf.set_value("game", "third_person", third_person)
 	cf.set_value("game", "nick", nick)
-	cf.save(SETTINGS_PATH)
+	for k: String in VOL_DEFAULT:
+		cf.set_value("audio", k, volumes[k])
+	cf.save(settings_path)
+
+
+## 볼륨 하나 바꾸기 (0~1) — 바로 버스에 반영. 저장은 부르는 쪽이 save_settings()로
+func set_volume(k: String, v: float) -> void:
+	volumes[k] = clampf(v, 0.0, 1.0)
+	apply_volumes()
+
+
+## volumes를 오디오 버스에 적용: linear_to_db, 0%면 음소거
+func apply_volumes() -> void:
+	for k: String in VOL_BUS:
+		var i := AudioServer.get_bus_index(VOL_BUS[k])
+		if i < 0:
+			continue
+		var v: float = volumes[k]
+		AudioServer.set_bus_mute(i, v <= 0.0)
+		AudioServer.set_bus_volume_db(i, linear_to_db(maxf(v, 0.0001)))
 
 
 ## 0xRRGGBB → Color

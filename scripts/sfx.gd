@@ -66,6 +66,7 @@ func _ready() -> void:
 		return
 	for i in 32:
 		var p := AudioStreamPlayer.new()
+		p.bus = "SFX"
 		add_child(p)
 		_pool.append(p)
 	_pending = RECIPES.keys()

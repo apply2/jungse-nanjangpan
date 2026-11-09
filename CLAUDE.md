@@ -66,6 +66,11 @@ tests/test_bard_fx.gd  트럼펫 이펙트: 풀 상한(한 명 24·전체 120)·
 scripts/trumpet_voice.gd  연주 멜로디 (AudioStreamGenerator, 톱니파+비브라토+로우패스). 음유시인 모델마다 하나
 tests/test_bard.gd     원뿔 안/밖·벽 차단·피해 주기·누적 0.75초 춤·1.5초 창·3초 면역·넘어짐 우선·숨 소진·삑사리·팡파레·봇 오차·베레모·볼·숨 막대 자동 테스트
 scripts/ragdoll.gd     죽으면 쓰러지는 몸 (HTML makeRagdoll·stepRagdoll·poseRagdoll). 점 8개 Verlet + world.aabbs 충돌. 모델의 머리·몸통·팔·다리를 떼어 와서 돌림
+scripts/music.gd       배경음악 (오토로드 Music). AudioStreamPlayer 둘로 크로스페이드, 내 병과·경기 여부로 곡 고름 — 아래 "오디오"
+scripts/ui/settings_panel.gd + scenes/ui/settings_panel.tscn  설정 본문 (감도·시점·볼륨 3개·조작키). 메인 메뉴 설정·일시정지 설정이 같이 씀
+default_bus_layout.tres  오디오 버스 Master ─ Music · SFX
+audio/                 BGM ogg 두 개 (루프 음원)
+tests/test_music.gd    병과 → 곡·크로스페이드·같은 그룹 이어서·메뉴 곡·버스·루프·설정 저장/불러오기·볼륨 dB·음소거·설정 패널 자동 테스트
 scripts/sfx.gd         효과음 (오토로드 Sfx, HTML sfx). WebAudio tone·noise 합성을 PCM으로 구워 AudioStreamPlayer 32개로 튼다. 소리 파일 없음
 scripts/net.gd         친구대전 (Main 아래 Net 노드, HTML MP). ENet 방 만들기·코드로 찾기(UDP 방송)·IP로 들어가기, 상태 30Hz, 사건(f·sn·ak·ln·h·k), 방장 경기 시간·아이템·줍기 허락
 tests/test_net.gd      친구대전: Main 둘을 한 프로세스에 띄워 방·대기실·시작·위치·투사체·저격총·처치 수·줍기 허락·끝·나가기 자동 테스트
@@ -78,9 +83,9 @@ reference/arrow-arena.html 원본
 
 실행하면 메인 메뉴가 뜨고, 뒤에서 봇 7명이 싸우는 걸 맵을 빙 도는 카메라로 보여준다 (나는 구경, HTML startMenuSim).
 AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 지나거나 누가 20킬을 하면 결과 화면 (한 판 더 / 병과 다시 고르기 / 메인 메뉴).
-경기 중 Esc(또는 창 포커스 잃음) = 일시정지 (`SceneTree.paused`, 다음 부활 병과·감도 바꾸기), Tab = 점수판, V = 시점, 클릭하면 마우스 다시 잠금.
+경기 중 Esc(또는 창 포커스 잃음) = 일시정지 (`SceneTree.paused`, 다음 부활 병과 고르기, "설정" 버튼 → 감도·시점·볼륨), Tab = 점수판, V = 시점, 클릭하면 마우스 다시 잠금.
 - 일반대전은 "추후 업데이트 될 내용입니다." 알림. 나가기: PC는 바로 끄고, 웹은 HTML처럼 "게임을 종료했어요" 페이지.
-- 설정(병과·난이도·감도·시점)은 `user://settings.cfg`에 저장 (HTML localStorage 대신). 테스트는 `GameData.save_enabled = false`.
+- 설정(병과·난이도·감도·시점·볼륨)은 `user://settings.cfg`에 저장 (HTML localStorage 대신). 테스트는 `GameData.save_enabled = false`.
 - 경기 중 1~4로 병과 바꾸기와 F1~F3 난이도 키는 지웠다 (HTML에도 없음). 병과는 일시정지에서 다음 부활부터.
 - 킬피드·사망 화면·20킬 종료는 `Combat.killed` 신호를 Main이 받아 처리한다. 처치·알림 문구(HTML popMsg/killPop)는 `hud.pop_msg`.
 1번(야만인)으로 좌클릭하면 돌멩이를 던진다 (누르고 있으면 0.4초마다 연사).
@@ -163,7 +168,9 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
   - 키를 바꾸는 틈에 속도가 줄어도 넘어지게 하려고 0.25초 창을 둔다.
   - 넘어진 상태로 0.6초 동안 미끄러지고, 그동안 입력이 막힌다.
   - 일어난 뒤 0.5초 동안은 다시 넘어지지 않는다.
-- 점프 넘어짐과 정지 넘어짐은 사용자 요청으로 **제거됨**. 다시 넣지 말 것.
+- **착지 넘어짐**: 점프하고 착지할 때 20% 확률로 넘어진다 (`LAND_TRIP`, 사용자 요청으로 다시 넣음). 말 위에선 없음. "착지하다 넘어짐!"
+  - 테스트는 `GameData.land_trip_override = 0.0`으로 끈다 (무작위라서). 1.0이면 무조건 넘어짐.
+- 정지 넘어짐은 사용자 요청으로 **제거됨**. 다시 넣지 말 것.
 
 ### 병과
 | 병과 | 무기 | 속도 배율 | 체력 | 특징 |
@@ -310,6 +317,29 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
   - 내가 춤추면 분홍 테두리 + 테두리를 도는 음표 (hud `DanceEdge`, 원·막대로 직접 그림) + 카메라 까딱 (player `_update_camera`).
 - 성능: 8명이 동시에 연주해도 1280×720에서 프레임 3.1ms → 4.3ms, 그리기 호출 515 → 558 (PC 측정).
 
+## 오디오 (BGM·볼륨 — 사용자 요청으로 추가, HTML엔 BGM 없음)
+
+- **오토로드**: `GameData` → `Sfx`(효과음) → `Music`(배경음악, `scripts/music.gd`). 오토로드라 씬이 바뀌어도 음악이 안 끊기고, 일시정지 중에도 돈다.
+- **버스** (`default_bus_layout.tres`): `Master` 아래에 `Music`·`SFX`.
+  - BGM은 Music 버스, 효과음(Sfx 풀·트럼펫 멜로디)은 SFX 버스. 새 소리를 넣으면 `bus = "SFX"`.
+- **곡 목록**: `GameData.BGM = {"match": silly, "match_bard": edm_v2, "menu": silly}`. 페이드 시간은 `GameData.MUSIC`.
+  - menu는 지금 match와 같은 파일이다 (나중에 메뉴 전용 곡으로 바꿀 자리).
+  - 둘 다 루프 음원이라 불러올 때 `stream.loop = true`로 끊김 없이 반복한다.
+- **함수**: `Music.play_bgm(key, fade_sec := 1.5)`, `Music.stop_bgm(fade_sec := 1.0)`.
+  - 같은 **파일**이 이미 나오고 있으면 다시 시작하지 않는다 (키가 달라도 됨). 막 빠지던 곡으로 돌아가면 그 자리에서 다시 키운다.
+- **곡 고르기** (`Music.track_for(병과, 경기 중)`):
+  - 경기 중(playing·paused·ended)이고 **내** 병과가 `bard`(그리고 `CLASSES`에 있을 때)면 `match_bard`, 아니면 `match`.
+  - 메뉴(대기실 포함)면 `menu`.
+  - 병과가 바뀌면 `PlayerController.class_changed` 신호 → `Music.on_class_changed`. Main이 **내 캐릭터 신호만** 이어서 친구대전에서도 내 병과 기준.
+  - 경기 시작·메뉴 복귀는 `Main._set_state` → `Music.set_match`.
+  - 음유시인 ↔ 다른 병과면 1.5초 크로스페이드. 같은 그룹 안(궁수 → 석궁병)은 그대로 이어서 재생.
+- 게임을 켜면 메뉴 곡을 1초 페이드인. **웹**은 브라우저가 클릭 전엔 소리를 막아서 첫 클릭·키 입력 뒤에 시작한다 (`Music._input`).
+- **볼륨 설정**: 설정 화면(메인 메뉴 설정·일시정지 → 설정)에 슬라이더 3개 (0~100%, 옆에 %).
+  - 전체(Master) 기본 80%, 배경음악(Music) 70%, 효과음(SFX) 80% — `GameData.VOL_DEFAULT`.
+  - `linear_to_db`로 버스에 바로 적용하고, 0%면 그 버스를 음소거 (`GameData.apply_volumes`).
+- **설정 파일**: `user://settings.cfg` (`GameData.settings_path`). `[game]`에 병과·난이도·감도·시점·닉네임, `[audio]`에 master·music·sfx.
+  - 테스트는 `settings_path`를 다른 파일로 바꿔서 내 설정을 안 건드린다.
+
 ## 멀티플레이 (9단계 — 구현됨, 같은 와이파이만)
 
 사용자와 정한 것: **중계 서버 없이 같은 와이파이(LAN)에서만**. ENet 직접 연결이라 PC 전용이다 (웹 빌드에선 안 됨).
@@ -385,6 +415,7 @@ godot --headless --fixed-fps 60 --path . -s tests/test_fx.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_net.gd   # 포트 24680·24681을 씀
 godot --headless --fixed-fps 60 --path . -s tests/test_bard.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_bard_fx.gd
+godot --headless --fixed-fps 60 --path . -s tests/test_music.gd
 ```
 
 새 `class_name` 스크립트를 추가하면 한 번 `godot --headless --editor --path . --quit`로 클래스 목록을 갱신해야 다른 스크립트가 찾는다.

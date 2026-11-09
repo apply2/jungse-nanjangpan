@@ -25,6 +25,7 @@ func _initialize() -> void:
 	var G0 = root.get_node("GameData")  # 저장된 설정과 상관없이 같은 조건으로
 	G0.save_enabled = false
 	G0.hitstop_enabled = false
+	G0.land_trip_override = 0.0  # 착지 넘어짐 끔 (무작위라)
 	G0.third_person = true
 	G0.difficulty = "normal"
 	G0.mouse_sens = 1.2

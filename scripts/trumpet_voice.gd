@@ -23,6 +23,7 @@ func _ready() -> void:
 	gen.mix_rate = float(S.rate)
 	gen.buffer_length = 0.15
 	stream = gen
+	bus = "SFX"
 	playback_type = AudioServer.PLAYBACK_TYPE_STREAM  # 웹의 Sample 재생 방식에선 generator가 안 돈다
 	play()
 	_pb = get_stream_playback()

@@ -34,6 +34,7 @@ func _ready() -> void:
 	combat.hitmark.connect(hud.hitmark)
 	combat.hurt.connect(hud.on_hurt)
 	combat.dmg_dir.connect(hud.dmg_dir)
+	player.class_changed.connect(Music.on_class_changed)  # 내 병과 기준으로 BGM
 	Sfx.listener = player
 	Sfx.listener_cam = player.cam
 	combat.killed.connect(_on_killed)
@@ -282,6 +283,10 @@ func _set_state(s: String) -> void:
 	player.orbit = s == "menu" or s == "ended"  # 메뉴·결과 화면 뒤에선 맵을 빙 도는 카메라
 	hud.visible = s == "playing" or s == "paused"
 	Sfx.playing = s == "playing"
+	if s == "playing":
+		Music.set_match(true, player.cls)
+	elif s == "menu":
+		Music.set_match(false)
 	if s != "playing":
 		combat.stop_hit_stop()
 	if s != "playing":

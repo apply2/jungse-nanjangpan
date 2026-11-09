@@ -5,6 +5,7 @@ extends CharacterBody3D
 ## 충돌만 Godot 물리(move_and_slide)에 맡긴다. 0.56m 이하 턱은 try_step()이 올려준다.
 
 signal toast(text: String)
+signal class_changed(cls: String)  # 병과가 바뀌었다 (Music이 듣고 곡을 고름)
 
 @export var cls := "archer"
 
@@ -68,6 +69,7 @@ var net_dead_t := 0.0
 var ai: BotAI = null    # 봇 머리 (is_bot이면 Combat.register가 만들어 줌)
 var combat: Combat = null
 var next_cls := ""     # 다음 부활 때 쓸 병과
+var _sig_cls := ""     # class_changed를 마지막으로 보낸 병과
 var spectating := false  # 메뉴에서 구경 중 (안 살아나고 점수판에도 없음) — HTML spectating
 var input_enabled := true  # 나: 경기 중일 때만 키보드·마우스를 읽는다 (메뉴·결과 화면에선 false)
 var orbit := false     # 나: 메뉴·결과 화면 뒤에서 맵을 빙 도는 카메라 (HTML updateCamera의 메뉴 부분)
@@ -142,6 +144,8 @@ func _ready() -> void:
 
 
 func set_class(c: String) -> void:
+	var changed := c != _sig_cls
+	_sig_cls = c
 	cls = c
 	next_cls = c
 	wep = GameData.CLASSES[c].weapon
@@ -155,6 +159,8 @@ func set_class(c: String) -> void:
 	model.top_level = true
 	model.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(model)
+	if changed:
+		class_changed.emit(c)
 
 
 ## HTML spawn()의 상태 초기화 부분. 지점 고르기는 Combat.spawn()이 한다.
@@ -460,6 +466,11 @@ func movement(wish: Vector3, jump: bool, crouch_in: bool, dt: float) -> void:
 	_integrate(dt)
 	if was_air and grounded and jumped:
 		jumped = false
+		# 점프하고 착지할 때 일정 확률로 넘어짐 (사용자 요청 — 말 위에선 없음)
+		var ch: float = GameData.land_trip_override if GameData.land_trip_override >= 0 else GameData.LAND_TRIP
+		if not mtd and fall_t <= 0 and randf() < ch:
+			trip()
+			toast.emit("착지하다 넘어짐!")
 
 
 func _set_crouch(c: bool) -> void:

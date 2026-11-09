@@ -25,6 +25,7 @@ func _initialize() -> void:
 	G = root.get_node("GameData")
 	G.save_enabled = false
 	G.hitstop_enabled = false
+	G.land_trip_override = 0.0  # 착지 넘어짐 끔 (무작위라)
 	G.third_person = false
 	G.difficulty = "normal"
 	G.chosen_cls = "archer"
