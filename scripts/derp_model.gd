@@ -24,8 +24,8 @@ var part_count := 0     # 합치기 전 메시 수 (테스트용 — 의상이 �
 # 음유시인 (4.5단계)
 var cheeks: Array[Node3D] = []  # 볼 (연주하면 빵빵해짐 — 합치지 않음)
 var _cheek_k := 1.0
-var _notes: Array = []          # 춤출 때 머리 위로 뜨는 음표 [{n, life, v}]
-var _note_t := 0.0
+var _deflate := 0.0             # 숨이 차서 볼 바람 빠지는 중 (남은 초)
+var _deflate_from := 1.0
 var _spin := 0.0                # 춤: 한 바퀴 도는 진행도 (0이면 안 돔)
 var _spin_wait := 0.0
 var voice: Node = null          # 트럼펫 멜로디 (TrumpetVoice, 소리가 켜져 있을 때만)
@@ -615,12 +615,19 @@ func _anim_cheeks(p, dt: float) -> void:
 	if cheeks.is_empty():
 		return
 	var want: float = GameData.WEAPONS.trumpet.cheek if p.playing else 1.0
-	_cheek_k += (want - _cheek_k) * minf(1.0, dt * 14)
+	if _deflate > 0:  # 숨이 차면 바람 빠지듯 쪼그라듦 (BardFx.gasp가 부름)
+		var FX: Dictionary = GameData.WEAPONS.trumpet.fx
+		_deflate = maxf(0.0, _deflate - dt)
+		var k := 1.0 - _deflate / float(FX.deflate_t)
+		_cheek_k = lerpf(_deflate_from, float(FX.deflate_to), k) + sin(k * 30.0) * 0.06 * (1.0 - k)
+	else:
+		_cheek_k += (want - _cheek_k) * minf(1.0, dt * 14)
 	for c in cheeks:
 		c.scale = (c.get_meta("base") as Vector3) * Vector3(_cheek_k, _cheek_k, _cheek_k * 1.2)
 
 
-## 춤: 팔 만세 흔들기 + 엉덩이 좌우 + 가끔 한 바퀴 + 머리 위 음표. 넘어지면(fa) 넘어짐 자세가 이긴다
+## 춤: 팔 만세 흔들기 + 엉덩이 좌우 + 가끔 한 바퀴. 넘어지면(fa) 넘어짐 자세가 이긴다
+## (머리 위 음표·디스코 조명은 BardFx가 그린다)
 func _anim_dance(p, fa: float, dt: float) -> void:
 	var D: Dictionary = GameData.DANCE
 	if p.dance_t > 0 and fa == 0.0 and p.mounted <= 0:
@@ -636,10 +643,6 @@ func _anim_dance(p, fa: float, dt: float) -> void:
 		if _spin <= 0 and _spin_wait <= 0:
 			_spin = 0.0001
 			_spin_wait = float(D.spin_every)
-		_note_t -= dt
-		if _note_t <= 0:
-			_note_t = float(D.note_every)
-			_spawn_note()
 	else:
 		_spin = 0.0
 		_spin_wait = float(D.spin_every) * 0.5
@@ -650,29 +653,12 @@ func _anim_dance(p, fa: float, dt: float) -> void:
 		else:
 			var k := _spin * _spin * (3 - 2 * _spin)
 			rotation.y += TAU * k
-	for i in range(_notes.size() - 1, -1, -1):
-		var nt: Dictionary = _notes[i]
-		nt.life -= dt
-		var n: Node3D = nt.n
-		if nt.life <= 0:
-			n.queue_free()
-			_notes.remove_at(i)
-			continue
-		n.global_position += Vector3(sin(nt.life * 9 + float(nt.v)) * 0.4, 0.9, 0) * dt
-		n.scale = Vector3.ONE * minf(1.0, nt.life / 0.35)
 
 
-func _spawn_note() -> void:
-	var cols: Array = GameData.TRUMPET_LOOK.note
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = GameData.col(cols[randi() % cols.size()])
-	var n := Node3D.new()
-	n.top_level = true
-	add_child(n)
-	WeaponModels.part(_sph, m, Vector3.ZERO, Vector3(0.06, 0.05, 0.05), n)
-	WeaponModels.part(_box, m, Vector3(0.05, 0.1, 0), Vector3(0.014, 0.2, 0.014), n)
-	WeaponModels.part(_box, m, Vector3(0.08, 0.19, 0), Vector3(0.06, 0.03, 0.014), n)
-	n.global_position = head.global_position + Vector3(randf_range(-0.25, 0.25), 0.45, randf_range(-0.25, 0.25))
-	n.rotation.y = randf() * TAU
-	_notes.append({"n": n, "life": 1.1, "v": randf() * 6})
+## 숨이 차면 볼이 바람 빠지듯 쪼그라든다 (BardFx.gasp)
+func deflate() -> void:
+	if cheeks.is_empty():
+		return
+	_deflate_from = _cheek_k
+	_deflate = float(GameData.WEAPONS.trumpet.fx.deflate_t)
+

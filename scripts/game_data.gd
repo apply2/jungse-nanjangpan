@@ -152,10 +152,46 @@ const WEAPONS := {
 	# 숨: 최대 breath_max초 연주, 안 불면 초당 breath_regen 회복. 다 쓰면 gasp_t초 동안 연주 못 하고 이동 ×gasp_speed
 	# 삑사리: 연주를 시작할 때마다 squeak_chance 확률, squeak_t초 동안 연주 안 됨
 	# 연출: 연주 중 볼 크기 cheek 배, 음마다 ±detune 센트 음정 틀어짐
-	"trumpet": {"name": "트럼펫", "range": 12.0, "half_angle": 25.0, "tick": 0.25, "dmg": 1.5, "kb": 0, "up": 0,
+	"trumpet": {"name": "트럼펫", "range": 12.0, "half_angle": 25.0, "tick": 0.25, "dmg": 3.0, "kb": 0, "up": 0,
 		"breath_max": 3.0, "breath_regen": 1.5, "gasp_t": 1.0, "gasp_speed": 0.8,
 		"squeak_chance": 0.05, "squeak_t": 0.8,
-		"cheek": 1.6, "detune": 20.0},
+		"cheek": 1.6, "detune": 20.0,
+		# 공격 이펙트 (보기만 함 — 판정과 무관, 네트워크로 안 보냄). scripts/fx/bard_fx.gd가 씀
+		"fx": {
+			# 1. 날아가는 음표: note_every초마다 1개 (double 확률로 ♫), speed m/s, 좌우 꿀렁 wobble m·wobble_hz, 빙글 spin rad/s
+			#    pop_t초 동안 톡 튀어나오고, 사거리의 fade_from부터 흐려짐. 벽에 닿으면 bounce_t초 튕기고 사라짐
+			#    한 명당 per_bard개, 전체 max개 (넘으면 오래된 것부터 재활용). glow = 색 밝기 배율 (살짝 발광)
+			"note_every": 0.08, "double": 0.2, "speed": 14.0, "wobble": 0.35, "wobble_hz": 3.0, "spin": 7.0,
+			"size": 1.5, "pop_t": 0.1, "fade_from": 0.75, "bounce_t": 0.18, "bounce_v": 2.5,
+			"per_bard": 24, "max": 120, "glow": 1.15,
+			"colors": [0xf3b33d, 0xff7eb6, 0x7fd3ff, 0xa6e35a],
+			# 2. 음파 고리: 판정 주기(tick)마다 나팔 끝에서 퍼짐. wave_life초, 불투명도 wave_alpha, 고리 두께 비율 wave_inner
+			"wave_life": 0.4, "wave_alpha": 0.3, "wave_inner": 0.93, "wave_col": 0xfff1b0,
+			# 3. 맞은 적: 틱마다 머리 위 작은 음표 (pop_*), 춤 게이지 음표 (gauge_*: 최대 3개, 반지름·높이·도는 속도·크기)
+			"pop_life": 0.6, "pop_up": 1.8, "pop_size": 1.1,
+			"gauge_r": 0.42, "gauge_h": 0.62, "gauge_spin": 3.0, "gauge_size": 1.1,
+			#    춤 시작: 색종이 confetti조각, "춤춰라!", 디스코 조명 (꼭대기 disco_top m, 바닥 반지름 disco_r, 불투명도, disco_swap초마다 색 바뀜)
+			#    춤 음표 dance_n개가 dance_r 반지름으로 dance_spin rad/s 돎. 끝나면 조명이 disco_out초 동안 위로 빨려 올라감
+			"confetti": 20, "confetti_cols": [0xff4fa3, 0x4fd8ff, 0xffe14f, 0x8cff6a, 0xb06bff, 0xffffff],
+			"dance_text": "춤춰라!", "disco_top": 3.4, "disco_r": 0.95, "disco_alpha": 0.22, "disco_swap": 0.2, "disco_out": 0.35,
+			"disco_cols": [0xff4fa3, 0x4fd8ff, 0xffe14f, 0x8cff6a, 0xb06bff],
+			"dance_n": 3, "dance_r": 0.5, "dance_h": 0.7, "dance_spin": 5.0, "dance_size": 1.3,
+			#    면역 중: 회색 음표 하나가 비스듬히 (immune_tilt rad)
+			"immune_col": 0x9a9a9a, "immune_tilt": 0.6, "immune_size": 1.2,
+			# 4. 팡파레: 원판 충격파 (fan_r m, fan_t초), 큰 음표 fan_notes개 부채꼴 (속도·크기), 색종이·흙먼지, 1인칭 흔들림
+			"fan_r": 3.5, "fan_t": 0.25, "fan_alpha": 0.45, "fan_notes": 12, "fan_note_speed": 9.0, "fan_note_size": 2.4,
+			"fan_confetti": 10, "fan_dust": 0xc8b08a, "fan_shake": 0.2, "fan_hit_size": 2.2,
+			# 5. 삑사리: 찌그러진 회색 음표 + 회색 연기 + "삑!"
+			"squeak_col": 0x8a8a8a, "squeak_text": "삑!", "squeak_life": 0.9,
+			# 6. 숨 참: 땀방울 sweat개 (하늘색), 하얀 김, 볼이 deflate_t초 동안 deflate_to배까지 쪼그라듦
+			"sweat": 3, "sweat_col": 0x7fd3ff, "steam_col": 0xffffff, "deflate_t": 0.3, "deflate_to": 0.7,
+			# 7. 1인칭: 내 음표는 카메라 앞 fp_start m부터, 조준점 둘레(화면 높이의 fp_clear) 비켜 감, 불투명도 fp_alpha
+			#    내가 춤추면 분홍 테두리 (vig_col, vig_alpha), 테두리를 도는 음표 edge_notes개, 카메라 까딱 (bob rad, bob_hz)
+			"fp_start": 1.0, "fp_clear": 0.08, "fp_alpha": 0.6,
+			"vig_col": 0xff7eb6, "vig_alpha": 0.6, "edge_notes": 12, "bob": 0.035, "bob_hz": 2.2,
+			# 풀 크기 (deco: 작은·큰 음표, bits: 색종이)
+			"deco_max": 96, "bits_max": 160,
+		}},
 	# 팡파레 (음유시인 우클릭): 앞쪽 range m, 반각 half_angle 도 안의 적에게 dmg, 넉백 kb, 띄우기 up, 재사용 cd초
 	"fanfare": {"name": "팡파레", "range": 3.5, "half_angle": 45.0, "dmg": 15, "kb": 9, "up": 3, "cd": 6.0},
 }
@@ -165,13 +201,13 @@ const WEAPONS := {
 # 춤추는 동안 이동 ×speed, 봇 조준 오차 ×bot_err. 공격은 가능, 조작은 안 뺏음 (명세: 바꾸지 말 것)
 # 넘어짐(fall_t)이 우선 — 넘어지면 춤은 멈추고 남은 시간은 사라짐
 # 아래 연출 값은 명세에 없어서 정함: sway 플레이어 조준 출렁(라디안)·sway_hz 출렁 빠르기,
-# spin_every 몇 초마다 한 바퀴·spin_t 한 바퀴 도는 시간, note_every 음표가 뜨는 간격
+# spin_every 몇 초마다 한 바퀴·spin_t 한 바퀴 도는 시간 (춤 음표는 WEAPONS.trumpet.fx)
 const DANCE := {"window": 1.5, "need": 0.75, "dur": 2.0, "immune": 3.0, "speed": 0.6, "bot_err": 2.5,
-	"sway": 0.06, "sway_hz": 1.6, "spin_every": 1.1, "spin_t": 0.45, "note_every": 0.28}
+	"sway": 0.06, "sway_hz": 1.6, "spin_every": 1.1, "spin_t": 0.45}
 
 # 트럼펫·음유시인 모양 색 (명세: 금색 트럼펫, 깃털 달린 납작한 베레모)
 const TRUMPET_LOOK := {"brass": 0xf3b33d, "brass_dark": 0xb97a14, "beret": 0x4b2370, "feather": 0xf4ecd6, "feather_tip": 0xd94a3a,
-	"cheek": 0xf3a5a0, "note": [0xf3b33d, 0xc9a2e8, 0x7fd0ff, 0xff8fb0]}
+	"cheek": 0xf3a5a0}
 
 # 트럼펫 소리 (AudioStreamGenerator로 실시간 합성): 톱니파 + 비브라토 + 로우패스
 # melody: base_hz 기준 반음 수 (도-미-솔-미-도-솔-도), note 한 음 길이(초), gap 음 사이 쉼

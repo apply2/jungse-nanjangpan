@@ -16,6 +16,7 @@ signal dmg_dir(from: Vector3)  # 내가 맞음 → 때린 사람 쪽에 붉은 �
 
 var world: WorldBuilder
 var fx: Fx
+var bard_fx: BardFx         # 음유시인 트럼펫 이펙트 (scripts/fx/bard_fx.gd — 보기만 함)
 var items: Items            # 닭·말·저격총·AK
 var me: PlayerController    # 내 캐릭터 (스코프·3인칭 판단)
 var net: Net = null         # 친구대전 중이면 Net (아니면 null)
@@ -37,6 +38,10 @@ func _ready() -> void:
 	fx = Fx.new()
 	fx.name = "Fx"
 	add_child(fx)
+	bard_fx = BardFx.new()
+	bard_fx.name = "BardFx"
+	bard_fx.combat = self
+	add_child(bard_fx)
 	items = Items.new()
 	items.name = "Items"
 	items.combat = self
@@ -177,6 +182,7 @@ func clear_match_objects() -> void:
 	ragdolls.clear()
 	stop_hit_stop()
 	fx.clear()
+	bard_fx.clear()
 	items.clear()
 
 

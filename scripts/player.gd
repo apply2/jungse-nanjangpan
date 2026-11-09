@@ -665,5 +665,10 @@ func _update_camera(dt: float) -> void:
 		cam.rotation.x += randf_range(-1, 1) * shake * 0.03
 		cam.rotation.y += randf_range(-1, 1) * shake * 0.03
 	cam.rotation.x += v_rec * GameData.VREC_CAM  # 쏘면 화면만 살짝 튕긴다 (조준 방향은 그대로)
+	if dance_t > 0:  # 춤에 걸리면 카메라가 리듬에 맞춰 까딱 (조준 출렁임은 Trumpet이 yaw에 줌)
+		var FXT: Dictionary = GameData.WEAPONS.trumpet.fx
+		var bt := sin(Time.get_ticks_msec() / 1000.0 * TAU * float(FXT.bob_hz))
+		cam.rotation.z += bt * float(FXT.bob)
+		cam.rotation.x += absf(bt) * float(FXT.bob) * 0.5
 	if absf(cam.fov - zoom) > 0.1:
 		cam.fov += (zoom - cam.fov) * minf(1.0, dt * 14)

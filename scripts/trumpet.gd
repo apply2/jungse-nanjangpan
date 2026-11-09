@@ -59,6 +59,7 @@ static func update(combat: Combat, e: PlayerController, want: bool, dt: float) -
 			e.squeak_t = W.squeak_t
 			want = false
 			Sfx.play("squeak", e.global_position)
+			combat.bard_fx.squeak(e)
 			if e.is_local:
 				combat.toast.emit("삑사리!")
 		else:
@@ -72,6 +73,7 @@ static func update(combat: Combat, e: PlayerController, want: bool, dt: float) -
 			e.playing = false
 			e.gasp_t = W.gasp_t
 			Sfx.play("gasp", e.global_position)
+			combat.bard_fx.gasp(e)
 			if e.is_local:
 				combat.toast.emit("숨이 찼다!")
 	else:
@@ -88,6 +90,8 @@ static func try_fanfare(combat: Combat, e: PlayerController) -> void:
 	for v in combat.ents:
 		if not v.is_remote:  # 친구 캐릭터는 친구 컴퓨터가 판정 (아래 사건을 받고)
 			hit_fanfare(combat, e, v)
+		elif reaches(combat, e, v, GameData.WEAPONS.fanfare.range, GameData.WEAPONS.fanfare.half_angle):
+			combat.bard_fx.fanfare_hit(v, _push_dir(e, v))  # 내 화면엔 튕기는 음표만
 	if combat.mp() and e.is_local:
 		combat.net.event(["fan"])
 
@@ -96,6 +100,7 @@ static func hit_fanfare(combat: Combat, e: PlayerController, v: PlayerController
 	var F: Dictionary = GameData.WEAPONS.fanfare
 	if reaches(combat, e, v, F.range, F.half_angle):
 		combat.damage(v, e, F.dmg, "fanfare", false, _push_dir(e, v))
+		combat.bard_fx.fanfare_hit(v, _push_dir(e, v))
 
 
 static func fanfare_fx(combat: Combat, e: PlayerController) -> void:
@@ -105,10 +110,7 @@ static func fanfare_fx(combat: Combat, e: PlayerController) -> void:
 		e.vm_kick = 1.0
 		combat.toast.emit("빠바밤!")
 	Sfx.play("fanfare", e.global_position)
-	if not e.is_local or combat.tp_on():
-		var p := e.eye_pos() + e.aim_dir() * 1.3
-		combat.fx.ring(p, 0xf3b33d, 2.4, 0.3)
-		combat.fx.puff(p, 0xfff1b0, 0.12, 6)
+	combat.bard_fx.fanfare(e)  # 원판 충격파·큰 음표 부채꼴·색종이·흙먼지·1인칭 흔들림
 
 
 # ── 듣는 쪽: 피해 주기·춤 (Combat._physics_process가 매 프레임) ──
@@ -133,6 +135,7 @@ static func update_victims(combat: Combat, dt: float) -> void:
 			if acc >= float(W.tick):
 				acc -= float(W.tick)
 				combat.damage(v, b, W.dmg, "trumpet", false, _push_dir(b, v), v.global_position + Vector3(0, v.mount_h + 1.3, 0))
+				combat.bard_fx.tick_hit(v)  # 머리 위로 작은 음표
 			ticks[b] = acc
 		v.tr_ticks = ticks
 		if not v.alive:

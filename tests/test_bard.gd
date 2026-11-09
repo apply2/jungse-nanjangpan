@@ -128,12 +128,12 @@ func _run() -> void:
 	bard.scripted_input = IDLE
 	check("벽 뒤: 피해·춤 없음", dm.hp == 100.0 and dm.dance_t <= 0 and T.heard_sum(dm) == 0.0, "hp=%.1f" % dm.hp)
 
-	# ── 피해 주기: 0.25초마다 1.5 ──
+	# ── 피해 주기: 0.25초마다 WEAPONS.trumpet.dmg (초당 12) ──
 	await setup(6.0)
 	bard.scripted_input = PLAY
 	await wait(secs(0.5) + 1)
 	check("연주 중", bard.playing, "")
-	check("0.5초에 2번 맞음 (1.5×2)", near(dm.hp, 100.0 - 3.0, 0.01), "hp=%.2f" % dm.hp)
+	check("0.5초에 2번 맞음 (dmg×2 = 초당 12의 절반)", near(dm.hp, 100.0 - 2.0 * float(W.dmg), 0.01) and near(float(W.dmg) / float(W.tick), 12.0, 0.001), "hp=%.2f" % dm.hp)
 	check("넉백 없음", Vector2(dm.velocity.x, dm.velocity.z).length() < 0.05 and dm.kb_t <= 0 and dm.stagger <= 0, "v=%s" % dm.velocity)
 
 	# ── 춤: 누적 0.75초 ──
@@ -294,7 +294,7 @@ func _run() -> void:
 	check("헤드샷이면 베레모가 날아감", not p.helmet and p.model.helm == null, "")
 	dm.dance_t = 1.0
 	await wait(30)
-	check("춤추면 머리 위에 음표", dm.model._notes.size() > 0, "n=%d" % dm.model._notes.size())
+	check("춤추면 머리 위에 음표 (BardFx)", C.bard_fx._snotes.size() > 0, "n=%d" % C.bard_fx._snotes.size())
 
 	print("ALL PASS" if fails == 0 else "%d FAILED" % fails)
 	quit(1 if fails > 0 else 0)

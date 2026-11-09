@@ -39,6 +39,7 @@ var _scope: Scope
 var _vignette: ColorRect
 var _vig_mat: ShaderMaterial
 var _hurt := 0.0       # 붉은 테두리 세기 (HTML hurt)
+var _dance: DanceEdge  # 내가 춤에 걸리면: 분홍 테두리 + 테두리를 도는 음표 (트럼펫 이펙트 7)
 var _dirs: DmgDir
 var _timer: Label
 var _leader: RichTextLabel
@@ -65,6 +66,8 @@ const NUM_STYLE := {
 	"head": {"size": 28, "color": BLOOD},
 	"dot": {"size": 17, "color": Color("#bfefff")},
 	"kill": {"size": 30, "color": GOLD},
+	"dance": {"size": 34, "color": Color("#ff7eb6")},  # 춤춰라! (트럼펫 이펙트)
+	"squeak": {"size": 22, "color": Color("#d6d6d6")},  # 삑!
 }
 const NUM_LIFE := 0.85
 const NUM_MAX := 14
@@ -120,6 +123,20 @@ func _ready() -> void:
 	_vig_mat.shader = sh
 	_vignette.material = _vig_mat
 	root.add_child(_vignette)
+	_dance = DanceEdge.new()
+	_dance.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_dance.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var dsm := ShaderMaterial.new()
+	dsm.shader = sh
+	var dcol := GameData.col(GameData.WEAPONS.trumpet.fx.vig_col)
+	dsm.set_shader_parameter("col", Vector3(dcol.r, dcol.g, dcol.b))
+	_dance.vig = ColorRect.new()
+	_dance.vig.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_dance.vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dance.vig.material = dsm
+	_dance.add_child(_dance.vig)
+	_dance.visible = false
+	root.add_child(_dance)
 	# 특수 아이템 안내 줄 (위에서 70 / 94 / 118px)
 	for kv in [["sniper", 70, GOLD], ["horse", 94, Color("#ffb37a")], ["ak", 118, Color("#ff9a6a")]]:
 		var l := UiKit.label("", 15, kv[2], root)
@@ -435,6 +452,7 @@ func _process(dt: float) -> void:
 	_vig_mat.set_shader_parameter("alpha", vig)
 	_vignette.visible = vig > 0.001
 	_dirs.tick(dt)
+	_dance.tick(dt, e.alive and e.dance_t > 0)
 	_vm.player = e
 	_update_weapon()
 	_update_anims(dt)
@@ -657,11 +675,12 @@ func _update_info(e: PlayerController) -> void:
 const VIGNETTE_SHADER := """
 shader_type canvas_item;
 uniform float alpha = 0.0;
+uniform vec3 col = vec3(0.7843, 0.1176, 0.1569);
 void fragment() {
 	// CSS radial-gradient(ellipse at center, transparent 45%, rgba(200,30,40,.65) 100%) — 타원은 모서리를 지남
 	float d = length((UV - 0.5) * 2.0) / sqrt(2.0);
 	float k = clamp((d - 0.45) / 0.55, 0.0, 1.0);
-	COLOR = vec4(200.0 / 255.0, 30.0 / 255.0, 40.0 / 255.0, 0.65 * k * alpha);
+	COLOR = vec4(col, 0.65 * k * alpha);
 }
 """
 
@@ -806,3 +825,48 @@ class Crosshair extends Control:
 			draw_rect(r, c)
 		draw_circle(Vector2.ZERO, 3, sh)
 		draw_circle(Vector2.ZERO, 2, c)
+
+
+## 내가 춤에 걸렸을 때 화면 (트럼펫 이펙트 7): 가장자리 분홍빛 비네트 + 테두리를 따라 둥둥 떠다니는 음표.
+## 음표는 글자(♪) 대신 원·막대·깃발을 직접 그린다 (폰트에 없을 수 있어서). 수치는 WEAPONS.trumpet.fx
+class DanceEdge extends Control:
+	var vig: ColorRect
+	var k := 0.0   # 0~1 나타나는 정도
+	var t := 0.0
+
+	func tick(dt: float, on: bool) -> void:
+		k = move_toward(k, 1.0 if on else 0.0, dt * 4.0)
+		t += dt
+		visible = k > 0.001
+		if visible:
+			(vig.material as ShaderMaterial).set_shader_parameter("alpha", k * float(GameData.WEAPONS.trumpet.fx.vig_alpha))
+			queue_redraw()
+
+	func _edge_point(u: float, m: float) -> Vector2:
+		var w := size.x - 2 * m
+		var h := size.y - 2 * m
+		var d := fposmod(u, 1.0) * 2.0 * (w + h)
+		if d < w:
+			return Vector2(m + d, m)
+		d -= w
+		if d < h:
+			return Vector2(m + w, m + d)
+		d -= h
+		if d < w:
+			return Vector2(m + w - d, m + h)
+		return Vector2(m, m + h - (d - w))
+
+	func _draw() -> void:
+		var FX: Dictionary = GameData.WEAPONS.trumpet.fx
+		var cols: Array = FX.colors
+		var n := int(FX.edge_notes)
+		for i in n:
+			var p := _edge_point(float(i) / n + t * 0.035, 38.0 + sin(t * 3.0 + i * 1.7) * 10.0)
+			var c := GameData.col(cols[i % cols.size()])
+			c.a = 0.85 * k
+			var sc := 0.9 + 0.25 * sin(t * 5.0 + i)
+			draw_set_transform(p, sin(t * 2.6 + i) * 0.35, Vector2(sc, sc))
+			draw_circle(Vector2(-4, 10), 8.5, c)                       # 머리
+			draw_rect(Rect2(2.5, -22, 3.5, 32), c)                     # 기둥
+			draw_colored_polygon(PackedVector2Array([Vector2(2.5, -22), Vector2(15, -12), Vector2(14, -6), Vector2(2.5, -14)]), c)  # 깃발
+		draw_set_transform_matrix(Transform2D.IDENTITY)
