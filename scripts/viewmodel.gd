@@ -18,6 +18,8 @@ var _ak_fl: MeshInstance3D  # AK 총구 불꽃
 var _ak_ads := 0.0          # AK 정조준 정도 0~1
 var _chicken := {}          # 손에 든 닭 모양 {g, hd, wings}
 var _horse_head: Node3D     # 마상창 아래 보이는 말 머리
+var _tr: Node3D             # 트럼펫 (나팔이 화면 오른쪽 아래에 보임)
+const TR_POS := Vector3(0.2, -0.24, -0.34)
 var _bob := 0.0
 var _sway := Vector2.ZERO  # 마우스를 움직이면 손이 살짝 늦게 따라옴 (HTML swayX/swayY)
 
@@ -129,6 +131,16 @@ func _build() -> void:
 	WeaponModels.make_holy(flh)
 	_holy_fl = flh
 	_xb = {"xs1": xs1, "xs2": xs2, "bolt": bolt, "ptz": -0.16 - 0.26 * cos(0.95), "ptx": 0.26 * sin(0.95), "ph": ph, "last": 1.0}
+	# 트럼펫 (4.5단계): 입에 댄 금관이 앞으로 뻗고, 나팔 끝이 오른쪽 아래에 보인다
+	var tw := _group("trumpet", TR_POS)
+	tw.rotation = Vector3(-0.05, -0.1, 0)
+	tw.scale = Vector3.ONE * 0.8
+	_tr = Node3D.new()
+	_tr.rotation.y = PI  # 나팔(+Z)이 화면 안쪽(-Z)으로
+	tw.add_child(_tr)
+	WeaponModels.make_trumpet(_tr)
+	_part(Meshes.sph(), SKIN, Vector3(0.055, 0.05, 0.065), Vector3(-0.01, -0.03, -0.17), tw)
+	_part(Meshes.sph(), SKIN, Vector3(0.05, 0.045, 0.06), Vector3(0.02, -0.07, -0.3), tw)
 	_build_items()
 
 
@@ -271,6 +283,12 @@ func _process(dt: float) -> void:
 				(wings[kq] as Node3D).rotation.z = (-1.0 if kq else 1.0) * (0.3 + absf(sin(tt * 24)) * 1.0)
 			(_chicken.hd as Node3D).rotation.y = sin(tt * 5) * 0.6
 			(_vm.chicken as Node3D).position.y = -0.33 + sin(tt * 13) * 0.01
+		"trumpet":  # 불면 나팔이 떨리고, 팡파레를 불면 앞으로 튕김. 숨이 차면 아래로 처짐
+			var g: Node3D = _vm.trumpet
+			var shake := 0.004 if e.playing else 0.0
+			var fan := sin(e.fire_anim * PI)
+			g.position = TR_POS + Vector3(randf_range(-1, 1) * shake, randf_range(-1, 1) * shake - (0.08 if e.gasp_t > 0 else 0.0), -fan * 0.08)
+			_tr.rotation.z = sin(Time.get_ticks_msec() / 1000.0 * 40.0) * 0.02 if e.playing else 0.0
 		"holy":  # 던지면 앞으로 뻗고, 빈손이면 아래로 내려 새 병을 꺼냄
 			var t := e.fire_anim
 			var g: Node3D = _vm.holy

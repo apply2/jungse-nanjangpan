@@ -149,6 +149,26 @@ static func make_ak(parent: Node3D, mat: Callable = _default_mat) -> void:
 	part(Meshes.box(), Wd, Vector3(0, -0.09, -0.12), Vector3(0.05, 0.11, 0.06), parent)
 
 
+## 트럼펫 (나팔 = +Z, 마우스피스가 원점) — 4.5단계 새 무기. 금관 + 피스톤 3개 + 아래로 감긴 관
+static func make_trumpet(parent: Node3D, mat: Callable = _default_mat) -> Node3D:
+	var T: Dictionary = GameData.TRUMPET_LOOK
+	var gold: Material = mat.call(T.brass)
+	var dark: Material = mat.call(T.brass_dark)
+	var g := Node3D.new()
+	parent.add_child(g)
+	_rx(part(Meshes.cyl(), dark, Vector3(0, 0, 0.015), Vector3(0.016, 0.03, 0.016), g), PI / 2)  # 마우스피스
+	_rx(part(Meshes.cyl(), gold, Vector3(0, 0, 0.2), Vector3(0.013, 0.36, 0.013), g), PI / 2)    # 윗관
+	_rx(part(Meshes.cyl(), gold, Vector3(0, -0.065, 0.17), Vector3(0.012, 0.22, 0.012), g), PI / 2)  # 아랫관
+	part(Meshes.cyl(), gold, Vector3(0, -0.033, 0.06), Vector3(0.012, 0.065, 0.012), g)  # 앞뒤로 감긴 부분
+	part(Meshes.cyl(), gold, Vector3(0, -0.033, 0.28), Vector3(0.012, 0.065, 0.012), g)
+	for i in 3:  # 피스톤
+		part(Meshes.cyl(), gold, Vector3(0, 0.01, 0.13 + i * 0.035), Vector3(0.016, 0.1, 0.016), g)
+		part(Meshes.cyl(), dark, Vector3(0, 0.065, 0.13 + i * 0.035), Vector3(0.019, 0.012, 0.019), g)
+	_rx(part(Meshes.cone(), gold, Vector3(0, 0, 0.44), Vector3(0.085, 0.2, 0.085), g), -PI / 2)  # 나팔 (넓은 쪽이 +Z)
+	_rx(part(Meshes.arc(0.085, 0.008, TAU), dark, Vector3(0, 0, 0.54), Vector3.ONE, g), 0.0)
+	return g
+
+
 ## 닭 (+Z를 봄, 발이 원점) — HTML makeChicken(). {g, hd, wings}
 static func make_chicken(mat: Callable = _default_mat) -> Dictionary:
 	var g := Node3D.new()

@@ -32,6 +32,7 @@ var _vm: ViewModel
 var _ring: ChargeRing
 var _w_name: Label
 var _w_state: Label
+var _breath: ProgressBar   # 음유시인 숨 게이지 (성수 칸 자리에 가로 막대)
 var _w_hint: Label
 var _info := {}        # sniper / horse / ak 안내 줄 (HTML #sniperInfo / #horseInfo / #akInfo)
 var _scope: Scope
@@ -275,6 +276,21 @@ func _build_weapon(root: Control) -> void:
 	_w_name = UiKit.label("", 28, PARCH, wvb)
 	_w_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_w_state = UiKit.label("", 13, MUTE, wvb)
+	_breath = ProgressBar.new()
+	_breath.show_percentage = false
+	_breath.custom_minimum_size = Vector2(0, 8)
+	_breath.max_value = float(GameData.WEAPONS.trumpet.breath_max)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(1, 1, 1, 0.12)
+	bg.set_corner_radius_all(4)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color("#9fd0ff")
+	fill.set_corner_radius_all(4)
+	_breath.add_theme_stylebox_override("background", bg)
+	_breath.add_theme_stylebox_override("fill", fill)
+	_breath.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_breath.visible = false
+	wvb.add_child(_breath)
 	_w_hint = UiKit.label("", 14, GOLD, wvb)
 	_w_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_w_state.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -573,11 +589,27 @@ func _update_weapon() -> void:
 			st = "남은 탄 %d발 · 우클릭 조준" % maxi(1, e.ammo)
 		"chicken":
 			st = "클릭: 던지기 · 맞으면 넘어짐"
+		"trumpet":
+			if e.gasp_t > 0:
+				st = "숨이 찼다! 헐떡이는 중"
+			elif e.squeak_t > 0:
+				st = "삑사리! 입술 고르는 중"
+			elif e.playing:
+				st = "연주 중 · 숨 %.1f초" % e.breath
+			else:
+				st = "누르고 있으면 연주 · 우클릭 팡파레"
+			if e.fan_cd > 0:
+				st += " · 팡파레 %.0f초" % ceilf(e.fan_cd)
 		"lance":
 			st = "말 타는 중 %.1f초 · 찌르면 70 피해 + 멀리 날림" % maxf(0.0, e.mounted)
 			ring = e.mounted / GameData.HORSE_TIME
 			ring_col = Color("#ffb37a")
 	_w_state.text = "넘어져서 공격 불가" if e.fall_t > 0 else st
+	_breath.visible = e.wep == "trumpet"
+	if _breath.visible:
+		_breath.value = e.breath
+		var fs := _breath.get_theme_stylebox("fill") as StyleBoxFlat
+		fs.bg_color = BLOOD if e.gasp_t > 0 else (GOLD if e.breath < 1.0 else Color("#9fd0ff"))
 	var hint := ""
 	if e.has_sniper:
 		hint = "Q  원래 무기로" if e.wep == "sniper" else "Q  대물 저격총 꺼내기"

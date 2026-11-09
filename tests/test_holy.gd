@@ -137,7 +137,7 @@ func _run() -> void:
 	C.num.connect(func(_pos, text, style): nums.append([text, style]))
 	C.shatter(p, dm.global_position + Vector3(0, 0.3, 0))
 	await wait(3)
-	check("안에 있으면 느려짐 (×0.25)", dm.slow_t > 0 and near(dm.max_speed(), G.BASE_SPEED * 0.25, 0.01), "slow_t=%.2f max=%.2f" % [dm.slow_t, dm.max_speed()])
+	check("안에 있으면 느려짐 (×%.2f)" % G.WEAPONS.holy.slow, dm.slow_t > 0 and near(dm.max_speed(), G.BASE_SPEED * G.WEAPONS.holy.slow, 0.01), "slow_t=%.2f max=%.2f" % [dm.slow_t, dm.max_speed()])
 	await wait(8)  # 0.18초
 	check("0.15초에 첫 피해 8", near(dm.hp, 92.0), "hp=%.1f" % dm.hp)
 	check("지속 피해 숫자는 dot 모양", nums.has(["8", "dot"]), str(nums))

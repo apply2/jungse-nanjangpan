@@ -21,6 +21,14 @@ var weapons := {}   # 무기 키 → 손에 든 무기 노드 (든 것만 보임
 var pupils: Array = []  # [{m: MeshInstance3D, r: float}]
 var mk := {}            # 래그돌 점: head·shL·shR·pelvis·handL·handR·footL·footR
 var part_count := 0     # 합치기 전 메시 수 (테스트용 — 의상이 다 만들어졌는지)
+# 음유시인 (4.5단계)
+var cheeks: Array[Node3D] = []  # 볼 (연주하면 빵빵해짐 — 합치지 않음)
+var _cheek_k := 1.0
+var _notes: Array = []          # 춤출 때 머리 위로 뜨는 음표 [{n, life, v}]
+var _note_t := 0.0
+var _spin := 0.0                # 춤: 한 바퀴 도는 진행도 (0이면 안 돔)
+var _spin_wait := 0.0
+var voice: Node = null          # 트럼펫 멜로디 (TrumpetVoice, 소리가 켜져 있을 때만)
 
 # 애니메이션 상태 (HTML 엔티티의 wob/nk/eye 필드)
 var phase := 0.0
@@ -74,6 +82,9 @@ func _init(class_key := "archer") -> void:
 	_skirt.radial_segments = 18
 	_build()
 	_merge(self)
+	if GameData.CLASSES[cls].weapon == "trumpet" and Sfx.enabled:
+		voice = TrumpetVoice.new()
+		add_child(voice)
 
 
 ## 최적화(10단계): 같은 관절에 붙은 움직이지 않는 조각들을 메시 하나로 합친다 (캐릭터 하나 70~100번 → 20번 안팎).
@@ -83,6 +94,8 @@ func _merge(n: Node3D) -> void:
 	var skip := {}
 	for pp: Dictionary in pupils:
 		skip[pp.m] = true
+	for c in cheeks:
+		skip[c] = true
 	for w: Node3D in weapons.values():
 		skip[w] = true
 	_merge_node(n, skip)
@@ -364,12 +377,23 @@ func _build_head_extras(mouth: MeshInstance3D, tongue: MeshInstance3D) -> void:
 				_part(_sph, 0xf09a9a, Vector3(sx * 0.18, -0.09, 0.23), Vector3(0.06, 0.04, 0.02), head)
 		"crossbow":  # 사슬 목가리개
 			_part(_sph, STEEL_D, Vector3(0, -0.15, -0.1), Vector3(0.31, 0.18, 0.29), head)
+		"bard":  # 연주하면 빵빵해지는 볼 + 뒤로 넘긴 갈색 머리
+			for sx in [1, -1]:
+				var ck := _part(_sph, GameData.TRUMPET_LOOK.cheek, Vector3(sx * 0.15, -0.12, 0.2), Vector3(0.075, 0.065, 0.06), head)
+				ck.set_meta("base", ck.scale)
+				cheeks.append(ck)
+			_part(_sph, 0x6e4125, Vector3(0, 0.06, -0.14), Vector3(0.29, 0.22, 0.2), head)
 
 
 ## 오른손에 드는 무기 — HTML makeWeapon(). 병과 무기 + 주울 수 있는 저격총·닭·AK (든 것만 보임)
 ## 마상창은 말 모양에 붙어 있다 (WeaponModels.make_horse)
 func _build_weapons(K: Dictionary) -> void:
 	for key: String in [K.weapon, "sniper", "chicken", "ak"]:
+		if key == "trumpet":  # 트럼펫은 손이 아니라 입에 붙인다 (고개를 들면 같이 들림)
+			var w := _group(Vector3(0, -0.15, 0.27), head)
+			WeaponModels.make_trumpet(w, _mat)
+			weapons[key] = w
+			continue
 		var w := _group(Vector3.ZERO, hand_r)
 		w.rotation.x = 0.0 if key == "holy" or key == "chicken" else PI / 2
 		match key:
@@ -432,6 +456,12 @@ func _build_helm() -> void:
 		"crossbow":  # 챙 넓은 철모
 			_part(_cyl, 0xb9c0c8, Vector3(0, 0.19, 0), Vector3(0.42, 0.04, 0.42), helm)
 			_part(_sph, 0xb9c0c8, Vector3(0, 0.21, 0), Vector3(0.3, 0.19, 0.3), helm)
+		"bard":  # 긴 깃털 달린 납작한 베레모 (헤드샷이면 투구처럼 날아감)
+			var T: Dictionary = GameData.TRUMPET_LOOK
+			_rot(_part(_sph, T.beret, Vector3(0.04, 0.25, -0.03), Vector3(0.36, 0.1, 0.35), helm), Vector3(-0.1, 0, -0.22))
+			_part(_sph, T.beret, Vector3(0.04, 0.33, -0.03), Vector3(0.05, 0.04, 0.05), helm)
+			_rot(_part(_sph, T.feather, Vector3(-0.2, 0.42, -0.2), Vector3(0.04, 0.34, 0.06), helm), Vector3(-0.85, 0, 0.45))
+			_rot(_part(_sph, T.feather_tip, Vector3(-0.32, 0.64, -0.42), Vector3(0.03, 0.12, 0.045), helm), Vector3(-1.1, 0, 0.55))
 		"cleric":  # 주교 모자
 			var mt := CylinderMesh.new()
 			mt.top_radius = 0.12
@@ -538,6 +568,16 @@ func animate(p, dt: float) -> void:
 		var xr := clampf(minf(q / 0.12, (0.95 - q) / 0.1), 0, 1)
 		arm_r.rotation.x += xr * 0.9
 		arm_l.rotation.x += xr * (0.6 + sin(t * 7) * 0.35)
+	if wep == "trumpet" and p.mounted <= 0:  # 두 손으로 트럼펫을 입에 대고, 불면 리듬에 맞춰 까딱
+		var tilt: float = -p.pitch * 0.6
+		arm_r.rotation = Vector3(-1.95 + tilt - p.rec * 0.4, 0, 0.75)
+		arm_l.rotation = Vector3(-1.85 + tilt - p.rec * 0.3, 0, -0.75)
+		if p.playing:
+			var beat := absf(sin(t * TAU * 2.2))
+			upper.position.y += beat * 0.04
+			head.rotation.x += beat * 0.08
+	_anim_cheeks(p, dt)
+	_anim_dance(p, fa, dt)
 	if fa > 0:  # 넘어지면 만세 자세
 		var up := -2.9 + sin(t * 18) * 0.25
 		arm_l.rotation.x += (up - arm_l.rotation.x) * fa
@@ -557,6 +597,8 @@ func animate(p, dt: float) -> void:
 	p.hit_squash = maxf(0.0, p.hit_squash - dt * 5)
 	var s: float = p.hit_squash
 	upper.scale = Vector3(1 + 0.2 * s, 1 - 0.2 * s, 1 + 0.2 * s)
+	if voice:
+		voice.call("update", p.playing and p.alive, global_position)
 	if p.flash > 0 or _fl:
 		p.flash = maxf(0.0, p.flash - dt)
 		var f: float = p.flash / 0.14
@@ -565,3 +607,72 @@ func animate(p, dt: float) -> void:
 		if helm:
 			_set_emission(_helm_mats, c)
 		_fl = p.flash > 0
+
+
+# ── 음유시인·춤 (4.5단계) ────────────────────────────────────
+## 연주하면 볼이 빵빵하게 (WEAPONS.trumpet.cheek배)
+func _anim_cheeks(p, dt: float) -> void:
+	if cheeks.is_empty():
+		return
+	var want: float = GameData.WEAPONS.trumpet.cheek if p.playing else 1.0
+	_cheek_k += (want - _cheek_k) * minf(1.0, dt * 14)
+	for c in cheeks:
+		c.scale = (c.get_meta("base") as Vector3) * Vector3(_cheek_k, _cheek_k, _cheek_k * 1.2)
+
+
+## 춤: 팔 만세 흔들기 + 엉덩이 좌우 + 가끔 한 바퀴 + 머리 위 음표. 넘어지면(fa) 넘어짐 자세가 이긴다
+func _anim_dance(p, fa: float, dt: float) -> void:
+	var D: Dictionary = GameData.DANCE
+	if p.dance_t > 0 and fa == 0.0 and p.mounted <= 0:
+		var w := sin(t * 12)
+		arm_l.rotation = Vector3(-2.75 + w * 0.35, 0, -0.35 - w * 0.3)
+		arm_r.rotation = Vector3(-2.75 - w * 0.35, 0, 0.35 - w * 0.3)
+		var hip := sin(t * 8)
+		upper.position.x += hip * 0.09
+		upper.rotation.z += hip * 0.22
+		leg_l.rotation.z += maxf(0.0, hip) * 0.35
+		leg_r.rotation.z -= maxf(0.0, -hip) * 0.35
+		_spin_wait -= dt
+		if _spin <= 0 and _spin_wait <= 0:
+			_spin = 0.0001
+			_spin_wait = float(D.spin_every)
+		_note_t -= dt
+		if _note_t <= 0:
+			_note_t = float(D.note_every)
+			_spawn_note()
+	else:
+		_spin = 0.0
+		_spin_wait = float(D.spin_every) * 0.5
+	if _spin > 0:
+		_spin += dt / float(D.spin_t)
+		if _spin >= 1:
+			_spin = 0.0
+		else:
+			var k := _spin * _spin * (3 - 2 * _spin)
+			rotation.y += TAU * k
+	for i in range(_notes.size() - 1, -1, -1):
+		var nt: Dictionary = _notes[i]
+		nt.life -= dt
+		var n: Node3D = nt.n
+		if nt.life <= 0:
+			n.queue_free()
+			_notes.remove_at(i)
+			continue
+		n.global_position += Vector3(sin(nt.life * 9 + float(nt.v)) * 0.4, 0.9, 0) * dt
+		n.scale = Vector3.ONE * minf(1.0, nt.life / 0.35)
+
+
+func _spawn_note() -> void:
+	var cols: Array = GameData.TRUMPET_LOOK.note
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = GameData.col(cols[randi() % cols.size()])
+	var n := Node3D.new()
+	n.top_level = true
+	add_child(n)
+	WeaponModels.part(_sph, m, Vector3.ZERO, Vector3(0.06, 0.05, 0.05), n)
+	WeaponModels.part(_box, m, Vector3(0.05, 0.1, 0), Vector3(0.014, 0.2, 0.014), n)
+	WeaponModels.part(_box, m, Vector3(0.08, 0.19, 0), Vector3(0.06, 0.03, 0.014), n)
+	n.global_position = head.global_position + Vector3(randf_range(-0.25, 0.25), 0.45, randf_range(-0.25, 0.25))
+	n.rotation.y = randf() * TAU
+	_notes.append({"n": n, "life": 1.1, "v": randf() * 6})

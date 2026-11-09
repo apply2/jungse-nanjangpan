@@ -182,7 +182,7 @@ func _spawn_bots() -> void:
 		b.is_local = false
 		b.is_bot = true
 		b.ent_name = names[i % names.size()]
-		b.cls = GameData.CLASS_ORDER[randi() % GameData.CLASS_ORDER.size()]
+		b.cls = GameData.bot_classes().pick_random()
 		b.process_mode = Node.PROCESS_MODE_PAUSABLE
 		add_child(b)
 		b.alive = false

@@ -201,7 +201,8 @@ func _run() -> void:
 		var m = load("res://scripts/derp_model.gd").new(k2)
 		counts[k2] = m.part_count  # 조각은 합쳐서 그리므로 합치기 전 수를 센다
 		check(k2 + " 래그돌 점 8개", m.mk.size() == 8, "")
-		check(k2 + " 조각을 합쳐서 메시 수가 줄어듦", count_meshes(m) < m.part_count * 0.65, "%d → %d (남은 건 대부분 손에 드는 무기 4종)" % [m.part_count, count_meshes(m)])
+		var body_n: int = count_meshes(m) - m.weapons.values().reduce(func(acc, w): return acc + count_meshes(w), 0)
+		check(k2 + " 몸 조각을 관절별로 합침 (손에 드는 무기 빼고 14개 이하)", body_n <= 14, "합치기 전 %d개(무기 포함) → 몸 %d개" % [m.part_count, body_n])
 		m.free()
 	check("의상 조각 (야만인 표범무늬·수염, 궁수 리벳, 석궁병 방패, 성직자 영대)", counts.barbarian > 70 and counts.archer > 45 and counts.crossbow > 45 and counts.cleric > 40, str(counts))
 

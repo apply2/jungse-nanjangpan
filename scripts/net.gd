@@ -17,7 +17,7 @@ signal start_requested(rem: float) # 경기 시작 (HTML mpStart)
 signal end_requested               # 방장이 경기를 끝냄
 signal closed(reason: String)      # 연결이 끊겨 방을 나감
 
-const WEPS := ["stone", "bow", "crossbow", "sniper", "holy", "chicken", "lance", "ak"]
+const WEPS := ["stone", "bow", "crossbow", "sniper", "holy", "chicken", "lance", "ak", "trumpet", "fanfare"]  # 번호가 바뀌지 않게 뒤에만 더함
 const CODE_CHARS := "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 
@@ -456,7 +456,7 @@ func _my_state() -> Array:
 	var playing: bool = main.state == "playing" or main.state == "paused"
 	var fl := (1 if p.crouch else 0) | (2 if p.sliding else 0) | (4 if p.grounded else 0) | (8 if p.alive and playing else 0) \
 		| (16 if p.sprinting else 0) | (32 if p.charging else 0) | (64 if p.helmet else 0) | (128 if p.has_sniper else 0) \
-		| (256 if p.invuln > 0 else 0) | (512 if p.has_ak else 0)
+		| (256 if p.invuln > 0 else 0) | (512 if p.has_ak else 0) | (1024 if p.playing else 0) | (2048 if p.dance_t > 0 else 0)
 	return [p.global_position, p.yaw, p.pitch, p.velocity, fl, p.fall_t, p.fall_rx, p.fall_rz, p.fall_yaw, p.mounted,
 		maxf(0.0, ceilf(p.hp)), maxi(0, WEPS.find(p.wep)), p.charge, p.cls, p.kills, p.deaths, "play" if playing else "lobby"]
 
@@ -529,6 +529,8 @@ func _apply_remote(e: PlayerController, dt: float) -> void:
 	e.has_sniper = (fl & 128) != 0
 	e.invuln = 0.5 if (fl & 256) != 0 else 0.0
 	e.has_ak = (fl & 512) != 0
+	e.playing = (fl & 1024) != 0  # 연주 중이면 내 쪽에서 원뿔 안인지 계산한다 (Trumpet.update_victims)
+	e.dance_t = 0.2 if (fl & 2048) != 0 else 0.0  # 춤은 친구 컴퓨터가 정하고, 나는 모습만
 	var hel := (fl & 64) != 0
 	if e.helmet and not hel and e.model and e.model.helm:
 		combat.knock_helmet(e, Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)).normalized())
@@ -547,7 +549,7 @@ func _apply_remote(e: PlayerController, dt: float) -> void:
 
 
 # ── 사건 (HTML mpEvent / handleEvent) ───────────────────────
-## x = [종류, …]. f 발사 / sn 저격총 / ak / ln 마상창 / h 맞음 / k 죽음
+## x = [종류, …]. f 발사 / sn 저격총 / ak / ln 마상창 / fan 팡파레 / h 맞음 / k 죽음
 func event(x: Array) -> void:
 	if on:
 		_ev.rpc(x)
@@ -571,6 +573,9 @@ func _ev(x: Array) -> void:
 			combat.remote_shot(e, "ak", x[1], x[2])
 			if int(x[3]) == me and player.alive:
 				combat.damage(player, e, clampf(float(x[5]), 0, GameData.WEAPONS.ak.dmg), "ak", bool(x[4]), ((x[2] as Vector3) - (x[1] as Vector3)).normalized(), x[2])
+		"fan":  # [fan] — 친구 음유시인의 팡파레. 내가 앞에 있었는지는 내 쪽에서 판정
+			if e.alive:
+				combat.remote_fanfare(e)
 		"ln":  # [ln, 맞은 사람, 머리, 방향]
 			if int(x[1]) == me and player.alive:
 				var d: Vector3 = x[3]

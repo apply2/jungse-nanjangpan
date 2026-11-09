@@ -299,8 +299,9 @@ func _build_class() -> void:
 	pages["class"] = pg
 	var head := _pagehead(pg, "병과 선택", "diff")
 	_class_sub = _sub2("고르면 바로 전투에 들어갑니다", head)
+	pg.custom_minimum_size.x = 1180  # 병과 5개가 한 줄에 들어가게
 	_class_host = GridContainer.new()
-	_class_host.columns = 4
+	_class_host.columns = GameData.CLASS_ORDER.size()
 	_class_host.add_theme_constant_override("h_separation", 14)
 	_class_host.add_theme_constant_override("v_separation", 14)
 	pg.add_child(_class_host)
@@ -593,7 +594,7 @@ func _build_pause() -> void:
 	var sub := UiKit.rich(15, UiKit.c("parch"), pg)
 	sub.text = "[center]병과를 바꾸면 %s 적용됩니다.[/center]" % UiKit.gold("다음 부활부터")
 	_pause_cards = GridContainer.new()
-	_pause_cards.columns = 4
+	_pause_cards.columns = GameData.CLASS_ORDER.size()
 	_pause_cards.add_theme_constant_override("h_separation", 14)
 	pg.add_child(_pause_cards)
 	var act := _actions(pg)
@@ -666,8 +667,8 @@ func show_page(id: String) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not (screens.menu as Control).visible:
 		return
-	if cur_page == "class":  # 병과 고르는 화면에선 1~4로 바로 고름
-		for n in 4:
+	if cur_page == "class":  # 병과 고르는 화면에선 숫자키(1~5)로 바로 고름
+		for n in GameData.CLASS_ORDER.size():
 			if event.is_action_pressed("class_%d" % (n + 1)):
 				get_viewport().set_input_as_handled()
 				select_class(GameData.CLASS_ORDER[n])

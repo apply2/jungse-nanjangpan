@@ -36,7 +36,7 @@ const BOT_STAGGER_XBOW := 0.5
 const HEAD_KB := 1.25        # 헤드샷 넉백 배율
 const HEAD_UP := 1.15        # 헤드샷 띄우기 배율
 const MOUNT_KB := 0.2        # 말 탄 대상 넉백 배율
-const HIT_WOB := {"crossbow": 14.0, "bow": 10.0, "holy": 2.5, "ak": 2.5}  # 맞은 쪽으로 몸 출렁 (나머지 6)
+const HIT_WOB := {"crossbow": 14.0, "bow": 10.0, "holy": 2.5, "ak": 2.5, "trumpet": 1.0, "fanfare": 10.0}  # 맞은 쪽으로 몸 출렁 (나머지 6)
 const HIT_WOB_DEFAULT := 6.0
 const HIT_WOB_HEAD := 1.3
 
@@ -116,11 +116,16 @@ const CLASSES := {
 	"cleric": {"name": "성직자", "weapon": "holy", "speed": 1.0, "hp": 100, "regen": 20,
 		"color": 0xeee6d2, "leg": 0xeee6d2, "arm": 0xeee6d2, "foot": 0x8a5a32, "pips": [3, 2, 3, 2],
 		"desc": "성수병을 3개까지 모아 연달아 던진다. 3초간 남는 웅덩이가 밟은 적을 지지고 느리게 만든다. 체력 회복이 두 배 빠르다."},
+	# 4.5단계 (HTML에 없는 새 병과). 투구 자리엔 긴 깃털 달린 납작한 베레모 — 헤드샷이면 투구처럼 날아감
+	# pips는 명세에 없어서 임시로 정함 (이동 조금 빠름 · 피해 약함 · 사거리 짧음 · 계속 연주)
+	"bard": {"name": "음유시인", "weapon": "trumpet", "speed": 1.05, "hp": 95,
+		"color": 0x7a3fa8, "leg": 0xf3b33d, "arm": 0x7a3fa8, "foot": 0x5b3a22, "pips": [3, 1, 2, 5],
+		"desc": "트럼펫을 불어 적을 춤추게 만든다. 춤추는 적은 느리고 조준이 흔들린다."},
 }
-const CLASS_ORDER := ["barbarian", "archer", "crossbow", "cleric"]
+const CLASS_ORDER := ["barbarian", "archer", "crossbow", "cleric", "bard"]
 const STAT_LABELS := ["이동속도", "공격력", "사거리", "연사"]  # 병과 카드의 pips 순서
-const CLASS_EMBLEM := {"barbarian": 0xe8811f, "archer": 0xb8322a, "crossbow": 0x4d72b8, "cleric": 0x8c63c9}  # 카드 동그라미
-const CLASS_CHIP := {"barbarian": 0xf2a04e, "archer": 0xe8857a, "crossbow": 0x9fc0ea, "cleric": 0xcdb8ef}    # 점수판 꼬리표
+const CLASS_EMBLEM := {"barbarian": 0xe8811f, "archer": 0xb8322a, "crossbow": 0x4d72b8, "cleric": 0x8c63c9, "bard": 0x7a3fa8}  # 카드 동그라미
+const CLASS_CHIP := {"barbarian": 0xf2a04e, "archer": 0xe8857a, "crossbow": 0x9fc0ea, "cleric": 0xcdb8ef, "bard": 0xc9a2e8}    # 점수판 꼬리표
 
 # ── 무기 ─────────────────────────────────────────────────────
 # 단위: dmg 피해, cd 재사용(초), speed 투사체 속도(m/s), grav 중력, kb 넉백, up 띄우기, radius 판정 반경
@@ -139,9 +144,39 @@ const WEAPONS := {
 		"kb": 1.2, "up": 0, "hip": 0.03, "ads": 0.006, "bloom": 0.006, "max_bloom": 0.05, "speed_mul": 0.95, "zoom": 1.6, "swap": 0.3},
 	"chicken": {"name": "닭", "dmg": 1, "kb": 5, "up": 3, "speed": 24, "lift": 5, "grav": 18, "radius": 0.3},
 	"lance": {"name": "마상창", "dmg": 70, "kb": 28, "up": 9},
-	"holy": {"name": "성수", "cd": 0.4, "max_charges": 3, "recharge": 3.0, "slow": 0.25, "speed": 19, "lift": 5.5,
+	"holy": {"name": "성수", "cd": 0.4, "max_charges": 3, "recharge": 3.0, "slow": 0.35,  # slow: 웅덩이 속 이동 배율 (65% 느려짐, 사용자 요청으로 0.25→0.35)
+		 "speed": 19, "lift": 5.5,
 		"grav": 20, "radius": 0.14, "kb": 0, "dmg": 8, "tick_every": 0.5, "dur": 3.0, "area": 3.0},
+	# 트럼펫 (음유시인, 4.5단계). 좌클릭 = 연주(누르는 동안), 우클릭 = 팡파레 (조준 확대 없음)
+	# 연주: 앞쪽 원뿔(range m, 반각 half_angle 도) 안의 적에게 tick초마다 dmg. 벽 뒤는 안 들림. 넉백 없음, 피해 숫자는 dot 스타일
+	# 숨: 최대 breath_max초 연주, 안 불면 초당 breath_regen 회복. 다 쓰면 gasp_t초 동안 연주 못 하고 이동 ×gasp_speed
+	# 삑사리: 연주를 시작할 때마다 squeak_chance 확률, squeak_t초 동안 연주 안 됨
+	# 연출: 연주 중 볼 크기 cheek 배, 음마다 ±detune 센트 음정 틀어짐
+	"trumpet": {"name": "트럼펫", "range": 12.0, "half_angle": 25.0, "tick": 0.25, "dmg": 1.5, "kb": 0, "up": 0,
+		"breath_max": 3.0, "breath_regen": 1.5, "gasp_t": 1.0, "gasp_speed": 0.8,
+		"squeak_chance": 0.05, "squeak_t": 0.8,
+		"cheek": 1.6, "detune": 20.0},
+	# 팡파레 (음유시인 우클릭): 앞쪽 range m, 반각 half_angle 도 안의 적에게 dmg, 넉백 kb, 띄우기 up, 재사용 cd초
+	"fanfare": {"name": "팡파레", "range": 3.5, "half_angle": 45.0, "dmg": 15, "kb": 9, "up": 3, "cd": 6.0},
 }
+
+# ── 춤 디버프 (트럼펫, 4.5단계) ──────────────────────────────
+# 원뿔 안에 window초 동안 누적 need초 이상 있으면 dur초 동안 춤. 끝나면 immune초 동안 다시 안 춤
+# 춤추는 동안 이동 ×speed, 봇 조준 오차 ×bot_err. 공격은 가능, 조작은 안 뺏음 (명세: 바꾸지 말 것)
+# 넘어짐(fall_t)이 우선 — 넘어지면 춤은 멈추고 남은 시간은 사라짐
+# 아래 연출 값은 명세에 없어서 정함: sway 플레이어 조준 출렁(라디안)·sway_hz 출렁 빠르기,
+# spin_every 몇 초마다 한 바퀴·spin_t 한 바퀴 도는 시간, note_every 음표가 뜨는 간격
+const DANCE := {"window": 1.5, "need": 0.75, "dur": 2.0, "immune": 3.0, "speed": 0.6, "bot_err": 2.5,
+	"sway": 0.06, "sway_hz": 1.6, "spin_every": 1.1, "spin_t": 0.45, "note_every": 0.28}
+
+# 트럼펫·음유시인 모양 색 (명세: 금색 트럼펫, 깃털 달린 납작한 베레모)
+const TRUMPET_LOOK := {"brass": 0xf3b33d, "brass_dark": 0xb97a14, "beret": 0x4b2370, "feather": 0xf4ecd6, "feather_tip": 0xd94a3a,
+	"cheek": 0xf3a5a0, "note": [0xf3b33d, 0xc9a2e8, 0x7fd0ff, 0xff8fb0]}
+
+# 트럼펫 소리 (AudioStreamGenerator로 실시간 합성): 톱니파 + 비브라토 + 로우패스
+# melody: base_hz 기준 반음 수 (도-미-솔-미-도-솔-도), note 한 음 길이(초), gap 음 사이 쉼
+const TRUMPET_SND := {"base_hz": 523.25, "melody": [0, 4, 7, 4, 0, 7, 12], "note": 0.16, "gap": 0.025,
+	"vib_hz": 6.0, "vib_cents": 18.0, "lowpass": 2400.0, "vol": 0.22, "rate": 22050}
 
 # ── 봇 난이도 ────────────────────────────────────────────────
 const DIFF := {
@@ -166,11 +201,14 @@ const BOT := {
 	"ak_err": 0.8,               # AK는 저격 오차 ×0.8
 	"charge_dist": 34.0,         # 활: 거리/34 만큼 당김 (0.35~1)
 	"charge_min": 0.35,
+	"bard_play": 11.0,           # 음유시인: 대상이 이 거리 안이고 보이면 연주 (원뿔 반각 안으로 돌아섬)
+	"bard_fanfare": 3.5,         # 음유시인: 이 거리 안이면 팡파레
+	"bard_breath_stop": 0.5,     # 음유시인: 숨이 이만큼 남으면 멈추고 거리를 벌려 숨 회복
 	"wander_reach": 3.0,         # 돌아다닐 지점에 이만큼 가까우면 새 지점
 	"strafe_t": [0.6, 1.8],      # 좌우 무빙 방향을 바꾸는 간격
 	"strafe_stop": 0.2,          # 무빙 안 할 확률
 	"strafe_k": 0.9,
-	"pref": {"barbarian": 4.0, "archer": 22.0, "crossbow": 30.0, "cleric": 15.0},  # 병과별 선호 거리
+	"pref": {"barbarian": 4.0, "archer": 22.0, "crossbow": 30.0, "cleric": 15.0, "bard": 8.0},  # 병과별 선호 거리
 	"pref_sniper": 28.0, "pref_ak": 16.0,
 	"item_seek": 45.0, "horse_seek": 40.0,  # 이 거리 안의 저격총·AK / 말은 주우러 감
 	"item_busy": 8.0,            # 단, 보이는 적이 이보다 가까우면 싸움이 먼저
@@ -289,6 +327,7 @@ const NET := {
 	"dead_wait": 0.5, "revive_guard": 1.0,  # 죽음 사건보다 상태가 먼저 와도 잠깐 기다림 / 죽은 직후 옛 상태로 안 살아남
 }
 var hitstop_enabled := true   # false면 히트스톱 안 함 (자동 테스트용 — 프레임 수로 시간을 재니까)
+var squeak_override := -1.0   # 테스트: 0 이상이면 트럼펫 삑사리 확률을 이걸로 (무작위 때문에 테스트가 흔들리지 않게)
 
 # ── 런타임 설정 (user://settings.cfg에 저장 — HTML localStorage aa-cls / aa-diff / aa-sens / aa-view) ──
 const SETTINGS_PATH := "user://settings.cfg"
@@ -362,6 +401,11 @@ func mat(hex: int) -> StandardMaterial3D:
 	return _mat_cache[hex]
 
 
+## 봇이 무작위로 고를 수 있는 병과 ("wip" 병과는 뺌)
+func bot_classes() -> Array:
+	return CLASS_ORDER.filter(func(k: String) -> bool: return not CLASSES[k].get("wip", false))
+
+
 func class_hp(cls: String) -> int:
 	return int(CLASSES[cls].get("hp", 100))
 
@@ -377,7 +421,7 @@ func _setup_input() -> void:
 		"move_forward": [KEY_W], "move_back": [KEY_S], "move_left": [KEY_A], "move_right": [KEY_D],
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "crouch": [KEY_CTRL, KEY_C],
 		"toggle_view": [KEY_V], "swap": [KEY_Q], "interact": [KEY_E], "scoreboard": [KEY_TAB],
-		"class_1": [KEY_1], "class_2": [KEY_2], "class_3": [KEY_3], "class_4": [KEY_4],  # 병과 고르는 화면에서만
+		"class_1": [KEY_1], "class_2": [KEY_2], "class_3": [KEY_3], "class_4": [KEY_4], "class_5": [KEY_5],  # 병과 고르는 화면에서만
 	}
 	for action: String in keys:
 		if not InputMap.has_action(action):

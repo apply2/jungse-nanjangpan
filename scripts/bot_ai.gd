@@ -27,6 +27,7 @@ var want_charge := 0.6       # 활을 이만큼(초) 당기고 놓음
 var slide_hold := 0.0
 var aim_head := false
 var sm := Vector3.ZERO       # 부드럽게 만든 이동 방향
+var resting := false         # 음유시인: 숨 고르는 중 (연주 멈추고 거리를 벌림)
 
 
 ## 정규분포 난수 — HTML gauss()
@@ -49,6 +50,7 @@ func reset(world_point: Vector3) -> void:
 	target = null
 	vis = false
 	react = 0.5
+	resting = false
 	stuck = 0.0
 	unstuck_t = 0.0
 	wander = world_point
@@ -118,6 +120,7 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 	# ── 어디로 갈지 ──
 	var move := Vector3.ZERO
 	var want_fire := false
+	var want_fan := false   # 음유시인 팡파레 (우클릭)
 	var aim := {}
 	var wp: Vector3 = wander if wander != null else epos
 	var it: Items = combat.items
@@ -165,7 +168,23 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 		aim = aim_solve(e, t)
 		var d := t.global_position.distance_to(epos)
 		var fr: Dictionary = B.fire_range
-		want_fire = react <= 0 and (fire_ok or e.wep == "chicken") and (d < float(fr[e.wep]) if fr.has(e.wep) else true)
+		if e.wep == "trumpet":  # 음유시인: 가까우면 불고, 붙으면 팡파레, 숨이 모자라면 쉰다
+			want_fire = react <= 0 and not resting and d < float(B.bard_play)
+			want_fan = react <= 0 and d < float(B.bard_fanfare) and e.fan_cd <= 0
+		else:
+			want_fire = react <= 0 and (fire_ok or e.wep == "chicken") and (d < float(fr[e.wep]) if fr.has(e.wep) else true)
+	# 음유시인 숨 관리: 0.5초 남으면 멈추고, 다 찰 때까지 대상에게서 물러남
+	if e.wep == "trumpet":
+		if e.playing and e.breath <= float(B.bard_breath_stop):
+			resting = true
+		elif resting and e.breath >= float(GameData.WEAPONS.trumpet.breath_max) - 0.05:
+			resting = false
+		if resting and t and e.mounted <= 0:
+			var away := Vector3(epos.x - t.global_position.x, 0, epos.z - t.global_position.z)
+			if away.length_squared() > 1e-4:
+				move = away.normalized() + Vector3(-away.z, 0, away.x).normalized() * strafe * 0.5
+	else:
+		resting = false
 	# 말 탄 사람 피하기
 	if e.mounted <= 0:
 		for o in combat.ents:
@@ -240,7 +259,10 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 	var rate := (float(D.turn) if not aim.is_empty() else float(B.turn_idle)) * dt
 	e.yaw += clampf(diff, -rate, rate)
 	e.pitch += clampf(dp - e.pitch, -rate, rate)
-	var aligned := absf(diff) < (float(B.aligned_sniper) if e.wep == "sniper" else float(B.aligned)) and absf(dp - e.pitch) < float(B.aligned_pitch)
+	var align_lim := float(B.aligned_sniper) if e.wep == "sniper" else float(B.aligned)
+	if e.wep == "trumpet":  # 원뿔이 넓으니 반각 안쪽(60%)에만 들어오면 분다
+		align_lim = deg_to_rad(float(GameData.WEAPONS.trumpet.half_angle)) * 0.6
+	var aligned := absf(diff) < align_lim and (e.wep == "trumpet" or absf(dp - e.pitch) < float(B.aligned_pitch))
 	# 멀리 있는 적을 쫓을 때만 달림
 	var sprint := t != null and not want_fire and not e.charging and t.global_position.distance_to(epos) > float(B.sprint_dist)
 	var held: bool
@@ -248,17 +270,27 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 		held = (want_fire and aligned and (e.cd > 0 or e.charge < want_charge)) or (e.charging and e.charge < want_charge and want_fire)
 	else:
 		held = want_fire and aligned
-	return {"wish": move, "jump": jump, "crouch": crouch, "sprint": sprint, "fire": held}
+	return {"wish": move, "jump": jump, "crouch": crouch, "sprint": sprint, "fire": held, "aim": want_fan and aligned}
 
 
 ## 맞히려면 어디를 봐야 하나 — HTML aimSolve(). {yaw, pitch} (오차 ex·ey 포함)
+## 춤추는 봇은 조준 오차가 DANCE.bot_err배 (4.5단계)
 func aim_solve(e: PlayerController, t: PlayerController) -> Dictionary:
+	var a := _aim_solve(e, t)
+	if e.dance_t > 0:
+		var m := float(GameData.DANCE.bot_err) - 1.0
+		a.yaw += ex * m
+		a.pitch += ey * m
+	return a
+
+
+func _aim_solve(e: PlayerController, t: PlayerController) -> Dictionary:
 	var B: Dictionary = GameData.BOT
 	var eye := e.eye_pos()
 	var tpos := t.global_position
 	var tvel := t.velocity
 	var target_pt := tpos + Vector3(0, float(B.aim_head) if aim_head or e.wep == "sniper" else float(B.aim_body), 0)
-	if e.wep == "sniper" or e.wep == "ak":  # 히트스캔: 곧장
+	if e.wep == "sniper" or e.wep == "ak" or e.wep == "trumpet":  # 히트스캔·트럼펫 원뿔: 곧장
 		var d := target_pt - eye
 		return {"yaw": atan2(-d.x, -d.z) + ex, "pitch": atan2(d.y, Vector2(d.x, d.z).length()) + ey}
 	if e.wep == "holy" or e.wep == "chicken":  # 포물선: 발밑(닭은 0.9 높이)에 떨어질 각도를 훑어서 찾음

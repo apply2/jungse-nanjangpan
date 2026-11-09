@@ -60,7 +60,7 @@ func _run() -> void:
 	M.open_diff_page()
 	check("AI대전 → 난이도 페이지", M.cur_page == "diff" and M._diff_host.get_child_count() == 3, "")
 	M.open_class_page()
-	check("난이도 → 병과 페이지 (설명에 난이도)", M.cur_page == "class" and M._class_sub.text.contains("어려움") and M._class_host.get_child_count() == 4, M._class_sub.text)
+	check("난이도 → 병과 페이지 (설명에 난이도)", M.cur_page == "class" and M._class_sub.text.contains("어려움") and M._class_host.get_child_count() == G.CLASS_ORDER.size(), M._class_sub.text)
 	M.toast("추후 업데이트 될 내용입니다.")
 	await wait(20)
 	check("아래쪽 알림 상자", M._toast.visible and M._toast_l.text == "추후 업데이트 될 내용입니다.", "")
@@ -107,7 +107,7 @@ func _run() -> void:
 	main.pause_game()
 	var t0: float = main.time_left
 	await wait(30)
-	check("일시정지 화면", main.state == "paused" and paused and M.screens.pause.visible and M._pause_cards.get_child_count() == 4, "")
+	check("일시정지 화면", main.state == "paused" and paused and M.screens.pause.visible and M._pause_cards.get_child_count() == G.CLASS_ORDER.size(), "")
 	check("일시정지 중엔 안 움직이고 시간도 멈춤", p.global_position.distance_to(pos0) < 0.01 and main.time_left == t0, "moved=%.3f" % p.global_position.distance_to(pos0))
 	M.next_class_picked.emit("cleric")
 	await wait(2)

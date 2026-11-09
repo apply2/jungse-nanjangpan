@@ -27,6 +27,7 @@ var zones: Array[Dictionary] = []  # 성수 웅덩이 {owner, pos, r, life, tick
 var aim_mk: MeshInstance3D         # 성수 착지 지점 표시 (내 화면)
 var ragdolls: Array = []           # 쓰러진 몸 (Ragdoll)
 var hit_stop := 0.0                # 남은 히트스톱 (실제 시간, 초)
+var clock := 0.0                   # 경기 물리 시간 (춤 누적 기록에 씀)
 
 const SPINS := ["stone", "holy", "chicken"]  # 날아가며 빙글빙글 도는 투사체 (나머지는 진행 방향을 봄)
 
@@ -81,6 +82,7 @@ func tp_on() -> bool:
 
 # ── 매 물리 프레임 (HTML simulate) ──
 func _physics_process(dt: float) -> void:
+	clock += dt
 	_tick_timers(dt)
 	items.update_sniper(dt)
 	items.update_ak(dt)
@@ -90,6 +92,7 @@ func _physics_process(dt: float) -> void:
 				toggle_special(e)
 			weapon_update(e, e.fire_held, dt)
 		e.swap_req = false
+	Trumpet.update_victims(self, dt)  # 트럼펫 소리를 들은 쪽: 피해·춤 (4.5단계)
 	update_projectiles(dt)
 	update_zones(dt)
 	items.update_chickens(dt)
@@ -309,7 +312,7 @@ func damage(v: PlayerController, a: PlayerController, base: float, kind: String,
 	if kind == "ak":
 		if v.mounted <= 0:
 			v.kb_t = maxf(v.kb_t, GameData.KB_TIME_AK)
-	elif kind != "holy" and v.mounted <= 0:
+	elif kind != "holy" and kind != "trumpet" and v.mounted <= 0:  # 성수·트럼펫은 지속 피해라 경직·미끄러짐 없음
 		v.kb_t = GameData.KB_TIME
 		if v.is_bot:
 			v.stagger = GameData.BOT_STAGGER_XBOW if kind == "crossbow" else GameData.BOT_STAGGER
@@ -327,7 +330,7 @@ func damage(v: PlayerController, a: PlayerController, base: float, kind: String,
 		Sfx.play("hurt")
 	if a and a.is_local:
 		hitmark.emit(false)
-		if kind != "holy":
+		if kind != "holy" and kind != "trumpet":
 			Sfx.play("head" if head else "hit")
 	var dead := v.hp <= 0
 	if knocked:
@@ -363,12 +366,13 @@ func impact_fx(v: PlayerController, a: PlayerController, pt: Variant, kind: Stri
 			add_hit_stop(GameData.HITSTOP.kill if dead else GameData.HITSTOP.chicken)
 		_hurt_me(v, a, GameData.SHAKE.chicken)
 		return
-	if kind == "holy":  # 지속 피해는 가볍게
+	if kind == "holy" or kind == "trumpet":  # 지속 피해는 가볍게 (숫자도 작은 dot)
 		if seen:
-			fx.puff(p, 0xffe07a, 0.08, 2)
+			fx.puff(p, 0xffe07a if kind == "holy" else 0xc9a2e8, 0.08, 2)
 			if dead:
 				fx.ring(p, 0xffd56b, 2.2, 0.38)
-		Sfx.play("sizzle", p)
+		if kind == "holy":
+			Sfx.play("sizzle", p)
 		if mine:
 			num.emit(p, "처치" if dead else str(roundi(dmg)), "kill" if dead else "dot")
 			if dead:
@@ -431,6 +435,12 @@ func weapon_update(e: PlayerController, held: bool, dt: float) -> void:
 					Sfx.play("reload")
 		else:
 			e.charge_t = 0.0
+	# 음유시인은 숨이 다른 무기를 들고 있어도 돌아온다. 연주·팡파레는 트럼펫을 들고 넘어지지 않았을 때만
+	if GameData.CLASSES[e.cls].weapon == "trumpet":
+		var can := e.wep == "trumpet" and e.swap_t <= 0 and e.fall_t <= 0
+		Trumpet.update(self, e, held and can, dt)
+		if can and e.aim_held:
+			Trumpet.try_fanfare(self, e)
 	if e.swap_t > 0 or e.fall_t > 0:
 		e.trig_prev = held
 		return
@@ -452,6 +462,8 @@ func weapon_update(e: PlayerController, held: bool, dt: float) -> void:
 		"ak":  # 누르고 있으면 연사
 			if held and e.cd <= 0:
 				fire(e, "ak")
+		"trumpet":  # 위에서 Trumpet.update가 처리
+			pass
 	e.trig_prev = held
 
 
@@ -905,7 +917,7 @@ func kill(v: PlayerController, a: PlayerController, kind: String, head: bool, di
 		Sfx.play("kill")
 		toast.emit(("헤드샷 처치 · " if head else "처치 · ") + v.ent_name)
 	if v.is_bot and randf() < GameData.BOT_RECLASS:
-		v.next_cls = GameData.CLASS_ORDER[randi() % GameData.CLASS_ORDER.size()]
+		v.next_cls = GameData.bot_classes().pick_random()
 	killed.emit(v, a, kind, head)  # 킬피드·사망 화면·20킬 종료는 Main이 받는다
 
 
@@ -978,6 +990,13 @@ func remote_shot(e: PlayerController, kind: String, from: Vector3, end: Vector3)
 		fx.puff(from, 0xffd27a, 0.07, 2)
 		Sfx.play("ak", from)
 		e.rec_v += 1.2
+
+
+## 친구 음유시인이 팡파레를 붊: 효과는 그대로, 내가 앞에 있었으면 내 쪽에서 판정
+func remote_fanfare(e: PlayerController) -> void:
+	Trumpet.fanfare_fx(self, e)
+	if me and me.alive:
+		Trumpet.hit_fanfare(self, e, me)
 
 
 ## 친구가 맞음 (친구 쪽에서 판정해서 알려줌): 맞은 효과·숫자·히트마크

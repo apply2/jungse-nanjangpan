@@ -33,6 +33,18 @@ var slow_t := 0.0     # 성수 둔화
 var charges := 3      # 성수 남은 개수 (HTML charges)
 var charge_t := 0.0   # 다음 성수가 차기까지 지난 시간 (HTML chargeT)
 var has_chicken := false
+# 음유시인 트럼펫 (4.5단계, Trumpet이 관리)
+var playing := false      # 연주 중
+var breath := 3.0         # 남은 숨 (최대 WEAPONS.trumpet.breath_max)
+var gasp_t := 0.0         # 숨이 차서 헐떡이는 남은 시간 (연주 못 함, 느려짐)
+var squeak_t := 0.0       # 삑사리 뒤 연주 못 하는 남은 시간
+var fan_cd := 0.0         # 팡파레 재사용 대기
+# 춤 디버프 (누구나 걸림)
+var dance_t := 0.0        # 춤추는 남은 시간
+var dance_immune := 0.0   # 춤이 끝난 뒤 다시 안 추는 남은 시간
+var dance_log: Array = [] # 원뿔 안에 있었던 기록 [시각, 시간] — 최근 DANCE.window초만 남김
+var dance_sway := 0.0     # 춤 때문에 yaw에 더한 출렁임 (다음 프레임에 빼고 새로 더함)
+var tr_ticks := {}        # 트럼펫 피해 주기: 연주자 → 쌓인 시간
 var has_sniper := false   # 대물 저격총을 주웠음 (Q로 원래 무기와 바꿈)
 var has_ak := false       # AK-47을 주웠음
 var ammo := 0             # 저격총 남은 탄
@@ -181,6 +193,16 @@ func spawn_at(p: Vector3) -> void:
 	has_chicken = false
 	has_sniper = false
 	has_ak = false
+	playing = false
+	breath = float(GameData.WEAPONS.trumpet.breath_max)
+	gasp_t = 0.0
+	squeak_t = 0.0
+	fan_cd = 0.0
+	dance_t = 0.0
+	dance_immune = 0.0
+	dance_log.clear()
+	dance_sway = 0.0
+	tr_ticks.clear()
 	ammo = 0
 	ak_ammo = 0
 	bloom = 0.0
@@ -213,6 +235,8 @@ func die(dir: Vector3) -> void:
 	velocity = Vector3.ZERO
 	fire_held = false
 	charging = false
+	playing = false
+	dance_t = 0.0
 	if model:
 		model.visible = false
 
@@ -333,6 +357,10 @@ func max_speed() -> float:
 		sp *= GameData.WEAPONS.holy.slow
 	if has_chicken:
 		sp *= GameData.ITEM.chicken_speed
+	if dance_t > 0:  # 춤추는 중
+		sp *= GameData.DANCE.speed
+	if gasp_t > 0:  # 숨이 차서 헐떡임
+		sp *= GameData.WEAPONS.trumpet.gasp_speed
 	return sp
 
 
@@ -568,6 +596,7 @@ func set_spectating(on: bool) -> void:
 		fire_held = false
 		aim_held = false
 		reset_charge()
+		playing = false
 		if model:
 			model.visible = false
 

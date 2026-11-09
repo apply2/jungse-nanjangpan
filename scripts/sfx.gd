@@ -39,6 +39,11 @@ const RECIPES := {
 	"neigh": [["t", 620, 0.18, "sawtooth", 0.1, 300, 0.0], ["t", 900, 0.35, "sawtooth", 0.09, -450, 0.15], ["t", 500, 0.2, "sawtooth", 0.06, -200, 0.48]],
 	"hoof": [["n", 0.05, 0.22, 420, "lowpass", 0.0], ["n", 0.04, 0.16, 520, "lowpass", 0.07]],
 	"jump": [["n", 0.05, 0.03, 500, "lowpass", 0.0]],
+	# 음유시인 (4.5단계). 연주 멜로디는 TrumpetVoice가 실시간으로 만든다
+	"squeak": [["t", 1500, 0.08, "sawtooth", 0.12, 1100, 0.0], ["t", 2700, 0.14, "square", 0.07, -1500, 0.07]],  # 삑사리: 높게 삑 하고 꺾임
+	"fanfare": [["t", 523, 0.11, "sawtooth", 0.16, 0, 0.0], ["t", 659, 0.11, "sawtooth", 0.16, 0, 0.11],
+		["t", 784, 0.34, "sawtooth", 0.2, 0, 0.22], ["n", 0.12, 0.08, 1800, "bandpass", 0.0]],  # 빠바밤: 3음 상승
+	"gasp": [["n", 0.32, 0.12, 1200, "bandpass", 0.0], ["n", 0.28, 0.08, 900, "bandpass", 0.42]],  # 헐떡임
 }
 
 var enabled := true          # 헤드리스면 꺼짐
@@ -73,18 +78,25 @@ func _process(_dt: float) -> void:  # 한 프레임에 하나씩 미리 굽기
 	_stream(_pending.pop_back())
 
 
+## pos에서 난 소리가 들리는 크기 (경기 중이 아니면 0) — HTML vol(): 1/(1+거리/9)
+func vol_at(pos: Vector3) -> float:
+	if not playing:
+		return 0.0
+	var from: Vector3 = Vector3.ZERO
+	if listener and listener.get("alive"):
+		from = listener.global_position
+	elif listener_cam:
+		from = listener_cam.global_position
+	return 1.0 / (1.0 + pos.distance_to(from) / 9.0)
+
+
 ## 소리 내기. pos가 있으면 거리에 따라 작아지고, 경기 중이 아니면 안 난다.
 func play(sound: String, pos: Variant = null) -> void:
 	var v := 1.0
 	if pos != null:
 		if not playing:
 			return
-		var from: Vector3 = Vector3.ZERO
-		if listener and listener.get("alive"):
-			from = listener.global_position
-		elif listener_cam:
-			from = listener_cam.global_position
-		v = 1.0 / (1.0 + (pos as Vector3).distance_to(from) / 9.0)
+		v = vol_at(pos)
 	played.append(sound)
 	if played.size() > 64:
 		played.pop_front()
