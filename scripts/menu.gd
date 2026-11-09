@@ -237,6 +237,9 @@ func _build_main() -> void:
 	nav.add_child(ai)
 	var fr := UiKit.navbtn("친구대전", "방 코드로 같이")
 	fr.pressed.connect(func() -> void:
+		if OS.has_feature("web"):  # 같은 와이파이 직접 연결(ENet·UDP)은 브라우저에서 못 함
+			toast("친구대전은 PC 버전에서만 할 수 있어요.")
+			return
 		_friend_status.text = ""
 		_nick.text = GameData.nick
 		show_page("friend"))

@@ -42,6 +42,7 @@ func _ready() -> void:
 	body.name = "Colliders"
 	add_child(body)
 	build()
+	_merge_static()
 	_build_spawns()
 
 
@@ -91,6 +92,57 @@ func roof(pos: Vector3, scl: Vector3, hex: int) -> void:
 	add_child(holder)
 	var mi := mesh(_roof, hex, Vector3.ZERO, Vector3.ONE, true, holder)
 	mi.rotation.y = PI / 4.0
+
+
+## 최적화(10단계): 움직이지 않는 맵 조각 460여 개를 그림자 켬/끔 두 덩어리로 합친다.
+## 색은 정점 색으로 넣어 재질 하나로 그린다 → 그리기 호출이 수백 번에서 몇 번으로 준다 (웹에서 특히 중요).
+## 구름(움직임)과 깃발(셰이더)은 그대로 둔다.
+func _merge_static() -> void:
+	var parts := {true: [], false: []}
+	var cloud_set := {}
+	for c in _clouds:
+		cloud_set[c] = true
+	for mi in _static_meshes(self, cloud_set):
+		var sm := mi.material_override as StandardMaterial3D
+		parts[mi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF].append([mi, sm.albedo_color, _local_xform(mi)])
+	var mat := Meshes.vertex_color_mat()
+	for shadow: bool in [true, false]:
+		if (parts[shadow] as Array).is_empty():
+			continue
+		var out := MeshInstance3D.new()
+		out.name = "Static" if shadow else "StaticNoShadow"
+		out.mesh = Meshes.merge((parts[shadow] as Array).map(func(it: Array) -> Array: return [(it[0] as MeshInstance3D).mesh, it[1], it[2]]))
+		out.material_override = mat
+		out.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(out)
+	for shadow: bool in [true, false]:
+		for it: Array in parts[shadow]:
+			var mi: MeshInstance3D = it[0]
+			var par := mi.get_parent()
+			mi.free()
+			if par != self and par.get_child_count() == 0:  # 지붕 받침 노드
+				par.free()
+
+
+func _static_meshes(n: Node, skip: Dictionary) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	for c in n.get_children():
+		if skip.has(c) or c == body:
+			continue
+		if c is MeshInstance3D and (c as MeshInstance3D).material_override is StandardMaterial3D:
+			out.append(c)
+		out.append_array(_static_meshes(c, skip))
+	return out
+
+
+## World 기준 변환 (부모 노드를 따라 올라가며 곱함)
+func _local_xform(n: Node3D) -> Transform3D:
+	var t := n.transform
+	var p := n.get_parent()
+	while p != self:
+		t = (p as Node3D).transform * t
+		p = p.get_parent()
+	return t
 
 
 func overlaps_any(p: Vector3, r: float, h: float) -> bool:
@@ -235,14 +287,16 @@ func build() -> void:
 	for n in 9:
 		var g := Node3D.new()
 		add_child(g)
+		var puffs := []  # 구름 하나 = 공 4개를 합친 메시 하나 (10단계 최적화)
 		for j in 4:
-			var s := MeshInstance3D.new()
-			s.mesh = _sph
-			s.material_override = cloud_mat
-			s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			s.scale = Vector3(_rng.randf_range(4, 7), _rng.randf_range(2.5, 4), _rng.randf_range(4, 6))
-			s.position = Vector3(j * 4 - 6, _rng.randf_range(-1, 1), _rng.randf_range(-2, 2))
-			g.add_child(s)
+			var scl := Vector3(_rng.randf_range(4, 7), _rng.randf_range(2.5, 4), _rng.randf_range(4, 6))
+			var pos := Vector3(j * 4 - 6, _rng.randf_range(-1, 1), _rng.randf_range(-2, 2))
+			puffs.append([_sph, Color.WHITE, Transform3D(Basis.from_scale(scl), pos)])
+		var s := MeshInstance3D.new()
+		s.mesh = Meshes.merge(puffs)
+		s.material_override = cloud_mat
+		s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		g.add_child(s)
 		g.position = Vector3(_rng.randf_range(-140, 140), _rng.randf_range(55, 75), _rng.randf_range(-140, 140))
 		_clouds.append(g)
 

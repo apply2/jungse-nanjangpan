@@ -134,19 +134,20 @@ func spawn_sniper() -> void:
 
 
 ## 아이템이 나타났다는 알림 + 소리 (친구대전 손님은 방장이 알려줄 때 부른다)
+## 등장 알림은 제목만 띄운다 (설명 문구는 사용자 요청으로 뺌)
 func announce(key: String) -> void:
 	var me_in := combat.me != null and not combat.me.spectating
 	match key:
 		"sn":
-			banner.emit("대물 저격총이 나타났다!", "빛기둥에 닿으면 바로 주워집니다 · 5발 · 한 발에 한 명")
+			banner.emit("대물 저격총이 나타났다!", "")
 			if me_in:
 				Sfx.play("bell")
 		"ak":
-			banner.emit("AK-47이 나타났다!", "빛기둥에 닿으면 바로 주워집니다 · 25발 연사 · 우클릭 정조준")
+			banner.emit("AK-47이 나타났다!", "")
 			if me_in:
 				Sfx.play("bell")
 		"hs":
-			banner.emit("기사의 말이 나타났다!", "올라타면 7초 동안 마상창 돌격 · 찔리면 멀리 날아감")
+			banner.emit("기사의 말이 나타났다!", "")
 			if me_in:
 				Sfx.play("neigh", horse.pos)
 

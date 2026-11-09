@@ -234,3 +234,56 @@ static func box() -> BoxMesh:
 	b.size = Vector3.ONE
 	_cache.box = b
 	return b
+
+
+## 최적화(10단계): 여러 조각을 정점 색이 든 메시 하나로 합친다 → 그리기 호출 한 번.
+## items = [[Mesh, Color(sRGB), Transform3D], …]. 짝이 되는 재질은 vertex_color_mat().
+static func merge(items: Array) -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var cols := PackedColorArray()
+	var idx := PackedInt32Array()
+	for it: Array in items:
+		var m: Mesh = it[0]
+		var col: Color = it[1]
+		var xf: Transform3D = it[2]
+		var nxf := Transform3D(xf.basis.inverse().transposed(), Vector3.ZERO)  # 늘인 조각의 법선
+		for si in m.get_surface_count():
+			var arr := m.surface_get_arrays(si)
+			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var base := verts.size()
+			verts.append_array(xf * v)
+			norms.append_array(nxf * (arr[Mesh.ARRAY_NORMAL] as PackedVector3Array))  # 셰이더가 다시 정규화함
+			var c := PackedColorArray()
+			c.resize(v.size())
+			c.fill(col)
+			cols.append_array(c)
+			var ind: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+			if ind.is_empty():
+				ind = PackedInt32Array(range(v.size()))
+			if base == 0:
+				idx.append_array(ind)
+			else:
+				var n := idx.size()
+				idx.resize(n + ind.size())
+				for k in ind.size():
+					idx[n + k] = ind[k] + base
+	var a := []
+	a.resize(Mesh.ARRAY_MAX)
+	a[Mesh.ARRAY_VERTEX] = verts
+	a[Mesh.ARRAY_NORMAL] = norms
+	a[Mesh.ARRAY_COLOR] = cols
+	a[Mesh.ARRAY_INDEX] = idx
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
+	return am
+
+
+## merge()로 합친 메시용 재질 (GameData.mat과 같은 색이 나오게 정점 색을 sRGB로 읽음)
+static func vertex_color_mat() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.vertex_color_is_srgb = true
+	m.roughness = 1.0
+	m.metallic_specular = 0.0
+	return m

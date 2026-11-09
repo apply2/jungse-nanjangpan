@@ -17,6 +17,7 @@ var net: Net
 var bots: Array[PlayerController] = []
 var state := "menu"
 var _lobby_t := 0.0
+var _was_locked := false  # 웹: 지난 프레임에 마우스가 잠겨 있었나
 var time_left: float = GameData.MATCH_TIME
 
 
@@ -296,6 +297,7 @@ func _on_killed(v: PlayerController, a: PlayerController, kind: String, head: bo
 
 
 func _process(dt: float) -> void:
+	_check_web_lock()
 	if net.on:
 		if (state == "playing" or state == "paused") and not net.is_host:  # 방장 시계에 맞춰가며 줄임
 			time_left = maxf(0.0, time_left - dt / maxf(Engine.time_scale, 0.01))
@@ -339,6 +341,16 @@ func _setup_environment() -> void:
 	sun.shadow_bias = 0.04
 	add_child(sun)
 	sun.look_at_from_position(Vector3(35, 70, 22), Vector3.ZERO)
+
+
+## 웹에선 Esc를 브라우저가 먼저 가져가 마우스 잠금만 풀린다 → 잠금이 풀리면 일시정지 (HTML pointerlockchange)
+func _check_web_lock() -> void:
+	if not OS.has_feature("web"):
+		return
+	var locked := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	if _was_locked and not locked and state == "playing":
+		pause_game()
+	_was_locked = locked
 
 
 func _unhandled_input(event: InputEvent) -> void:

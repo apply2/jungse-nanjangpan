@@ -20,6 +20,7 @@ var hand_r: Node3D  # 무기를 붙일 자리
 var weapons := {}   # 무기 키 → 손에 든 무기 노드 (든 것만 보임)
 var pupils: Array = []  # [{m: MeshInstance3D, r: float}]
 var mk := {}            # 래그돌 점: head·shL·shR·pelvis·handL·handR·footL·footR
+var part_count := 0     # 합치기 전 메시 수 (테스트용 — 의상이 다 만들어졌는지)
 
 # 애니메이션 상태 (HTML 엔티티의 wob/nk/eye 필드)
 var phase := 0.0
@@ -72,6 +73,64 @@ func _init(class_key := "archer") -> void:
 	_skirt.height = 0.55
 	_skirt.radial_segments = 18
 	_build()
+	_merge(self)
+
+
+## 최적화(10단계): 같은 관절에 붙은 움직이지 않는 조각들을 메시 하나로 합친다 (캐릭터 하나 70~100번 → 20번 안팎).
+## 눈동자(굴러다님)와 무기(바꿔 들고 따로 움직임)는 그대로 둔다. 번쩍임은 합친 재질도 같이 바뀐다.
+func _merge(n: Node3D) -> void:
+	part_count = _count_meshes(n)
+	var skip := {}
+	for pp: Dictionary in pupils:
+		skip[pp.m] = true
+	for w: Node3D in weapons.values():
+		skip[w] = true
+	_merge_node(n, skip)
+
+
+static func _count_meshes(n: Node) -> int:
+	var c := 1 if n is MeshInstance3D else 0
+	for ch in n.get_children():
+		c += _count_meshes(ch)
+	return c
+
+
+func _merge_node(n: Node3D, skip: Dictionary) -> void:
+	var groups := {true: [], false: []}
+	for c in n.get_children():
+		if skip.has(c):
+			continue
+		if c is MeshInstance3D and c.get_child_count() == 0 and (c as MeshInstance3D).material_override is StandardMaterial3D:
+			var mi := c as MeshInstance3D
+			groups[mi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF].append(mi)
+		elif c is Node3D:
+			_merge_node(c, skip)
+	var in_helm := helm != null and (n == helm or helm.is_ancestor_of(n))
+	for shadow: bool in [true, false]:
+		var list: Array = groups[shadow]
+		if list.size() < 2:
+			continue
+		var items := []
+		for mi: MeshInstance3D in list:
+			items.append([mi.mesh, (mi.material_override as StandardMaterial3D).albedo_color, mi.transform])
+		var out := MeshInstance3D.new()
+		out.mesh = Meshes.merge(items)
+		out.material_override = _vc_mat(in_helm)
+		out.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		n.add_child(out)
+		for mi: MeshInstance3D in list:
+			mi.free()
+
+
+## 합친 조각용 정점 색 재질 (모델마다 하나, 투구는 따로 — 번쩍임용 emission은 _mat과 같게)
+func _vc_mat(in_helm: bool) -> StandardMaterial3D:
+	var cache := _helm_mats if in_helm else _mats
+	if not cache.has("vc"):
+		var m := Meshes.vertex_color_mat()
+		m.emission_enabled = true
+		m.emission = Color.BLACK
+		cache["vc"] = m
+	return cache["vc"]
 
 
 func _part(m: Mesh, hex: int, pos: Vector3, scl: Vector3, parent: Node3D, shadow := true) -> MeshInstance3D:

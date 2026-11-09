@@ -305,7 +305,16 @@ var _mat_cache := {}
 
 func _ready() -> void:
 	_setup_input()
+	_setup_font_fallbacks()
 	load_settings()
+
+
+## 도현 폰트에 없는 글자(· … ⚠)를 Noto에서 빌려 온다. PC는 시스템 폰트로 대신 그리지만
+## 웹에는 시스템 폰트가 없어서 네모(□)로 나온다 (10단계). 두 파일은 그 글자만 남긴 1KB짜리다.
+func _setup_font_fallbacks() -> void:
+	var f: FontFile = load("res://fonts/DoHyeon-Regular.ttf")
+	if f.fallbacks.is_empty():
+		f.fallbacks = [load("res://fonts/NotoSans-Bold-sub.ttf"), load("res://fonts/NotoSansSymbols2-sub.ttf")]
 
 
 func load_settings() -> void:

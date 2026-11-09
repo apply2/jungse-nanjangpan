@@ -30,7 +30,7 @@ Krunker.io를 참고한 중세풍 **병맛 브라우저 FPS**를 Godot으로 옮
 
 ---
 
-## 현재 상태 — 1~8단계 완료, 9단계(친구대전, 같은 와이파이) 구현됨 · 사용자 플레이 확인 대기 (다음: 10단계 웹 내보내기)
+## 현재 상태 — 1~9단계 완료, 10단계(웹 내보내기·최적화) 구현됨 · 사용자 플레이 확인 대기
 
 ```
 project.godot          설정 (오토로드 GameData, Jolt, Compatibility, 폰트)
@@ -66,6 +66,8 @@ scripts/net.gd         친구대전 (Main 아래 Net 노드, HTML MP). ENet 방 
 tests/test_net.gd      친구대전: Main 둘을 한 프로세스에 띄워 방·대기실·시작·위치·투사체·저격총·처치 수·줍기 허락·끝·나가기 자동 테스트
 tests/test_fx.gd       효과음 합성·소리 나는 곳, 히트스톱, 래그돌(쓰러짐·뼈 길이·무기별 날아감·7초 뒤 사라짐), 흔들림, 붉은 테두리, 피격 방향, 죽음 카메라, 병과 의상 자동 테스트
 fonts/DoHyeon-Regular.ttf  HTML과 같은 '도현' 폰트 (OFL 라이선스)
+fonts/NotoSans-Bold-sub.ttf, NotoSansSymbols2-sub.ttf  도현에 없는 · … ⚠ 세 글자만 담은 대체 폰트 (OFL, fonts/OFL-Noto.txt). GameData가 시작할 때 도현의 fallbacks로 붙인다
+export_presets.cfg     웹 내보내기 설정 (Web, 스레드 없음 → 아무 정적 호스팅에서 돎). 결과는 export/web/ (git에 안 올림)
 reference/arrow-arena.html 원본
 ```
 
@@ -111,6 +113,7 @@ AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 
 - 0.56m 이하 턱은 `try_step()`이 자동으로 올려준다.
 - 속도·가속·마찰·넘어짐 공식은 HTML과 같다.
 - 단색 환경광은 HTML의 HemisphereLight를 근사한 것이다.
+- 저격총·AK·말이 나타날 때 알림은 제목만 띄운다. 그 아래 설명 문구는 사용자 요청으로 뺐다 (줍거나 올라탈 때 알림은 그대로).
 
 ---
 
@@ -129,7 +132,7 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
 | ✅ 7 | **특수 아이템**: 닭(잡기·던지기·맞으면 넘어짐), 대물 저격총, AK-47, 기사의 말+마상창 | `updateChickens` 1114, `updateSniper` 1220, `updateAK`, `updateHorses` 1184, `lanceCheck` 1176 |
 | ✅ 8 | **연출**: 죽으면 래그돌, 히트스톱, 화면 흔들림, 피격 방향 표시, 병과별 의상 디테일, 효과음 | `makeRagdoll` 664, `sfx` 747 |
 | ✅ 9 | **친구대전 (멀티플레이)** — 아래 "멀티플레이 설계" 참고 | `MP` 1713 이하 |
-| 10 | 웹 내보내기 + 최적화 | — |
+| ✅ 10 | 웹 내보내기 + 최적화 | — |
 
 각 단계의 완료 기준: 테스트 통과 + 사용자가 플레이해서 HTML 버전과 느낌이 같다고 확인.
 
@@ -269,6 +272,21 @@ HTML 버전은 claude.ai의 방(room) 기능 위에서 돌아서 **Godot에선 �
 - 동기화는 30Hz로 한다. 위치·속도·yaw/pitch·상태 비트(앉기·슬라이드·달리기·투구·특수무기)·넘어짐·체력·무기를 보내고, 사건(발사·명중·처치)은 따로 보낸다.
 
 ---
+
+## 웹 내보내기 (10단계)
+
+```bash
+godot --headless --path . --export-release "Web" export/web/index.html
+cd export/web && python -m http.server 8060   # 브라우저로 http://localhost:8060 (파일을 바로 열면 안 됨)
+```
+- 웹 템플릿은 `%APPDATA%/Godot/export_templates/4.7.2.stable/`에 web_nothreads_release/debug.zip만 깔려 있다 (전체 1.3GB 대신 필요한 것만 받음).
+- 스레드 없는(nothreads) 빌드라 COOP/COEP 헤더가 필요 없다 → GitHub Pages·itch.io에 그대로 올리면 된다.
+- 웹에선 친구대전(ENet·UDP)을 못 쓴다 → 누르면 "친구대전은 PC 버전에서만 할 수 있어요." 알림.
+- 웹에선 Esc를 브라우저가 가져가 마우스 잠금만 풀린다 → 잠금이 풀리면 일시정지 (`main._check_web_lock`, HTML pointerlockchange).
+- 웹엔 시스템 폰트가 없어서 폰트에 없는 글자는 □로 나온다. UI 글자를 새로 넣으면 도현·대체 폰트에 있는지 확인할 것.
+- 최적화: 움직이지 않는 맵 조각은 `world_builder._merge_static()`이, 캐릭터의 관절별 조각은 `derp_model._merge()`가 `Meshes.merge()`로 정점 색 메시 하나로 합친다.
+  그리기 호출이 경기 중 약 1300 → 200으로 줄었다. 맵·캐릭터에 조각을 더하면 자동으로 합쳐진다 (눈동자·무기는 안 합침).
+  합친 메시는 정점 색 재질(`Meshes.vertex_color_mat`)을 쓴다. 캐릭터 번쩍임은 그 재질도 같이 바뀐다.
 
 ## 테스트 실행
 
