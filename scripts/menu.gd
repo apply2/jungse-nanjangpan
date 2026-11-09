@@ -9,8 +9,13 @@ signal resume_requested           # 일시정지 → 계속하기
 signal menu_requested(page: String)  # 메뉴로 (page: main / class)
 signal again_requested            # 결과 화면 → 한 판 더
 signal next_class_picked(cls: String)  # 일시정지 화면에서 다음 부활 병과
+signal friend_create(nick: String)               # 친구대전: 방 만들기
+signal friend_join(nick: String, code: String)   # 친구대전: 코드(또는 방장 IP)로 참가
+signal lobby_leave                                # 대기실: 방 나가기
+signal lobby_start                                # 대기실: 게임 시작 (방장) / 진행 중인 게임 참가
+signal lobby_class(cls: String)                   # 대기실: 내 병과
 
-const PAGES := ["main", "diff", "class", "settings", "exit", "friend"]
+const PAGES := ["main", "diff", "class", "settings", "exit", "friend", "lobby"]
 
 var cur_page := "main"
 var screens := {}     # menu / pause / end
@@ -25,6 +30,14 @@ var _end_table: PanelContainer
 var _sens: Array[Dictionary] = []  # 감도 슬라이더 두 개 (설정 / 일시정지) — 같이 움직임
 var _view_btns := {}
 var _friend_status: Label
+var _nick: LineEdit
+var _code_in: LineEdit
+var _lobby_code: Label
+var _lobby_sub: Label
+var _lobby_list: VBoxContainer
+var _lobby_cards: GridContainer
+var _lobby_btn: Button
+var _lobby_sig := ""   # 대기실 목록이 바뀌었을 때만 다시 그림
 var _toast: PanelContainer
 var _toast_l: Label
 var _toast_t := 0.0
@@ -42,6 +55,7 @@ func _ready() -> void:
 	_build_settings()
 	_build_exit()
 	_build_friend()
+	_build_lobby()
 	_build_pause()
 	_build_end()
 	_build_toast()
@@ -224,6 +238,7 @@ func _build_main() -> void:
 	var fr := UiKit.navbtn("친구대전", "방 코드로 같이")
 	fr.pressed.connect(func() -> void:
 		_friend_status.text = ""
+		_nick.text = GameData.nick
 		show_page("friend"))
 	nav.add_child(fr)
 	var row := HBoxContainer.new()
@@ -409,7 +424,7 @@ func _build_exit() -> void:
 	_actions(pg).add_child(b)
 
 
-# ── 친구대전 (자리만 — 9단계) ────────────────────────────────
+# ── 친구대전 (같은 와이파이) — HTML pgFriend / pgLobby ─────────
 func _build_friend() -> void:
 	var pg := _sheet(screens.menu, true)
 	pages.friend = pg
@@ -423,25 +438,136 @@ func _build_friend() -> void:
 	UiKit.label("닉네임", 14, UiKit.c("mute"), col)
 	var nick := _field("예: 허풍쟁이 기사", 10)
 	col.add_child(nick)
+	_nick = nick
 	var create := UiKit.primary("방 만들기")
 	col.add_child(create)
 	var jr := HBoxContainer.new()
 	jr.add_theme_constant_override("separation", 10)
 	col.add_child(jr)
-	var code := _field("코드 4자리", 4)
+	var code := _field("코드 4자리", 15)  # 방장 IP를 직접 넣을 수도 있어서 길게 받음
 	code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	code.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	jr.add_child(code)
+	_code_in = code
 	var join := UiKit.ghost("참가")
 	jr.add_child(join)
 	_friend_status = UiKit.label("", 14, UiKit.c("parch"), pg)
 	_friend_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_friend_status.custom_minimum_size.y = 22
-	# TODO(9단계): 중계 서버에 붙여 방 만들기·참가·대기실
-	for b in [create, join]:
-		b.pressed.connect(func() -> void: _friend_status.text = "친구대전은 아직 준비 중이에요.")
-	var hint := UiKit.label("친구대전에는 봇과 닭이 나오지 않아요.", 13, UiKit.c("mute"), pg)
+	create.pressed.connect(func() -> void: friend_create.emit(nick.text))
+	var do_join := func() -> void: friend_join.emit(nick.text, code.text.strip_edges().to_upper())
+	join.pressed.connect(do_join)
+	code.text_submitted.connect(func(_t: String) -> void: do_join.call())
+	var hint := UiKit.label("같은 와이파이(공유기)에 연결된 친구끼리 들어올 수 있어요. 코드로 못 찾으면 대기실에 보이는 방장 IP를 코드 칸에 넣어 보세요. 친구대전에는 봇과 닭이 나오지 않아요.", 13, UiKit.c("mute"), pg)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+
+func friend_status(text: String) -> void:
+	_friend_status.text = text
+
+
+## 대기실: 방 코드 · 사람 목록 · 내 병과 · 게임 시작
+func _build_lobby() -> void:
+	var pg := _sheet(screens.menu)
+	pages.lobby = pg
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	pg.add_child(vb)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 12)
+	vb.add_child(hb)
+	var left := HBoxContainer.new()
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(left)
+	var back := UiKit.back("← 방 나가기")
+	back.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	back.pressed.connect(func() -> void: lobby_leave.emit())
+	left.add_child(back)
+	var title := HBoxContainer.new()
+	title.add_theme_constant_override("separation", 10)
+	hb.add_child(title)
+	_head2("방 코드", title)
+	var chip := PanelContainer.new()
+	chip.add_theme_stylebox_override("panel", UiKit.box(UiKit.c("gold"), Color.TRANSPARENT, 0, 8, Vector4(14, 2, 14, 2)))
+	chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	title.add_child(chip)
+	_lobby_code = UiKit.label("", 52, UiKit.c("ink"), chip)
+	_lobby_code.add_theme_constant_override("outline_size", 0)
+	var right := Control.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(right)
+	_lobby_sub = _sub2("친구에게 코드를 알려주세요", vb)
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 16)
+	pg.add_child(body)
+	var plist := PanelContainer.new()
+	plist.add_theme_stylebox_override("panel", UiKit.box(UiKit.ink(0.85), UiKit.c("line"), 1, 10, Vector4(12, 12, 12, 12)))
+	plist.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	plist.size_flags_stretch_ratio = 1
+	plist.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	body.add_child(plist)
+	_lobby_list = VBoxContainer.new()
+	_lobby_list.add_theme_constant_override("separation", 8)
+	plist.add_child(_lobby_list)
+	_lobby_cards = GridContainer.new()
+	_lobby_cards.columns = 2
+	_lobby_cards.add_theme_constant_override("h_separation", 14)
+	_lobby_cards.add_theme_constant_override("v_separation", 14)
+	_lobby_cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_lobby_cards.size_flags_stretch_ratio = 2
+	body.add_child(_lobby_cards)
+	var act := _actions(pg)
+	_lobby_btn = UiKit.primary("게임 시작")
+	_lobby_btn.pressed.connect(func() -> void: lobby_start.emit())
+	act.add_child(_lobby_btn)
+
+
+func open_lobby(cls: String) -> void:
+	_fill_cards(_lobby_cards, cls, true, func(k: String) -> void:
+		GameData.chosen_cls = k
+		GameData.save_settings()
+		lobby_class.emit(k))
+	_lobby_sig = ""
+	show_page("lobby")
+
+
+## HTML renderLobby: list = [{name, cls, host, st}], btn = 버튼 글자 (없으면 숨김)
+func render_lobby(code: String, list: Array, sub: String, btn: String) -> void:
+	_lobby_code.text = code if code != "" else "IP"
+	_lobby_sub.text = sub
+	_lobby_btn.visible = btn != ""
+	_lobby_btn.text = btn
+	var sig := str(list)
+	if sig == _lobby_sig:
+		return
+	_lobby_sig = sig
+	for ch in _lobby_list.get_children():
+		ch.queue_free()
+	for p: Dictionary in list:
+		var row := PanelContainer.new()
+		row.add_theme_stylebox_override("panel", UiKit.box(Color(1, 1, 1, 0.04), Color.TRANSPARENT, 0, 6, Vector4(8, 6, 8, 6)))
+		_lobby_list.add_child(row)
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 8)
+		row.add_child(hb)
+		var chip := PanelContainer.new()
+		chip.add_theme_stylebox_override("panel", UiKit.box(GameData.col(GameData.CLASS_CHIP[p.cls]), Color.TRANSPARENT, 0, 3, Vector4(6, 1, 6, 1)))
+		chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		UiKit.label(GameData.CLASSES[p.cls].name, 11, UiKit.c("ink"), chip)
+		hb.add_child(chip)
+		var nm := UiKit.label(str(p.name), 15, UiKit.c("parch"), hb)
+		nm.clip_text = true
+		nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if p.st == "play":
+			UiKit.label("게임 중", 12, UiKit.c("mute"), hb)
+		if p.host:
+			var em := PanelContainer.new()
+			em.add_theme_stylebox_override("panel", UiKit.box(UiKit.c("gold"), Color.TRANSPARENT, 0, 4, Vector4(6, 1, 6, 1)))
+			em.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			UiKit.label("방장", 12, UiKit.c("ink"), em)
+			hb.add_child(em)
 
 
 func _field(ph: String, max_len: int) -> LineEdit:

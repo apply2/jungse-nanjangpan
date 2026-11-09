@@ -11,9 +11,9 @@ var combat: Combat
 
 var chickens: Array[Dictionary] = []  # {body, c(모양), heading, turn_t, no_pick, t, flee}
 var chicken_timer := 3.0
-var sniper := {"active": false, "pos": Vector3.ZERO, "life": 0.0, "t": 0.0, "ammo": 5}
-var ak := {"active": false, "pos": Vector3.ZERO, "life": 0.0, "t": 0.0, "ammo": 25}
-var horse := {"active": false, "pos": Vector3.ZERO, "life": 0.0, "t": 0.0}
+var sniper := {"active": false, "pos": Vector3.ZERO, "life": 0.0, "t": 0.0, "ammo": 5, "seq": 0}
+var ak := {"active": false, "pos": Vector3.ZERO, "life": 0.0, "t": 0.0, "ammo": 25, "seq": 0}
+var horse := {"active": false, "pos": Vector3.ZERO, "life": 0.0, "t": 0.0, "seq": 0}  # seq: 놓을 때마다 +1 (친구대전 줍기 허락용)
 var runaways: Array[Dictionary] = []  # 시간이 끝나 달아나는 말 {h, dir, life}
 var sniper_timer := 0.0
 var ak_timer := 0.0
@@ -97,8 +97,9 @@ func clear() -> void:
 		(c.body as Node).queue_free()
 	chickens.clear()
 	chicken_timer = I.chicken_first
-	for p: Vector3 in I.chicken_spots:
-		spawn_chicken(p)
+	if not combat.mp():  # 친구대전엔 닭이 없다
+		for p: Vector3 in I.chicken_spots:
+			spawn_chicken(p)
 	horse.active = false
 	(horse.group as Node3D).visible = false
 	horse_timer = rr(I.horse_first)
@@ -115,6 +116,7 @@ func clear() -> void:
 
 # ── 대물 저격총 / AK-47 ──────────────────────────────────────
 func _place(it: Dictionary, pos: Vector3, life: float) -> void:
+	it.seq = int(it.get("seq", 0)) + 1
 	it.active = true
 	it.pos = pos
 	it.life = life
@@ -128,9 +130,25 @@ func spawn_sniper() -> void:
 	var spots: Array = GameData.SNIPER_SPOTS
 	_place(sniper, spots[randi() % spots.size()], GameData.ITEM.life)
 	sniper.ammo = int(GameData.WEAPONS.sniper.ammo)
-	banner.emit("대물 저격총이 나타났다!", "빛기둥에 닿으면 바로 주워집니다 · 5발 · 한 발에 한 명")
-	if combat.me and not combat.me.spectating:
-		Sfx.play("bell")
+	announce("sn")
+
+
+## 아이템이 나타났다는 알림 + 소리 (친구대전 손님은 방장이 알려줄 때 부른다)
+func announce(key: String) -> void:
+	var me_in := combat.me != null and not combat.me.spectating
+	match key:
+		"sn":
+			banner.emit("대물 저격총이 나타났다!", "빛기둥에 닿으면 바로 주워집니다 · 5발 · 한 발에 한 명")
+			if me_in:
+				Sfx.play("bell")
+		"ak":
+			banner.emit("AK-47이 나타났다!", "빛기둥에 닿으면 바로 주워집니다 · 25발 연사 · 우클릭 정조준")
+			if me_in:
+				Sfx.play("bell")
+		"hs":
+			banner.emit("기사의 말이 나타났다!", "올라타면 7초 동안 마상창 돌격 · 찔리면 멀리 날아감")
+			if me_in:
+				Sfx.play("neigh", horse.pos)
 
 
 func spawn_ak() -> void:
@@ -140,9 +158,7 @@ func spawn_ak() -> void:
 	var q: Vector3 = opts[randi() % opts.size()] if opts.size() > 0 else spots[0]
 	_place(ak, q, GameData.ITEM.life)
 	ak.ammo = int(GameData.WEAPONS.ak.mag)
-	banner.emit("AK-47이 나타났다!", "빛기둥에 닿으면 바로 주워집니다 · 25발 연사 · 우클릭 정조준")
-	if combat.me and not combat.me.spectating:
-		Sfx.play("bell")
+	announce("ak")
 
 
 ## 죽은 사람이 들고 있던 총을 그 자리에 떨어뜨림 (남은 탄 그대로)
@@ -189,7 +205,7 @@ func pickup_ak(e: PlayerController) -> void:
 func _update_gun(it: Dictionary, dt: float, is_sniper: bool) -> void:
 	var I: Dictionary = GameData.ITEM
 	var held := combat.ents.any(func(e: PlayerController) -> bool: return e.has_sniper if is_sniper else e.has_ak)
-	if not it.active and not held:
+	if not it.active and not held and combat.authority():
 		if is_sniper:
 			sniper_timer -= dt
 			if sniper_timer <= 0:
@@ -217,7 +233,11 @@ func _update_gun(it: Dictionary, dt: float, is_sniper: bool) -> void:
 		(it.group as Node3D).visible = false
 		return
 	for e in combat.ents:
-		if e.alive and not e.has_sniper and not e.has_ak and e.mounted <= 0 and e.global_position.distance_to(it.pos) < float(I.pick_r):
+		if not e.is_remote and e.alive and not e.has_sniper and not e.has_ak and e.mounted <= 0 and e.global_position.distance_to(it.pos) < float(I.pick_r):
+			if not combat.authority():  # 친구대전 손님: 방장에게 달라고 하고 허락을 기다림
+				if e.is_local:
+					combat.net.request("sn" if is_sniper else "ak")
+				return
 			if is_sniper:
 				pickup_sniper(e)
 			else:
@@ -262,6 +282,8 @@ func spawn_chicken(pos: Vector3, no_pick := 0.0) -> void:
 
 ## 돌아다니다 사람이 가까이 오면 도망가고, 닿으면 잡힘 — HTML updateChickens
 func update_chickens(dt: float) -> void:
+	if combat.mp():
+		return
 	var I: Dictionary = GameData.ITEM
 	chicken_timer -= dt
 	if chicken_timer <= 0:
@@ -336,9 +358,7 @@ func spawn_horse() -> void:
 	var spots: Array = GameData.HORSE_SPOTS
 	_place(horse, spots[randi() % spots.size()], GameData.ITEM.horse_life)
 	(horse.group as Node3D).rotation.y = randf_range(0, TAU)
-	banner.emit("기사의 말이 나타났다!", "올라타면 7초 동안 마상창 돌격 · 찔리면 멀리 날아감")
-	if combat.me and not combat.me.spectating:
-		Sfx.play("neigh", horse.pos)
+	announce("hs")
 
 
 func mount(e: PlayerController) -> void:
@@ -394,10 +414,13 @@ func lance_check(e: PlayerController) -> void:
 			if v.ln_t > 0:
 				continue
 			v.ln_t = I.lance_again
-			combat.damage(v, e, GameData.WEAPONS.lance.dmg, "lance", h.head, f, a + d * float(h.t))
+			if v.is_remote:  # 친구는 친구 쪽에서 피해를 받는다
+				combat.net.event(["ln", v.peer, h.head, f])
+			else:
+				combat.damage(v, e, GameData.WEAPONS.lance.dmg, "lance", h.head, f, a + d * float(h.t))
 			continue
 		var vp := v.global_position
-		if v.mounted <= 0 and v.fall_t <= 0 and Vector2(vp.x - ep.x, vp.z - ep.z).length() < float(I.trample_r) and absf(vp.y - ep.y) < float(I.trample_h):
+		if not v.is_remote and v.mounted <= 0 and v.fall_t <= 0 and Vector2(vp.x - ep.x, vp.z - ep.z).length() < float(I.trample_r) and absf(vp.y - ep.y) < float(I.trample_h):
 			var aw := Vector3(vp.x - ep.x, 0, vp.z - ep.z).normalized()
 			v.velocity += aw * float(I.trample_kb)
 			v.velocity.y = I.trample_up
@@ -410,7 +433,7 @@ func update_horses(dt: float) -> void:
 	var I: Dictionary = GameData.ITEM
 	for v in combat.ents:
 		v.ln_t -= dt
-	if not horse.active and not combat.ents.any(func(e: PlayerController) -> bool: return e.mounted > 0):
+	if combat.authority() and not horse.active and not combat.ents.any(func(e: PlayerController) -> bool: return e.mounted > 0):
 		horse_timer -= dt
 		if horse_timer <= 0:
 			horse_timer = rr(I.horse_timer)
@@ -426,10 +449,27 @@ func update_horses(dt: float) -> void:
 			(horse.group as Node3D).visible = false
 		else:
 			for e in combat.ents:
-				if e.alive and e.mounted <= 0 and e.fall_t <= 0 and e.global_position.distance_to(horse.pos) < float(I.mount_r):
-					mount(e)
+				if not e.is_remote and e.alive and e.mounted <= 0 and e.fall_t <= 0 and e.global_position.distance_to(horse.pos) < float(I.mount_r):
+					if not combat.authority():
+						if e.is_local:
+							combat.net.request("hs")
+					else:
+						mount(e)
 					break
 	for e in combat.ents:
+		if e.is_remote:  # 친구의 말: 보이기만 (창 판정은 타는 사람 쪽에서)
+			if e.alive and e.mounted > 0:
+				if e.horse.is_empty():
+					var h := WeaponModels.make_horse(true)
+					add_child(h.g)
+					e.horse = h
+				var g: Node3D = e.horse.g
+				g.global_position = e.global_position
+				g.rotation.y = e.yaw + PI
+				WeaponModels.anim_horse(e.horse, Vector2(e.velocity.x, e.velocity.z).length(), dt)
+			elif not e.horse.is_empty():
+				dismount(e)
+			continue
 		if e.mounted <= 0:
 			continue
 		if not e.alive:

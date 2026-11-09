@@ -30,7 +30,7 @@ Krunker.io를 참고한 중세풍 **병맛 브라우저 FPS**를 Godot으로 옮
 
 ---
 
-## 현재 상태 — 1·2단계 완료, 3단계(돌멩이)·4단계(활·석궁·성수)·5단계(봇 AI)·6단계(매치·메뉴·HUD)·7단계(특수 아이템)·8단계(연출) 구현됨 · 사용자 플레이 확인 대기 (다음: 9단계 친구대전)
+## 현재 상태 — 1~8단계 완료, 9단계(친구대전, 같은 와이파이) 구현됨 · 사용자 플레이 확인 대기 (다음: 10단계 웹 내보내기)
 
 ```
 project.godot          설정 (오토로드 GameData, Jolt, Compatibility, 폰트)
@@ -62,6 +62,8 @@ scripts/items.gd       특수 아이템 (Combat 아래 Items 노드. HTML update
 tests/test_items.gd    닭 잡기·던지기·넘어짐, 저격총 줍기·즉사·한 발씩·Q 전환·스코프·떨어뜨림, AK 거리 감쇠·연사·퍼짐·탄창, 말 탑승·창 70·멀리 날림·7초 뒤 내림·짓밟기, 봇 줍기 자동 테스트
 scripts/ragdoll.gd     죽으면 쓰러지는 몸 (HTML makeRagdoll·stepRagdoll·poseRagdoll). 점 8개 Verlet + world.aabbs 충돌. 모델의 머리·몸통·팔·다리를 떼어 와서 돌림
 scripts/sfx.gd         효과음 (오토로드 Sfx, HTML sfx). WebAudio tone·noise 합성을 PCM으로 구워 AudioStreamPlayer 32개로 튼다. 소리 파일 없음
+scripts/net.gd         친구대전 (Main 아래 Net 노드, HTML MP). ENet 방 만들기·코드로 찾기(UDP 방송)·IP로 들어가기, 상태 30Hz, 사건(f·sn·ak·ln·h·k), 방장 경기 시간·아이템·줍기 허락
+tests/test_net.gd      친구대전: Main 둘을 한 프로세스에 띄워 방·대기실·시작·위치·투사체·저격총·처치 수·줍기 허락·끝·나가기 자동 테스트
 tests/test_fx.gd       효과음 합성·소리 나는 곳, 히트스톱, 래그돌(쓰러짐·뼈 길이·무기별 날아감·7초 뒤 사라짐), 흔들림, 붉은 테두리, 피격 방향, 죽음 카메라, 병과 의상 자동 테스트
 fonts/DoHyeon-Regular.ttf  HTML과 같은 '도현' 폰트 (OFL 라이선스)
 reference/arrow-arena.html 원본
@@ -70,7 +72,7 @@ reference/arrow-arena.html 원본
 실행하면 메인 메뉴가 뜨고, 뒤에서 봇 7명이 싸우는 걸 맵을 빙 도는 카메라로 보여준다 (나는 구경, HTML startMenuSim).
 AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 지나거나 누가 20킬을 하면 결과 화면 (한 판 더 / 병과 다시 고르기 / 메인 메뉴).
 경기 중 Esc(또는 창 포커스 잃음) = 일시정지 (`SceneTree.paused`, 다음 부활 병과·감도 바꾸기), Tab = 점수판, V = 시점, 클릭하면 마우스 다시 잠금.
-- 일반대전은 "추후 업데이트 될 내용입니다." 알림, 친구대전은 화면만 있음(9단계). 나가기: PC는 바로 끄고, 웹은 HTML처럼 "게임을 종료했어요" 페이지.
+- 일반대전은 "추후 업데이트 될 내용입니다." 알림. 나가기: PC는 바로 끄고, 웹은 HTML처럼 "게임을 종료했어요" 페이지.
 - 설정(병과·난이도·감도·시점)은 `user://settings.cfg`에 저장 (HTML localStorage 대신). 테스트는 `GameData.save_enabled = false`.
 - 경기 중 1~4로 병과 바꾸기와 F1~F3 난이도 키는 지웠다 (HTML에도 없음). 병과는 일시정지에서 다음 부활부터.
 - 킬피드·사망 화면·20킬 종료는 `Combat.killed` 신호를 Main이 받아 처리한다. 처치·알림 문구(HTML popMsg/killPop)는 `hud.pop_msg`.
@@ -120,13 +122,13 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
 |---|---|---|
 | ✅ 1 | 이동·카메라·맵 | `movement` 810, `trip` 837, `integrate` 856, `updateCamera` 1881, `buildWorld` 425, `makeModel` 549, `animModel` 1330 |
 | ✅ 2 | **피격 판정·데미지 기초**: 머리/몸 판정, `damage()`, 넉백, 투구 날아감, 체력 재생, 죽음·3초 뒤 리스폰, 스폰 지점 고르기 | `hitTest` 950, `damage` 1024, `kill` 1078, `knockHelmet` 1097, `spawn` 793, `simulate` 1870(재생) |
-| 3 | **돌멩이** (야만인): 투사체 시스템(중력·월드 충돌·사람 충돌), 던지는 팔 모션, 맞은 효과(조각·링·숫자) | `fire` 923, `updateProjectiles` 958, `impactFx` 1049 |
-| 4 | **활·석궁·성수**: 활 당기기·후들거림·손 미끄러짐, 석궁 장전, 성수 충전 3개·웅덩이·둔화, 1인칭 무기 모델(뷰모델), 반동 | `weaponUpdate` 898, `shatter`/`updateZones` 875, `buildVM` 1391, `updateVM` 1449 |
-| 5 | **봇 AI + 난이도**: 대상 고르기, 반응 시간, 조준 오차, 앞질러 쏘기(lead), 포물선 계산, 끼임 탈출 | `botUpdate` 1255, `aimSolve` 1313, `DIFF` |
-| 6 | **매치 흐름 + 메뉴 + HUD**: 메인메뉴(일반대전 토스트 / AI대전 → 난이도 → 병과 → 바로 시작 / 친구대전 / 설정 / 나가기), 4분·20킬, 킬피드, 점수판(Tab), 사망 화면, 일시정지, 결과 화면 | `startMatch` 1632, `endMatch` 1650, `updateHUD` 1575, HTML 상단 CSS/마크업 |
-| 7 | **특수 아이템**: 닭(잡기·던지기·맞으면 넘어짐), 대물 저격총, AK-47, 기사의 말+마상창 | `updateChickens` 1114, `updateSniper` 1220, `updateAK`, `updateHorses` 1184, `lanceCheck` 1176 |
-| 8 | **연출**: 죽으면 래그돌, 히트스톱, 화면 흔들림, 피격 방향 표시, 병과별 의상 디테일, 효과음 | `makeRagdoll` 664, `sfx` 747 |
-| 9 | **친구대전 (멀티플레이)** — 아래 "멀티플레이 설계" 참고 | `MP` 1713 이하 |
+| ✅ 3 | **돌멩이** (야만인): 투사체 시스템(중력·월드 충돌·사람 충돌), 던지는 팔 모션, 맞은 효과(조각·링·숫자) | `fire` 923, `updateProjectiles` 958, `impactFx` 1049 |
+| ✅ 4 | **활·석궁·성수**: 활 당기기·후들거림·손 미끄러짐, 석궁 장전, 성수 충전 3개·웅덩이·둔화, 1인칭 무기 모델(뷰모델), 반동 | `weaponUpdate` 898, `shatter`/`updateZones` 875, `buildVM` 1391, `updateVM` 1449 |
+| ✅ 5 | **봇 AI + 난이도**: 대상 고르기, 반응 시간, 조준 오차, 앞질러 쏘기(lead), 포물선 계산, 끼임 탈출 | `botUpdate` 1255, `aimSolve` 1313, `DIFF` |
+| ✅ 6 | **매치 흐름 + 메뉴 + HUD**: 메인메뉴(일반대전 토스트 / AI대전 → 난이도 → 병과 → 바로 시작 / 친구대전 / 설정 / 나가기), 4분·20킬, 킬피드, 점수판(Tab), 사망 화면, 일시정지, 결과 화면 | `startMatch` 1632, `endMatch` 1650, `updateHUD` 1575, HTML 상단 CSS/마크업 |
+| ✅ 7 | **특수 아이템**: 닭(잡기·던지기·맞으면 넘어짐), 대물 저격총, AK-47, 기사의 말+마상창 | `updateChickens` 1114, `updateSniper` 1220, `updateAK`, `updateHorses` 1184, `lanceCheck` 1176 |
+| ✅ 8 | **연출**: 죽으면 래그돌, 히트스톱, 화면 흔들림, 피격 방향 표시, 병과별 의상 디테일, 효과음 | `makeRagdoll` 664, `sfx` 747 |
+| ✅ 9 | **친구대전 (멀티플레이)** — 아래 "멀티플레이 설계" 참고 | `MP` 1713 이하 |
 | 10 | 웹 내보내기 + 최적화 | — |
 
 각 단계의 완료 기준: 테스트 통과 + 사용자가 플레이해서 HTML 버전과 느낌이 같다고 확인.
@@ -157,7 +159,7 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
 ### 병과
 | 병과 | 무기 | 속도 배율 | 체력 | 특징 |
 |---|---|---|---|---|
-| 야만인 | 돌멩이 | 1.372 (달리기 10.0 m/s) | 100 | 짐승 해골 투구 |
+| 야만인 | 돌멩이 | 1.372 (달리기 10.0 m/s) | 90 (사용자 요청으로 100→90) | 짐승 해골 투구 |
 | 궁수 | 활 | 1.0 | 100 | 빨간 갑옷 |
 | 석궁병 | 석궁 | 0.85 | 110 | 파란 갑옷 |
 | 성직자 | 성수 | 1.0 | 100 | 체력 재생 2배 (초당 20) |
@@ -239,7 +241,22 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
 
 ---
 
-## 멀티플레이 설계 (9단계)
+## 멀티플레이 (9단계 — 구현됨, 같은 와이파이만)
+
+사용자와 정한 것: **중계 서버 없이 같은 와이파이(LAN)에서만**. ENet 직접 연결이라 PC 전용이다 (웹 빌드에선 안 됨).
+- 방 만들기: 방장 컴퓨터가 ENet 서버(포트 `NET.port` 24680)가 되고, UDP 24681로 `"JNP1|코드|포트"`를 0.5초마다 방송한다 (255.255.255.255와 127.0.0.1).
+- 참가: 코드 4자리를 넣으면 6초 동안 방송을 듣다가 코드가 맞는 방에 접속한다. 코드 칸에 방장 IP(대기실에 보임)를 넣어도 된다.
+- 처음 방을 만들 때 Windows 방화벽이 Godot 허용을 물어본다. **개인 네트워크 허용**을 눌러야 친구가 들어온다.
+- 대기실(menu `lobby` 페이지): 방 코드, 사람 목록(병과·방장·게임 중), 내 병과, 게임 시작(방장) / 진행 중인 게임 참가(친구).
+- 친구대전엔 봇·닭이 없다. 일시정지해도 게임은 안 멈춘다. 20킬·시간 종료는 방장이 판단해 알린다.
+- 결과 화면: 한 판 더 = 방장만 (친구는 자동으로 들어감), 병과 다시 고르기 = 대기실, 메인 메뉴 = 방 나가기.
+- 남의 캐릭터는 `is_remote`(player.gd `_physics_process`를 안 돎), Net `_apply_remote`가 받은 상태를 따라간다.
+- Combat `damage()`는 친구대전에서 **내 캐릭터만** 깎는다. 남을 맞히면 그쪽 컴퓨터가 판정해 "h"/"k" 사건을 보낸다. 처치 수는 죽인 사람이 "k"를 받고 스스로 센다.
+- 아이템은 방장만 생성·떨어뜨림. 친구가 닿으면 `net.request` → 방장이 `grants`에 적어 `_it`로 알려줌 (HTML seq/grant).
+- **HTML과 다른 점**: 방장이 나가면 방이 끝난다 (HTML은 다음 사람이 방장을 이어받음).
+- 수치는 `GameData.NET`.
+
+### 처음 설계 메모
 
 HTML 버전은 claude.ai의 방(room) 기능 위에서 돌아서 **Godot에선 쓸 수 없다.** 새로 만든다.
 - 웹 빌드는 `WebSocketMultiplayerPeer`를 쓴다 (PC 전용이면 `ENetMultiplayerPeer`).
@@ -272,6 +289,7 @@ godot --headless --fixed-fps 60 --path . -s tests/test_bot.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_match.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_items.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_fx.gd
+godot --headless --fixed-fps 60 --path . -s tests/test_net.gd   # 포트 24680·24681을 씀
 ```
 
 새 `class_name` 스크립트를 추가하면 한 번 `godot --headless --editor --path . --quit`로 클래스 목록을 갱신해야 다른 스크립트가 찾는다.

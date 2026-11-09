@@ -49,6 +49,10 @@ var alive := true
 var ent_name := "나"
 var is_local := true   # 내가 조종하는 캐릭터 (카메라·마우스 입력)
 var is_bot := false
+var is_remote := false  # 친구대전: 친구 컴퓨터가 움직이는 캐릭터 (Net이 받은 상태로 따라감)
+var peer := 0           # 친구대전 peer id
+var net_s: Array = []   # 마지막으로 받은 상태 (Net._state)
+var net_dead_t := 0.0
 var ai: BotAI = null    # 봇 머리 (is_bot이면 Combat.register가 만들어 줌)
 var combat: Combat = null
 var next_cls := ""     # 다음 부활 때 쓸 병과
@@ -295,7 +299,7 @@ func _read_input(dt: float) -> Dictionary:
 
 
 func _physics_process(dt: float) -> void:
-	if not alive:
+	if not alive or is_remote:
 		return
 	var inp := _read_input(dt)
 	fire_held = inp.get("fire", false)  # 무기는 Combat이 이 다음에 처리한다

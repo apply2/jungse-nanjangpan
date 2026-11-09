@@ -3,6 +3,7 @@ extends Node3D
 ## pauseGame / resumeGame / goMenu), 마우스 잠금.
 ## 상태: menu(메뉴 뒤에서 봇끼리 싸움) → playing → paused / ended.
 ## 일시정지는 SceneTree.paused로 월드·캐릭터·Combat을 멈춘다. Main·HUD·메뉴는 계속 돈다.
+## 친구대전(Net)에선 봇을 빼고, 일시정지해도 게임은 멈추지 않는다 (HTML MP). 시간·종료는 방장이 정한다.
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 
@@ -12,7 +13,10 @@ const PLAYER_SCENE := preload("res://scenes/player.tscn")
 @onready var hud: Hud = $HUD
 
 var menu: Menu
+var net: Net
+var bots: Array[PlayerController] = []
 var state := "menu"
+var _lobby_t := 0.0
 var time_left: float = GameData.MATCH_TIME
 
 
@@ -44,10 +48,127 @@ func _ready() -> void:
 	menu.resume_requested.connect(resume_game)
 	menu.menu_requested.connect(go_menu)
 	menu.again_requested.connect(start_match)
-	menu.next_class_picked.connect(func(k: String) -> void: player.next_cls = k)
+	menu.next_class_picked.connect(func(k: String) -> void:
+		player.next_cls = k
+		if net.on:
+			net.set_cls(k))
 	combat.register(player)
 	_spawn_bots()
+	_setup_net()
 	go_menu("main")
+
+
+## 친구대전 (LAN) 연결 — HTML mpConnect / leaveMP / handlePeers
+func _setup_net() -> void:
+	net = Net.new()
+	net.name = "Net"
+	net.main = self
+	net.combat = combat
+	net.player = player
+	add_child(net)
+	net.status.connect(menu.friend_status)
+	net.lobby_changed.connect(_render_lobby)
+	net.start_requested.connect(mp_start)
+	net.end_requested.connect(end_match)
+	net.closed.connect(func(reason: String) -> void:
+		leave_mp()
+		menu.toast(reason))
+	menu.friend_create.connect(func(nick: String) -> void:
+		_save_nick(nick)
+		net.host_room(nick, GameData.chosen_cls))
+	menu.friend_join.connect(func(nick: String, code: String) -> void:
+		_save_nick(nick)
+		net.join_room(nick, GameData.chosen_cls, code))
+	menu.lobby_leave.connect(func() -> void: net.leave())
+	menu.lobby_start.connect(func() -> void:
+		if net.is_host:
+			net.host_start()
+		else:
+			net.join_live())
+	menu.lobby_class.connect(func(k: String) -> void:
+		player.next_cls = k
+		net.set_cls(k))
+
+
+func _save_nick(nick: String) -> void:
+	GameData.nick = nick.strip_edges()
+	GameData.save_settings()
+
+
+## 방에 들어감: 봇을 빼고 대기실로 (HTML enterMPMode)
+func enter_mp() -> void:
+	for b in bots:
+		combat.unregister(b)
+		if not b.horse.is_empty():
+			combat.items.dismount(b)
+		b.alive = false
+		b.process_mode = Node.PROCESS_MODE_DISABLED
+		if b.model:
+			b.model.visible = false
+	combat.clear_match_objects()
+	hud.clear()
+	go_lobby()
+
+
+## 방에서 나옴: 봇을 다시 넣고 메인 메뉴 (HTML leaveMP)
+func leave_mp() -> void:
+	for b in bots:
+		b.process_mode = Node.PROCESS_MODE_PAUSABLE
+		combat.register(b)
+	go_menu("main")
+
+
+## 대기실 (HTML goLobby)
+func go_lobby() -> void:
+	get_tree().paused = false
+	_set_state("menu")
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	player.set_spectating(true)
+	menu.show_screen("menu")
+	menu.open_lobby(net.cls)
+	net.to_lobby()
+	_render_lobby()
+
+
+func _render_lobby() -> void:
+	if not net.on or state != "menu" or menu.cur_page != "lobby":
+		return
+	var list := net.lobby_list()
+	var live := net.live_match()
+	var sub: String
+	if net.is_host:
+		sub = "%d명 · 친구가 다 들어오면 게임 시작을 누르세요" % list.size()
+		var ip := Net.lan_ip()
+		if ip != "":
+			sub += " · 방장 IP %s" % ip
+	elif live:
+		sub = "%d명 · 게임이 진행 중이에요" % list.size()
+	else:
+		sub = "%d명 · 방장이 시작하기를 기다리는 중" % list.size()
+	var btn := "게임 시작" if net.is_host else ("진행 중인 게임 참가" if live else "")
+	menu.render_lobby(net.code, list, sub, btn)
+
+
+## 친구대전 경기 시작 (HTML mpStart) — 나만 스폰. 친구는 각자 컴퓨터에서 스폰한다
+func mp_start(rem: float) -> void:
+	get_tree().paused = false
+	combat.clear_match_objects()
+	hud.clear()
+	time_left = rem
+	player.kills = 0
+	player.deaths = 0
+	player.next_cls = net.cls
+	player.spectating = false
+	player.alive = false
+	for e: PlayerController in net.remotes.values():
+		e.kills = 0
+		e.deaths = 0
+	combat.spawn(player)
+	_set_state("playing")
+	menu.show_screen("")
+	hud.banner("친구대전 시작!", "%s · %d킬을 먼저 따내면 승리" % [GameData.CLASSES[player.cls].name, GameData.KILL_LIMIT])
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	net.send_info()
 
 
 ## 봇 BOT_COUNT명. 이름은 섞어서, 병과는 무작위 (HTML pickBotClass). 스폰은 startMenuSim / startMatch가 한다.
@@ -56,6 +177,7 @@ func _spawn_bots() -> void:
 	names.shuffle()
 	for i in GameData.BOT_COUNT:
 		var b: PlayerController = PLAYER_SCENE.instantiate()
+		bots.append(b)
 		b.is_local = false
 		b.is_bot = true
 		b.ent_name = names[i % names.size()]
@@ -69,6 +191,12 @@ func _spawn_bots() -> void:
 # ── 경기 흐름 ────────────────────────────────────────────────
 ## HTML startMatch: 다 치우고, 모두 0킬 0죽음으로 다시 스폰, 4분 시작
 func start_match() -> void:
+	if net and net.on:  # 결과 화면 '한 판 더' (HTML againBtn)
+		if net.is_host:
+			net.host_start()
+		else:
+			menu.toast("방장이 다시 시작하면 자동으로 들어가요")
+		return
 	get_tree().paused = false
 	combat.clear_match_objects()
 	hud.clear()
@@ -102,6 +230,12 @@ func _start_menu_sim() -> void:
 
 ## HTML goMenu: 메뉴(page: main / class …)로 돌아가며 구경 모드
 func go_menu(page: String) -> void:
+	if net and net.on:  # 친구대전: '메인 메뉴'·'나가기'는 방을 나감, '병과 다시 고르기'는 대기실 (HTML quitBtn / pickBtn)
+		if page == "class":
+			go_lobby()
+		else:
+			net.leave()
+		return
 	get_tree().paused = false
 	_set_state("menu")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -118,7 +252,7 @@ func pause_game() -> void:
 		return
 	_set_state("paused")
 	combat.stop_hit_stop()
-	get_tree().paused = true
+	get_tree().paused = not net.on  # 친구대전은 멈추지 않는다 (나만 손을 놓음)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	menu.open_pause(player.next_cls if player.next_cls != "" else player.cls)
 
@@ -157,12 +291,19 @@ func _on_killed(v: PlayerController, a: PlayerController, kind: String, head: bo
 	hud.killfeed(a, v, kind, head)
 	if v == player:
 		hud.show_death(a, kind, head)
-	if a and a != v and a.kills >= GameData.KILL_LIMIT and state == "playing":
-		end_match()
+	if not net.on and a and a != v and a.kills >= GameData.KILL_LIMIT and state == "playing":
+		end_match()  # 친구대전은 방장이 끝낸다
 
 
 func _process(dt: float) -> void:
-	if state == "playing":
+	if net.on:
+		if (state == "playing" or state == "paused") and not net.is_host:  # 방장 시계에 맞춰가며 줄임
+			time_left = maxf(0.0, time_left - dt / maxf(Engine.time_scale, 0.01))
+		_lobby_t -= dt
+		if _lobby_t <= 0:
+			_lobby_t = 0.5
+			_render_lobby()
+	elif state == "playing":
 		time_left -= dt / maxf(Engine.time_scale, 0.01)  # 히트스톱 중에도 시계는 실제 시간대로
 		if time_left <= 0:
 			time_left = 0.0

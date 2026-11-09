@@ -104,7 +104,7 @@ const HOLY := {
 # ── 병과 ─────────────────────────────────────────────────────
 # speed: BASE_SPEED 배율 / hp: 없으면 100 / regen: 초당 회복량(기본 10, 5초간 안 맞으면 시작)
 const CLASSES := {
-	"barbarian": {"name": "야만인", "weapon": "stone", "speed": 1.372, "hp": 100,
+	"barbarian": {"name": "야만인", "weapon": "stone", "speed": 1.372, "hp": 90,
 		"color": 0xf28a1e, "leg": 0xf2c7a0, "arm": 0xf2c7a0, "foot": 0xe9b48e, "pips": [5, 1, 1, 5],
 		"desc": "가장 빠르다. 바짝 붙어서 돌멩이를 퍼붓는 돌격형."},
 	"archer": {"name": "궁수", "weapon": "bow", "speed": 1.0, "hp": 100,
@@ -281,6 +281,13 @@ const RAGDOLL := {"life": 7.0, "shrink": 0.6, "flash": 0.2, "iters": 6, "damp": 
 const RAGDOLL_KICK := {"sniper": [26.0, 7.0, 3.0], "lance": [22.0, 10.0, 3.0], "ak": [7.0, 2.5, 0.0],
 	"crossbow": [14.0, 4.5, 0.0], "bow": [8.0, 3.0, 0.0], "holy": [1.5, 4.5, 2.5]}
 const DEATH_CAM := {"back": 5.5, "up": 3.2, "follow": 3.0}  # 죽으면 래그돌 골반을 뒤쪽 위에서 봄
+# 친구대전 (LAN, 9단계: HTML MP) — 방장 컴퓨터가 ENet 서버. 방 코드는 UDP 방송으로 찾는다
+const NET := {
+	"port": 24680, "disc_port": 24681, "max_players": 8, "beacon_tag": "JNP1", "beacon_every": 0.5, "find_timeout": 6.0,
+	"send_hz": 30.0, "host_hz": 4.0, "name_max": 10,
+	"follow": 14.0, "snap_dist": 6.0,   # 남의 캐릭터: 받은 위치로 부드럽게 따라감, 6m 넘게 벌어지면 순간이동
+	"dead_wait": 0.5, "revive_guard": 1.0,  # 죽음 사건보다 상태가 먼저 와도 잠깐 기다림 / 죽은 직후 옛 상태로 안 살아남
+}
 var hitstop_enabled := true   # false면 히트스톱 안 함 (자동 테스트용 — 프레임 수로 시간을 재니까)
 
 # ── 런타임 설정 (user://settings.cfg에 저장 — HTML localStorage aa-cls / aa-diff / aa-sens / aa-view) ──
@@ -291,6 +298,7 @@ var ai_enabled := true       # false면 봇이 가만히 서 있음 (자동 테�
 var save_enabled := true     # false면 설정을 파일에 쓰지 않음 (자동 테스트용)
 var mouse_sens := 1.2
 var third_person := true
+var nick := ""               # 친구대전 닉네임 (HTML aa-nick)
 
 var _mat_cache := {}
 
@@ -314,6 +322,7 @@ func load_settings() -> void:
 		difficulty = d
 	mouse_sens = clampf(float(cf.get_value("game", "sens", mouse_sens)), SENS_RANGE[0], SENS_RANGE[1])
 	third_person = bool(cf.get_value("game", "third_person", third_person))
+	nick = str(cf.get_value("game", "nick", nick))
 
 
 func save_settings() -> void:
@@ -324,6 +333,7 @@ func save_settings() -> void:
 	cf.set_value("game", "diff", difficulty)
 	cf.set_value("game", "sens", mouse_sens)
 	cf.set_value("game", "third_person", third_person)
+	cf.set_value("game", "nick", nick)
 	cf.save(SETTINGS_PATH)
 
 

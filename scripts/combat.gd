@@ -18,6 +18,7 @@ var world: WorldBuilder
 var fx: Fx
 var items: Items            # 닭·말·저격총·AK
 var me: PlayerController    # 내 캐릭터 (스코프·3인칭 판단)
+var net: Net = null         # 친구대전 중이면 Net (아니면 null)
 var ents: Array[PlayerController] = []
 var loose_helms: Array[Dictionary] = []
 var projectiles: Array[Dictionary] = []
@@ -50,12 +51,27 @@ func _ready() -> void:
 
 
 func register(e: PlayerController) -> void:
-	ents.append(e)
+	if not ents.has(e):
+		ents.append(e)
 	e.combat = self
 	if e.is_local:
 		me = e
 	if e.is_bot and not e.ai:
 		e.ai = BotAI.new()
+
+
+func unregister(e: PlayerController) -> void:
+	ents.erase(e)
+
+
+## 친구대전 중인가 (HTML MP.on)
+func mp() -> bool:
+	return net != null and net.on
+
+
+## 아이템 등장·말 등장 같은 걸 이 컴퓨터가 정하나 (혼자 하거나 방장일 때)
+func authority() -> bool:
+	return not mp() or net.is_host
 
 
 ## 3인칭이면 화면 가운데 조준 보정을 쓴다. 저격총 스코프를 보면 1인칭 (HTML tpOn)
@@ -69,7 +85,7 @@ func _physics_process(dt: float) -> void:
 	items.update_sniper(dt)
 	items.update_ak(dt)
 	for e in ents:
-		if e.alive:
+		if e.alive and not e.is_remote:  # 친구 캐릭터는 받은 사건으로만 쏜다
 			if e.swap_req:
 				toggle_special(e)
 			weapon_update(e, e.fire_held, dt)
@@ -108,6 +124,8 @@ func stop_hit_stop() -> void:
 ## 무적·재생·부활
 func _tick_timers(dt: float) -> void:
 	for e in ents:
+		if e.is_remote:  # 친구 캐릭터의 체력·부활은 친구 컴퓨터가 정한다
+			continue
 		if e.alive:
 			e.invuln = maxf(0.0, e.invuln - dt)
 			# 체력 재생: REGEN_DELAY초 동안 안 맞으면 1씩 차오른다
@@ -261,6 +279,8 @@ func ground_below(pt: Vector3) -> float:
 func damage(v: PlayerController, a: PlayerController, base: float, kind: String, head: bool, dir: Vector3, pt: Variant = null) -> void:
 	if not v.alive or v.invuln > 0:
 		return
+	if mp() and not v.is_local:  # 친구대전: 피해는 맞은 사람 쪽에서만 판정 (HTML damage)
+		return
 	var knocked := head and v.helmet
 	var dmg := base * (GameData.HEADSHOT if v.helmet else GameData.BARE_HEAD) if head else base
 	v.hp -= dmg
@@ -317,6 +337,8 @@ func damage(v: PlayerController, a: PlayerController, base: float, kind: String,
 		if v.is_local and not dead:
 			toast.emit("투구가 날아갔다! 머리 피해 2배")
 	impact_fx(v, a, pt, kind, head, dir, dmg, dead)
+	if mp() and v.is_local and a and a.is_remote:  # 내가 맞았다고 모두에게 알림 (맞은 효과·히트마크용)
+		net.event(["h", a.peer, roundf(dmg), Net.WEPS.find(kind), head])
 	if dead:
 		kill(v, a, kind, head, dir)
 		return
@@ -602,6 +624,8 @@ func fire(e: PlayerController, kind: String, t := 0.0) -> void:
 		"mesh": mesh, "life": life, "radius": float(W.radius),
 		"spin": Vector3(randf_range(-15, 15), randf_range(-15, 15), randf_range(-15, 15)),
 	})
+	if mp() and e.is_local:  # 친구 화면에도 같은 투사체를 만든다 (맞았는지는 맞은 사람이 판정)
+		net.event(["f", Net.WEPS.find(kind), pos, vel, t])
 
 
 ## 대물 저격총: 400m 히트스캔, 맞으면 즉사. 5발 쓰면 원래 무기로 — HTML fire('sniper') / hitscan
@@ -621,6 +645,8 @@ func _fire_sniper(e: PlayerController, eye: Vector3, dir: Vector3) -> void:
 			head = r.head
 	var end := eye + d * minf(best, 1.0)
 	var from := _muzzle(e, eye, dir, 0.22, 0.18)
+	if mp() and e.is_local:  # 저격총은 쏜 사람 쪽에서 판정해서 알림
+		net.event(["sn", from, end, hit_e.peer if hit_e and hit_e.is_remote else 0, head])
 	fx.tracer(from, end)
 	fx.puff(from, 0xffd27a, 0.18, 4)
 	if hit_e:
@@ -695,6 +721,8 @@ func _fire_ak(e: PlayerController, eye: Vector3, dir: Vector3) -> void:
 		fx.puff(from, 0xffd27a, 0.07, 2)
 	fx.tracer(from, end, 0xffd27a, 0.012, 0.1, 0.9)
 	var dmg := ak_dmg(minf(best, 1.0) * L)
+	if mp() and e.is_local:
+		net.event(["ak", from, end, hit_e.peer if hit_e and hit_e.is_remote else 0, head, dmg])
 	if hit_e:
 		damage(hit_e, e, dmg, "ak", head, dir, end)
 	elif best < 1:
@@ -852,27 +880,25 @@ func kill(v: PlayerController, a: PlayerController, kind: String, head: bool, di
 	v.deaths += 1
 	v.respawn = GameData.RESPAWN
 	v.charging = false
-	if a and a != v:
+	if a and a != v and not mp():  # 친구대전에선 죽인 사람이 처치 사건을 받고 스스로 센다
 		a.kills += 1
+	if mp() and v.is_local:
+		net.event(["k", a.peer if a and a.is_remote else 0, Net.WEPS.find(kind), head, dir])
 	# 말에서 내리고, 들고 있던 저격총·AK·닭은 그 자리에 떨어뜨림
 	if v.mounted > 0:
 		items.dismount(v)
-	if v.has_sniper:
-		items.drop_sniper(v.global_position, v.ammo)
+	if v.has_sniper:  # 친구대전에선 방장 것만 떨어진다 (HTML 그대로)
+		if authority():
+			items.drop_sniper(v.global_position, v.ammo)
 		v.has_sniper = false
 	if v.has_ak:
-		items.drop_ak(v.global_position, v.ak_ammo)
+		if authority():
+			items.drop_ak(v.global_position, v.ak_ammo)
 		v.has_ak = false
 	if v.has_chicken:
 		v.has_chicken = false
 		items.spawn_chicken(v.global_position, 1.0)
-	# 몸은 래그돌이 되어 날아간다 (모델은 다음 부활 때 새로 만든다)
-	if v.model:
-		var rd := Ragdoll.make(v.model, kind, dir, v.velocity, self, world.aabbs)
-		ragdolls.append(rd)
-		v.ragdoll = rd
-		v.model.queue_free()
-		v.model = null
+	_ragdoll(v, kind, dir)
 	v.die(dir)
 	if a and a.is_local and a != v:
 		hitmark.emit(true)
@@ -881,6 +907,107 @@ func kill(v: PlayerController, a: PlayerController, kind: String, head: bool, di
 	if v.is_bot and randf() < GameData.BOT_RECLASS:
 		v.next_cls = GameData.CLASS_ORDER[randi() % GameData.CLASS_ORDER.size()]
 	killed.emit(v, a, kind, head)  # 킬피드·사망 화면·20킬 종료는 Main이 받는다
+
+
+## 몸은 래그돌이 되어 날아간다 (모델은 다음 부활 때 새로 만든다)
+func _ragdoll(v: PlayerController, kind: String, dir: Vector3) -> void:
+	if v.model:
+		var rd := Ragdoll.make(v.model, kind, dir, v.velocity, self, world.aabbs)
+		ragdolls.append(rd)
+		v.ragdoll = rd
+		v.model.queue_free()
+		v.model = null
+
+
+# ── 친구대전: 친구 컴퓨터에서 온 사건 (HTML remoteFire / handleEvent) ──
+## 친구가 쏜 투사체를 내 화면에도 만든다. 나한테 맞으면 내 쪽에서 피해를 판정한다
+func remote_fire(e: PlayerController, kind: String, pos: Vector3, vel: Vector3, t: float) -> void:
+	var W: Dictionary = GameData.WEAPONS[kind]
+	var mesh: Node3D
+	var dmg := 0.0
+	match kind:
+		"stone":
+			var mi := MeshInstance3D.new()
+			mi.mesh = Meshes.stone()
+			mi.material_override = GameData.mat(W.color)
+			mi.scale = Vector3.ONE * float(W.size)
+			mesh = mi
+			dmg = W.dmg
+			Sfx.play("throw", pos)
+		"bow":
+			mesh = WeaponModels.make_arrow("bow")
+			dmg = roundf(lerpf(W.dmg_min, W.dmg_max, t))
+			Sfx.play("bow", pos)
+			e.rec_v += 5 + 4 * t
+		"crossbow":
+			mesh = WeaponModels.make_arrow("crossbow")
+			dmg = W.dmg
+			Sfx.play("xbow", pos)
+			e.rec_v += 10
+		"holy":
+			var hg := Node3D.new()
+			WeaponModels.make_holy(hg)
+			hg.scale = Vector3.ONE * float(GameData.HOLY.size)
+			mesh = hg
+			Sfx.play("throw", pos)
+		_:
+			return
+	e.fire_anim = 1.0
+	add_child(mesh)
+	mesh.global_position = pos
+	if not SPINS.has(kind):
+		mesh.global_basis = WeaponModels.face(vel)
+	mesh.reset_physics_interpolation()
+	var speed := maxf(1.0, vel.length())
+	projectiles.append({
+		"kind": kind, "pos": pos, "vel": vel, "grav": float(W.grav), "owner": e, "dmg": dmg,
+		"mesh": mesh, "life": float(W.range) / speed if W.has("range") else GameData.PROJ_LIFE, "radius": float(W.radius),
+		"spin": Vector3(randf_range(-15, 15), randf_range(-15, 15), randf_range(-15, 15)),
+	})
+
+
+## 친구가 저격총·AK를 쏨: 궤적·불꽃·소리만 (맞았는지는 쏜 사람이 정해서 같이 보냄)
+func remote_shot(e: PlayerController, kind: String, from: Vector3, end: Vector3) -> void:
+	e.fire_anim = 1.0
+	if kind == "sniper":
+		fx.tracer(from, end)
+		fx.puff(from, 0xffd27a, 0.18, 4)
+		Sfx.play("sniper", from)
+	else:
+		fx.tracer(from, end, 0xffd27a, 0.012, 0.1, 0.9)
+		fx.puff(from, 0xffd27a, 0.07, 2)
+		Sfx.play("ak", from)
+		e.rec_v += 1.2
+
+
+## 친구가 맞음 (친구 쪽에서 판정해서 알려줌): 맞은 효과·숫자·히트마크
+func remote_hit(e: PlayerController, a: PlayerController, dmg: float, kind: String, head: bool) -> void:
+	e.flash = 0.14
+	e.hit_squash = 1.0
+	var dir := Vector3(0, 0, 1)
+	if a:
+		dir = Vector3(e.global_position.x - a.global_position.x, 0, e.global_position.z - a.global_position.z)
+		dir = dir.normalized() if dir.length_squared() > 1e-4 else Vector3(0, 0, 1)
+	var pt := e.global_position + Vector3(0, e.mount_h + (1.6 if head else 1.0), 0)
+	impact_fx(e, a, pt, kind, head, dir, dmg, false)
+	if a and a.is_local:
+		hitmark.emit(false)
+		if kind != "holy":
+			Sfx.play("head" if head else "hit")
+
+
+## 친구가 죽음: 래그돌·킬피드, 내가 죽였으면 내 처치 +1
+func remote_kill(e: PlayerController, a: PlayerController, kind: String, head: bool, dir: Vector3) -> void:
+	if not e.horse.is_empty() or e.mounted > 0:
+		items.dismount(e)
+	_ragdoll(e, kind, dir)
+	e.die(dir)
+	if a and a.is_local:
+		a.kills += 1
+		hitmark.emit(true)
+		Sfx.play("kill")
+		toast.emit(("헤드샷 처치 · " if head else "처치 · ") + e.ent_name)
+	killed.emit(e, a, kind, head)
 
 
 # ── 날아간 투구 ──────────────────────────────────────────────
