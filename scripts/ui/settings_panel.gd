@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends VBoxContainer
 ## 설정 화면 본문 (scenes/ui/settings_panel.tscn) — 메인 메뉴 '설정'과 일시정지 '설정'이 같이 쓴다.
-## 마우스 감도·시점(HTML .sens·.seg) + 볼륨 세 개(전체·배경음악·효과음) + 조작키 목록.
+## 마우스 감도·시점(HTML .sens·.seg) + 그래픽 품질(낮음·보통·높음) + 볼륨 세 개(전체·배경음악·효과음) + 조작키 목록.
 ## 바꾸면 바로 GameData에 넣고 user://settings.cfg에 저장한다. 볼륨은 바로 버스에 반영돼 미리 들어볼 수 있다.
 ## 화면에 보일 때마다 GameData에서 다시 읽는다 (다른 패널이나 V키로 바뀌었을 수 있어서).
 
@@ -12,6 +12,7 @@ const VOL_ROWS := [["master", "전체 볼륨"], ["music", "배경음악"], ["sfx
 var _sens_s: HSlider
 var _sens_o: Label
 var _view_btns := {}
+var _gfx_btns := {}
 var _vol := {}  # 키 → {s: HSlider, o: Label}
 
 
@@ -23,6 +24,7 @@ func _ready() -> void:
 	add_child(top)
 	_build_sens(top)
 	_build_view(top)
+	_build_gfx()
 	_build_volume()
 	if show_keys:
 		_build_keys()
@@ -112,15 +114,44 @@ func _build_view(parent: Node) -> void:
 		_view_btns[v[0]] = b
 
 
-## 시점 버튼 둘 중 지금 것을 금색으로 (HTML .seg button[aria-pressed])
+## 그래픽 품질 낮음 / 보통 / 높음 (GameData.GFX — 잔디·작은 소품·그림자)
+func _build_gfx() -> void:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	add_child(row)
+	var sh := HBoxContainer.new()
+	sh.add_theme_constant_override("separation", 6)
+	_panel(row, Vector4(14, 6, 8, 6)).add_child(sh)
+	UiKit.label("그래픽", 14, UiKit.c("parch"), sh).size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var gap := Control.new()
+	gap.custom_minimum_size.x = 6
+	sh.add_child(gap)
+	for q: String in GameData.GFX_ORDER:
+		var b := Button.new()
+		b.text = GameData.GFX[q].name
+		b.add_theme_font_size_override("font_size", 16)
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		b.focus_mode = Control.FOCUS_NONE
+		b.pressed.connect(func() -> void:
+			GameData.set_gfx(q)
+			_sync_view())
+		sh.add_child(b)
+		_gfx_btns[q] = b
+
+
+## 시점·그래픽 버튼 중 지금 것을 금색으로 (HTML .seg button[aria-pressed])
 func _sync_view() -> void:
+	for k: String in _gfx_btns:
+		_seg_style(_gfx_btns[k], k == GameData.gfx_quality)
 	for k: String in _view_btns:
-		var b: Button = _view_btns[k]
-		var on := (k == "tp") == GameData.third_person
-		var pad := Vector4(14, 6, 14, 6)
-		var n := UiKit.box(UiKit.c("gold") if on else Color.TRANSPARENT, UiKit.c("gold") if on else UiKit.c("line"), 2, 6, pad)
-		var h := UiKit.box(UiKit.c("gold") if on else Color(1, 1, 1, 0.05), UiKit.c("gold"), 2, 6, pad)
-		UiKit._style_button(b, n, h, n, UiKit.c("ink") if on else UiKit.c("parch"))
+		_seg_style(_view_btns[k], (k == "tp") == GameData.third_person)
+
+
+func _seg_style(b: Button, on: bool) -> void:
+	var pad := Vector4(14, 6, 14, 6)
+	var n := UiKit.box(UiKit.c("gold") if on else Color.TRANSPARENT, UiKit.c("gold") if on else UiKit.c("line"), 2, 6, pad)
+	var h := UiKit.box(UiKit.c("gold") if on else Color(1, 1, 1, 0.05), UiKit.c("gold"), 2, 6, pad)
+	UiKit._style_button(b, n, h, n, UiKit.c("ink") if on else UiKit.c("parch"))
 
 
 ## 볼륨 슬라이더 세 개 (0~100%) — 움직이면 바로 버스에 반영, 0%면 음소거

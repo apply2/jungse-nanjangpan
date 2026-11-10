@@ -1,0 +1,2 @@
+PERF tag=after_low map=ffa bots=7 fps=305.7 draw=236 prims=177641
+PERF tag=after_low map=control bots=9 fps=237.3 draw=361 prims=210837

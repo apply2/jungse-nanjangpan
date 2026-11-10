@@ -520,16 +520,21 @@ func try_step(dt: float) -> void:
 	var hit := KinematicCollision3D.new()
 	if not test_move(xf, motion, hit):
 		return
-	if hit.get_normal().y > 0.7:
-		return  # 벽이 아니라 바닥/경사
+	if hit.get_normal().y > 0.7 and hit.get_position().y < xf.origin.y + 0.05:
+		return  # 벽이 아니라 바닥/경사 (발보다 높은 턱 모서리에 닿은 건 비스듬한 법선이 나와도 턱으로 봄 — 비스듬히 걸어가도 올라가게)
 	var up := Vector3(0, GameData.STEP_H, 0)
 	if test_move(xf, up):
 		return  # 머리 위가 막힘
+	# 비스듬히 걸으면 벽에 미끄러져 턱 쪽으로 가는 양이 거의 0 → 턱 위에 발이 안 걸림. 벽 안쪽으로 조금 더 밀어서 본다
+	var n_h := Vector3(hit.get_normal().x, 0, hit.get_normal().z)
+	var probe := motion
+	if n_h.length() > 0.1:
+		probe -= n_h.normalized() * GameData.STEP_PROBE
 	var raised := xf.translated(up)
-	if test_move(raised, motion):
+	if test_move(raised, probe):
 		return  # 올라가도 막힘 → 진짜 벽
 	var down := KinematicCollision3D.new()
-	if test_move(raised.translated(motion), -up, down):
+	if test_move(raised.translated(probe), -up, down):
 		var land_y := raised.origin.y + down.get_travel().y
 		if land_y > xf.origin.y + 0.01:
 			global_position.y = land_y + 0.002

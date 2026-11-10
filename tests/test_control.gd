@@ -265,6 +265,28 @@ func _run() -> void:
 	C.items.dismount(p)
 	p.velocity = Vector3.ZERO
 
+	# ── 거점 단상(0.5m): 점프 없이 걸어서 올라감 — 비스듬히 걸어도 (사용자 요청) ──
+	var stepped := 0
+	var step_miss := ""
+	var yaws := [0.0, 0.6, -0.6, 1.0, -1.0, 1.2, -1.2, 1.4, -1.4]
+	for yw: float in yaws:
+		var fwd := Vector3(-sin(yw), 0, -cos(yw))
+		put(p, Vector3(0, 0, 9.0) - fwd * 1.5)
+		p.yaw = yw
+		p.scripted_input = {"f": 1.0, "r": 0.0, "jump": false, "crouch": false, "sprint": false, "fire": false}
+		var on := false
+		for i in 150:
+			await physics_frame
+			var q: Vector3 = p.global_position
+			if q.y > 0.49 and absf(q.x) < 8.7 and absf(q.z) < 8.7:
+				on = true
+				break
+		stepped += 1 if on else 0
+		if not on:
+			step_miss += " %.1f" % yw
+	p.scripted_input = IDLE
+	check("거점 단상: 걸어서 올라감 (정면·비스듬히 %d방향)" % yaws.size(), stepped == yaws.size(), "못 오른 각도:" + step_miss)
+
 	# ── 부활 5초 ──
 	put(enemy, Vector3(10, 0, 10))
 	await wait(2)

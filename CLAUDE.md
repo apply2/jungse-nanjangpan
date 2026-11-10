@@ -37,7 +37,9 @@ project.godot          설정 (오토로드 GameData, Jolt, Compatibility, 폰�
 scenes/main.tscn       Main(main.gd) ─ World(world_builder.gd) ─ Combat(combat.gd) ─ Player(player.tscn) ─ HUD(hud.gd) (+ 코드로 봇 7명, Menu(menu.gd))
 scenes/player.tscn     CharacterBody3D + 원기둥 충돌(r 0.38, h 1.75, 원점=발) + Camera3D
 scripts/game_data.gd   ★ 모든 수치·병과·무기·난이도·색. 키 설정도 여기서 코드로 등록함
-scripts/world_builder.gd  맵 전체 (HTML buildWorld 1:1). 충돌 상자는 aabbs 배열에도 저장
+scripts/world_builder.gd  맵 전체 (HTML buildWorld 1:1). 충돌 상자는 aabbs 배열에도 저장. 꾸미기 도구(box style·fbox·집 골조·성벽·잔디)도 여기 — 아래 "맵 꾸미기"
+scripts/mat_styles.gd  맵 무늬 재질 (class MatStyles). GameData.MAT_STYLES → ShaderMaterial (캐시), 땅 재질(흙길 목록)
+shaders/               맵 무늬 셰이더 (벽돌·성벽돌·판자·회벽·기와·나무껍질·건초·줄무늬 천·불꽃·땅·잔디). 공용 함수 world_lib.gdshaderinc
 scripts/combat.gd      무기(weapon_update·_bow_update·fire), 투사체(update_projectiles), 화살 꽂힘(stick_arrow·world_arrows), 성수 웅덩이(shatter·update_zones)·착지 지점 표시(aim_mk), 피격 판정(hit_test), damage, impact_fx, kill, 투구 날림, 스폰 지점, 재생·부활 타이머. 모든 캐릭터는 ents에 등록. 캐릭터 이동 뒤에 돈다(process_physics_priority)
 scripts/fx.gd          맞은 효과 puff·ring·chunks (Combat 아래 Fx 노드)
 scripts/meshes.gd      공용 도형: 정십이면체 돌멩이, 고리, 연기 구, 상자, 활대(도넛 조각 arc), 단위 원기둥·원뿔·구, 바닥 원판(disc)·얇은 고리(flat_ring)
@@ -84,6 +86,8 @@ scripts/maps/map_control.gd  쟁탈전 맵 "성곽 우물 광장" (class MapCont
 scripts/modes/control_mode.gd 쟁탈전 규칙 (class ControlMode). 라운드·잠김·점령·경합·점수·연장전·안전장치·스폰룸 회복·공격 금지. Combat.mode에 걸림 (개인전은 null)
 scripts/ui/control_hud.gd     쟁탈전 HUD (Hud 아래): 라운드 점수·% 막대·거점 아이콘·상태 문구, 아군 ▼+이름, 조준한 적 이름, 거점 화살표, 죽었을 때 병과 고르기
 tests/test_control.gd  쟁탈전: 5:5·팀 색·점령 속도·게이지 빼기·감소·경합·점수·연장전·4분·2선승·팀킬 없음·부활 5초·스폰룸 회복/공격 금지·거울 대칭·3갈래 내비·문 막·봇 점령·라운드 흐름·메뉴 복귀 자동 테스트
+tests/test_map_deco.gd 맵 꾸미기: 충돌 상자·스폰 지문이 꾸미기 전과 같음, 장식 충돌 없음, 잔디가 상자·흙길 위에 없음·높이 ≤0.25, 고정 시드, 그래픽 품질·저장·설정 버튼 자동 테스트
+tests/perf_maps.gd     두 맵 같은 카메라 5곳 사진(deco_<tag>_*.png) + 봇 경기 FPS·드로우콜 (화면 있어야 함: godot --path . --resolution 1280x720 -s tests/perf_maps.gd -- tag=after quality=normal secs=30)
 tests/screenshot_control.gd   쟁탈전 맵 위에서 본 사진 → tests/screenshots/ (화면 있어야 함: godot --path . --resolution 1400x760 -s tests/screenshot_control.gd)
 reference/arrow-arena.html 원본
 ```
@@ -128,6 +132,7 @@ AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 
 **HTML과 다른 점 (의도한 것)**
 - 충돌은 HTML의 직접 만든 AABB 대신 Godot 물리(`move_and_slide`)를 쓴다.
 - 0.56m 이하 턱은 `try_step()`이 자동으로 올려준다.
+  비스듬히 걸으면 벽에 미끄러져 턱 쪽으로 가는 양이 0에 가까우므로, 검사할 때 벽 안쪽으로 `STEP_PROBE`(0.12m) 더 밀어 본다 (사용자 요청 — 거점 단상을 점프 없이).
 - 속도·가속·마찰·넘어짐 공식은 HTML과 같다.
 - 단색 환경광은 HTML의 HemisphereLight를 근사한 것이다.
 - 저격총·AK·말이 나타날 때 알림은 제목만 띄운다. 그 아래 설명 문구는 사용자 요청으로 뺐다 (줍거나 올라탈 때 알림은 그대로).
@@ -424,6 +429,28 @@ HTML 버전은 claude.ai의 방(room) 기능 위에서 돌아서 **Godot에선 �
 
 ---
 
+## 맵 꾸미기 (사용자 요청 — HTML엔 없음)
+
+TABS 느낌 로우폴리 + 굵은 줄눈·또렷한 모양. **겉모양만** 바꿨다: 충돌 상자·엄폐물 크기·스폰·아이템 자리는 그대로 (`test_map_deco`가 꾸미기 전 지문과 비교).
+- **무늬 재질**: `box(x,y,z,w,h,d,색,collide,shadow, style)` / `mesh(…, style)`. style은 `GameData.MAT_STYLES`의 키, 기본 `""`은 예전 단색.
+  - 무늬는 셰이더가 월드 좌표(m)로 계산 (이미지 없음) → 상자 크기와 상관없이 벽돌 크기가 같다. 가장 큰 법선 축으로 투영, 줄눈은 fwidth로 부드럽게, 멀면 평균색으로 녹임.
+  - 바탕색은 상자 색(정점 색 — 셰이더 안 COLOR는 이미 선형). 같은 style은 `_merge_static`이 (style, 그림자, 작은 소품)마다 메시 하나로 합친다.
+  - 셰이더 uniform 값 = MAT_STYLES의 값 (0x 정수 = 색). 색·크기를 바꾸려면 game_data.gd만 고치면 된다.
+- **땅**: `ground_plane()` + `grass_ground` 셰이더. 흙길은 상자 대신 `path_rect(cx, cz, w, d)` → 셰이더가 마스크로 그림 (가장자리 노이즈, 긴 길엔 바퀴 자국·자갈). 최대 24개.
+- **장식 도구** (전부 충돌 없음, 벽에서 10cm 이하): `fbox(면 위 점, 밖 법선, u, y, 크기, 색, style, off, rot)`, `fsph`, `house_faces`(창문·문·골조), `_timber`, `_window`, `_door`, `quoins`/`quoin_corner`, `eaves`, `chimney`(DECO.chimney_chance), `tower_deco`.
+  - 집: 빨간 지붕 = 나무 골조(회벽 plaster), 파란 지붕(`house(…, true)`) = 벽돌집. 쟁탈전은 갈래 집 블록·시장 아래 블록 = 골조, 시장 위 블록 = 벽돌.
+- **성벽** `castle_wall(안쪽 면 가운데, 안쪽 법선, 길이, 높이, 두께, 색, 범위)`: 충돌은 `col_box`로 원래 상자 그대로.
+  겉 몸통의 안쪽 면만 `DECO.recess`(0.5m) 들여 그리고 12m마다 버팀벽(앞면 = 충돌 면). 꼭대기 흉벽은 원래 두께 + 띠돌·받침돌.
+  → 버팀벽 사이 칸에선 보이는 벽보다 0.5m 앞에 충돌 면이 있다 (화살이 벽 0.5m 앞 허공에 꽂혀 보일 수 있음).
+  칸(`_bays`)마다 화살 구멍·덩굴, `_wall_props()`가 횃불(DECO.torches개, flame 셰이더 — 빛 없이 발광만)·현수막(개인전 금색, 쟁탈전 `banner_cols` 팀 색). 앞이 막힌 칸(쟁탈전 성벽 길)은 뺀다.
+- **잔디·들꽃·자갈** (`_build_scatter`): MultiMesh, 16m 덩어리마다 하나(멀리 40m 넘으면 덩어리째 숨김, 그림자 없음). 잔디 포기 = 가는 잎 3장 부채꼴(`_blade_mesh`), 바람은 `grass_blade` 셰이더.
+  충돌 상자·흙길·`_no_grass`(돌바닥·스폰룸)·맵 밖은 피한다. 들꽃·자갈은 흙길 가장자리와 성벽 밑. 배치는 `_drng`(시드 `DECO.seed`) → 친구대전에서도 같은 모양.
+  `scatter_items`에 배치값을 남김 (헤드리스는 MultiMesh 값을 못 읽어서 테스트가 씀).
+- **그래픽 품질** (`GameData.GFX`, 설정 화면 "그래픽" 낮음/보통/높음, `[video] quality` 저장, 기본 보통): `GameData.set_gfx(q)` → `gfx_changed` →
+  맵 `apply_gfx()`(잔디 `visible_instance_count`·작은 소품 `clutter_nodes` 보이기), Main `_apply_gfx()`(태양 그림자 끔/130m/220m).
+  작은 소품 = `_clutter = true`인 동안 만든 조각 (덧문·꽃 상자·덩굴·횃불·현수막) + 들꽃·자갈.
+- 굴뚝 연기·나비/새는 **아직 안 함** (사용자가 나중에 말하면).
+
 ## 웹 내보내기 (10단계)
 
 ```bash
@@ -473,6 +500,7 @@ godot --headless --fixed-fps 60 --path . -s tests/test_bard_fx.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_music.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_fish.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_control.gd
+godot --headless --fixed-fps 60 --path . -s tests/test_map_deco.gd
 ```
 
 새 `class_name` 스크립트를 추가하면 한 번 `godot --headless --editor --path . --quit`로 클래스 목록을 갱신해야 다른 스크립트가 찾는다.

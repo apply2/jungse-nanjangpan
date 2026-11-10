@@ -113,16 +113,25 @@ func random_point() -> Vector3:
 
 # ── 짓기 ─────────────────────────────────────────────────────
 ## 블루 절반의 상자를 side(1 블루 / -1 레드)로 뒤집어 놓음. z와 d는 z ≥ 0 쪽 값
-func hb(side: float, x: float, y: float, z: float, w: float, h: float, d: float, hex: int, collide := true, shadow := true) -> void:
-	box(x, y, z * side, w, h, d, hex, collide, shadow)
+func hb(side: float, x: float, y: float, z: float, w: float, h: float, d: float, hex: int, collide := true, shadow := true, style := "") -> void:
+	box(x, y, z * side, w, h, d, hex, collide, shadow, style)
+
+
+## 충돌만 (hb와 같은 상자 — 겉모양은 따로 그림: 성벽)
+func hcb(side: float, x: float, y: float, z: float, w: float, h: float, d: float) -> void:
+	col_box(x, y, z * side, w, h, d)
+
+
+## 현수막: 블루 절반(z+)은 파랑, 레드 절반은 빨강
+func banner_cols(pos: Vector3) -> Array:
+	var team := "blue" if pos.z > 0 else "red"
+	return [GameData.team_hex(team, "body"), GameData.team_hex(team, "pale")]
 
 
 func build() -> void:
 	var C: Dictionary = GameData.C
 	# 땅 (보이는 판 + 두꺼운 충돌 상자)
-	var ground := PlaneMesh.new()
-	ground.size = Vector2(240, 300)
-	mesh(ground, C.grass, Vector3.ZERO, Vector3.ONE, false)
+	ground_plane(Vector2(240, 300))
 	var gcs := CollisionShape3D.new()
 	var gbs := BoxShape3D.new()
 	gbs.size = Vector3(200, 2, 260)
@@ -133,11 +142,13 @@ func build() -> void:
 		_half(side)
 	# 거점 단상(정사각형)·우물 겉모양 (충돌은 _half가 절반씩)
 	var ch := float(GameData.MODES.control.cap_half)
-	box(0, 0, 0, ch * 2, 0.5, ch * 2, C.stone, false)
-	box(0, 0.5, 0, ch * 2 - 1.2, 0.01, ch * 2 - 1.2, C.stone2, false, false)
-	mesh(_cyl, C.stone_dark, Vector3(0, 0.5 + 0.6, 0), Vector3(1.3, 1.2, 1.3))
+	box(0, 0, 0, ch * 2, 0.5, ch * 2, C.stone, false, true, "castle_stone")
+	box(0, 0.5, 0, ch * 2 - 1.2, 0.01, ch * 2 - 1.2, C.stone2, false, false, "castle_stone")
+	_no_grass.append(Rect2(-ch, -ch, ch * 2, ch * 2))
+	mesh(_cyl, C.brick, Vector3(0, 0.5 + 0.6, 0), Vector3(1.3, 1.2, 1.3), true, null, "brick")
 	mesh(_cyl, 0x2c4a6b, Vector3(0, 1.71, 0), Vector3(1.0, 0.02, 1.0), false)  # 우물 물
 	box(0, 1.7, 0, 0.18, 5.2, 0.18, C.wood_dark, false)  # 깃대
+	_well_roof()
 	# 바깥 언덕·구름
 	for n in 18:
 		var a := float(n) / 18.0 * TAU
@@ -169,28 +180,34 @@ func _half(side: float) -> void:
 	var tc := GameData.team_hex(team, "body")
 	var ta := GameData.team_hex(team, "accent")
 	# 흙길
-	hb(side, 0, 0, 25, 10, 0.02, 26, C.path, false, false)            # 큰길
-	hb(side, -23, 0, 25, 8, 0.02, 26, 0xd4b273, false, false)          # 시장 골목 바닥
-	hb(side, 0, 0, 45, 40, 0.02, 14, C.path, false, false)             # 집결 마당
-	hb(side, 0, 0, 6, 60, 0.015, 12, 0xd8c79a, false, false)           # 광장 돌바닥
+	path_rect(0, 25 * side, 10, 26)                                     # 큰길 (땅 셰이더)
+	path_rect(-23, 25 * side, 8, 26)                                    # 시장 골목 바닥
+	path_rect(0, 45 * side, 40, 14)                                     # 집결 마당
+	hb(side, 0, 0, 6, 60, 0.015, 12, 0xd8c79a, false, false, "castle_stone")  # 광장 돌바닥
+	_no_grass.append(Rect2(-30, 0.0 if side > 0 else -12.0, 60, 12))
+	var room := spawn_room(team)
+	_no_grass.append(Rect2(room.position.x, room.position.z, room.size.x, room.size.z))
 	# ── 바깥 성벽 (높이 6) ──
-	hb(side, -33, 0, 32.5, 2, 6, 65, C.stone)
-	hb(side, 33, 0, 32.5, 2, 6, 65, C.stone)
-	hb(side, 0, 0, 65, 68, 6, 2, C.stone)
+	hcb(side, -33, 0, 32.5, 2, 6, 65)   # 충돌은 원래 상자 그대로, 겉모양은 castle_wall (버팀벽·띠돌·횃불·현수막)
+	hcb(side, 33, 0, 32.5, 2, 6, 65)
+	hcb(side, 0, 0, 65, 68, 6, 2)
+	castle_wall(Vector3(-32, 0, 32 * side), Vector3(1, 0, 0), 64, 6, 2, C.stone, 30)
+	castle_wall(Vector3(32, 0, 32 * side), Vector3(-1, 0, 0), 64, 6, 2, C.stone, 30)
+	castle_wall(Vector3(0, 0, 64 * side), Vector3(0, 0, -side), 64, 6, 2, C.stone, 30)
 	var i := 1.5
 	while i < 64:
-		hb(side, -33, 6, i, 2, 0.8, 1.4, C.stone2, false)
-		hb(side, 33, 6, i, 2, 0.8, 1.4, C.stone2, false)
+		hb(side, -33, 6, i, 2, 0.8, 1.4, C.stone2, false, true, "castle_stone")
+		hb(side, 33, 6, i, 2, 0.8, 1.4, C.stone2, false, true, "castle_stone")
 		i += 3.0
 	# ── 스폰룸 (x -10~10, z 52~64, 높이 5, 지붕) ──
-	hb(side, -10.3, 0, 58.3, 0.6, 5, 11.4, C.stone2)
-	hb(side, 10.3, 0, 58.3, 0.6, 5, 11.4, C.stone2)
+	hb(side, -10.3, 0, 58.3, 0.6, 5, 11.4, C.stone2, true, true, "castle_stone")
+	hb(side, 10.3, 0, 58.3, 0.6, 5, 11.4, C.stone2, true, true, "castle_stone")
 	for seg: Array in [[-10.6, -8.25], [-5.75, -2.0], [2.0, 5.75], [8.25, 10.6]]:  # 북쪽 벽: 출구 3개 사이
 		var x0: float = seg[0]
 		var x1: float = seg[1]
-		hb(side, (x0 + x1) / 2, 0, 52.3, x1 - x0, 5, 0.6, C.stone2)
+		hb(side, (x0 + x1) / 2, 0, 52.3, x1 - x0, 5, 0.6, C.stone2, true, true, "castle_stone")
 	for door: Array in [[-7.0, 2.5], [0.0, 4.0], [7.0, 2.5]]:  # 문 위 상인방
-		hb(side, door[0], 3.0, 52.3, door[1], 2.0, 0.6, C.stone_dark)
+		hb(side, door[0], 3.0, 52.3, door[1], 2.0, 0.6, C.stone_dark, true, true, "castle_stone")
 	hb(side, 0, 5, 58.3, 21.8, 0.5, 12.4, tc)                          # 팀 색 지붕
 	hb(side, 0, 5.5, 58.3, 14, 1.2, 6, tc, false)
 	for x: float in [-4.0, 4.0]:                                         # 문 위 팀 깃발 (걸개)
@@ -199,65 +216,82 @@ func _half(side: float) -> void:
 	hb(side, 0, 0.0, 63.5, 18, 0.02, 0.8, ta, false, false)
 	# ── 집결 마당 (z 38~52): 낮은 엄폐물 ──
 	for hay: Array in [[-14.0, 44.0], [13.0, 47.0], [-4.5, 47.5], [6.0, 41.0]]:
-		hb(side, hay[0], 0, hay[1], 2.4, 1.0, 1.3, C.hay)
+		hb(side, hay[0], 0, hay[1], 2.4, 1.0, 1.3, C.hay, true, true, "hay")
 	crate_h(side, -7.0, 41.5, 1.2, 1)
 	crate_h(side, 15.5, 41.0, 1.1, 2)
 	crate_h(side, -22.0, 49.0, 1.2, 2)
 	# ── 갈래를 가르는 집 블록 (못 올라감) ──
 	for x: float in [-12.0, 12.0]:
-		hb(side, x, 0, 24, 8, 5.5, 20, C.plaster)
-		hb(side, x, 5.25, 24, 8.2, 0.3, 20.2, C.wood_dark, false)
-		for zz: float in [16.0, 24.0, 32.0]:
-			hb(side, x + (4.05 if x > 0 else -4.05) * -1.0, 1.6, zz, 0.08, 1.0, 1.2, 0x3d4b6b, false)  # 길 쪽 창문
+		hb(side, x, 0, 24, 8, 5.5, 20, C.plaster, true, true, "plaster")
+		hb(side, x, 5.25, 24, 8.2, 0.3, 20.2, C.wood_dark, false, true, "wood_plank")
+		_corner_posts(x, 24 * side, 8, 20, 5.5)
+		# 큰길 쪽 면에 문, 나머지 면은 창문 자동 (나무 골조)
+		house_faces(x, 24 * side, 8, 20, 5.5, false, [-7.0, -3.5, 3.5, 7.0], 3 if x > 0 else 2)
 		roof(Vector3(x, 7.0, 24 * side), Vector3(4.6 * 1.414, 3, 10.6 * 1.414), C.roof_slate if x < 0 else C.roof_brown)  # 팀 색과 헷갈리지 않게
+		eaves(x, 24 * side, 5.5, 4.6, 10.6)
+		chimney(x, 24 * side, 8, 20, 5.5)
 	# ── 왼쪽 시장 골목 (x -30~-16): 블록 두 개로 꺾이는 좁은 길 ──
-	hb(side, -26.5, 0, 30.5, 7, 4.5, 7, C.plaster)      # 위쪽 블록 (길은 오른쪽 x -23~-16)
+	hb(side, -26.5, 0, 30.5, 7, 4.5, 7, C.brick, true, true, "brick")      # 위쪽 블록 = 벽돌집 (길은 오른쪽 x -23~-16)
+	quoins(-26.5, 30.5 * side, 7, 7, 4.5, 0.4)
+	house_faces(-26.5, 30.5 * side, 7, 7, 4.5, true, [-2.2, 2.2], 2)
 	roof(Vector3(-26.5, 6.0, 30.5 * side), Vector3(4 * 1.414, 3, 4 * 1.414), C.roof_brown)
-	hb(side, -19, 0, 18.5, 6, 4.5, 5, C.plaster)        # 아래쪽 블록 (길은 왼쪽 x -30~-22)
+	eaves(-26.5, 30.5 * side, 4.5, 4, 4)
+	chimney(-26.5, 30.5 * side, 7, 7, 4.5)
+	hb(side, -19, 0, 18.5, 6, 4.5, 5, C.plaster, true, true, "plaster")        # 아래쪽 블록 (길은 왼쪽 x -30~-22)
+	hb(side, -19, 4.25, 18.5, 6.1, 0.3, 5.1, C.wood_dark, false, true, "wood_plank")
+	_corner_posts(-19, 18.5 * side, 6, 5, 4.5)
+	house_faces(-19, 18.5 * side, 6, 5, 4.5, false, [-1.8, 1.8], 3)
 	roof(Vector3(-19, 6.0, 18.5 * side), Vector3(3.5 * 1.414, 3, 3 * 1.414), C.roof_slate)
-	hb(side, -29.0, 0, 36.5, 2.0, 1.0, 1.2, C.hay)
+	eaves(-19, 18.5 * side, 4.5, 3.5, 3)
+	hb(side, -29.0, 0, 36.5, 2.0, 1.0, 1.2, C.hay, true, true, "hay")
 	stall_h(side, -18.2, 28.0, C.hay)
 	stall_h(side, -27.8, 22.5, 0x7fc35a)
 	crate_h(side, -21.0, 24.0, 1.0, 2)
 	crate_h(side, -24.0, 14.0, 1.1, 1)
-	hb(side, -28.5, 0, 16.0, 2.2, 1.0, 1.2, C.hay)
+	hb(side, -28.5, 0, 16.0, 2.2, 1.0, 1.2, C.hay, true, true, "hay")
 	# ── 가운데 큰길 (x -8~8): 부서진 수레·상자 더미·낮은 벽 ──
-	hb(side, 3, 0, 24, 2.6, 1.1, 1.5, C.wood)
-	hb(side, 3, 1.1, 24, 2.8, 0.15, 1.7, C.wood_dark, false)
+	hb(side, 3, 0, 24, 2.6, 1.1, 1.5, C.wood, true, true, "wood_plank")
+	hb(side, 3, 1.1, 24, 2.8, 0.15, 1.7, C.wood_dark, false, true, "wood_plank")
 	for wz: float in [23.2, 24.8]:
-		hb(side, 1.6, 0, wz, 0.25, 0.9, 0.9, C.wood_dark, false)
+		hb(side, 1.6, 0, wz, 0.25, 0.9, 0.9, C.wood_dark, false, true, "wood_plank_v")
 	crate_h(side, -4, 18, 1.2, 2)
 	crate_h(side, -5.2, 19.0, 1.0, 1)
-	hb(side, 0, 0, 30, 4, 1.1, 0.6, C.stone)
+	hb(side, 0, 0, 30, 4, 1.1, 0.6, C.stone, true, true, "castle_stone")
 	# ── 오른쪽 성벽 길: 높이 3 성벽 위 산책로 (x 25~31) + 아래 지면 통로 (x 16~25) ──
-	hb(side, 28.5, 0, 21, 7, 3, 26, C.stone)            # x 25~32, z 8~34 (감시탑과 이어짐)
+	hb(side, 28.5, 0, 21, 7, 3, 26, C.stone, true, true, "castle_stone")            # x 25~32, z 8~34 (감시탑과 이어짐)
 	for k in 6:                                          # 집결 마당 쪽 계단 (z 34 → 38)
 		var h := 3.0 - 0.5 * (k + 1)
 		if h > 0:
-			hb(side, 28.5, 0, 34.35 + 0.7 * k, 7, h, 0.7, C.stone2)
+			hb(side, 28.5, 0, 34.35 + 0.7 * k, 7, h, 0.7, C.stone2, true, true, "castle_stone")
 	for zz: float in [14.0, 20.0, 26.0, 32.0]:          # 총안 몇 개 (안쪽 가장자리)
-		hb(side, 25.3, 3, zz, 0.6, 1.0, 1.6, C.stone2)
+		hb(side, 25.3, 3, zz, 0.6, 1.0, 1.6, C.stone2, true, true, "castle_stone")
 	# ── 감시탑 고지 (x 20~30, z -8~8, 높이 3) + 아래 아치 통로 (z -3~3) ──
-	hb(side, 26, 0, 5.5, 12, 3, 5, C.stone)              # x 20~32, z 3~8 꽉 찬 부분
-	hb(side, 26, 2.4, 1.5, 12, 0.6, 3, C.stone)          # z 0~3 아치 지붕 (밑으로 지나감)
-	hb(side, 26, 3, 7.7, 12, 0.8, 0.6, C.stone2)         # 난간
+	hb(side, 26, 0, 5.5, 12, 3, 5, C.stone, true, true, "castle_stone")              # x 20~32, z 3~8 꽉 찬 부분
+	hb(side, 26, 2.4, 1.5, 12, 0.6, 3, C.stone, true, true, "castle_stone")          # z 0~3 아치 지붕 (밑으로 지나감)
+	hb(side, 26, 3, 7.7, 12, 0.8, 0.6, C.stone2, true, true, "castle_stone")         # 난간
+	quoin_corner(20, 8 * side, -1, side, 3, 0.5)   # 감시탑·성벽 길 모서리 돌
+	quoin_corner(20, 3 * side, -1, -side, 2.4, 0.5)
+	quoin_corner(25, 34 * side, -1, side, 3, 0.5)
 	for k in 5:                                          # 광장 쪽 계단 (x 20 → 15.5, z 4~8)
 		var h := 3.0 - 0.5 * (k + 1)
-		hb(side, 19.55 - 0.9 * k, 0, 6, 0.9, h, 4, C.stone2)
+		hb(side, 19.55 - 0.9 * k, 0, 6, 0.9, h, 4, C.stone2, true, true, "castle_stone")
 	# ── 중앙 광장: 거점 단상(정사각형 18m)·우물·낮은 벽 4개 ──
 	var ch := float(GameData.MODES.control.cap_half)
 	hc(side, 0, 0, ch / 2, ch * 2, 0.5, ch)  # 단상 절반 (충돌만 — 겉은 build)
 	hc(side, 0, 0.5, 0.6, 2.4, 1.2, 1.2)  # 우물 (충돌만 — 겉은 build의 원기둥)
 	for x: float in [-4.8, 4.8]:          # 낮은 벽: 대각선 네 곳
-		hb(side, x, 0.5, 4.8, 3, 1.0, 0.6, C.stone2)
+		hb(side, x, 0.5, 4.8, 3, 1.0, 0.6, C.stone2, true, true, "castle_stone")
 	# ── 신전 폐허 (x -32~-14): 기둥·아치·무너진 벽 ──
 	for pp: Array in [[-28.0, 3.0], [-22.0, 3.0], [-16.5, 3.0], [-28.0, 9.0], [-16.5, 9.5]]:
-		hb(side, pp[0], 0, pp[1], 0.9, 4.0, 0.9, C.plaster)
-	hb(side, -22, 4.0, 9.0, 6.0, 0.7, 0.9, C.plaster)    # 아치 (기둥 둘 + 윗돌)
-	hb(side, -25, 0, 9.0, 0.9, 4.0, 0.9, C.plaster)
-	hb(side, -19.5, 0, 6.5, 4.0, 1.4, 0.6, C.stone2)     # 무너진 벽
-	hb(side, -27.0, 0, 6.0, 0.6, 1.2, 3.0, C.stone2)
-	hb(side, -24.5, 0, 0.6, 2.0, 0.7, 1.2, C.stone_dark)
+		hb(side, pp[0], 0, pp[1], 0.9, 4.0, 0.9, C.marble, true, true, "castle_stone")   # 대리석 기둥
+	hb(side, -22, 4.0, 9.0, 6.0, 0.7, 0.9, C.marble, true, true, "castle_stone")    # 아치 (기둥 둘 + 윗돌)
+	hb(side, -25, 0, 9.0, 0.9, 4.0, 0.9, C.marble, true, true, "castle_stone")
+	hb(side, -19.5, 0, 6.5, 4.0, 1.4, 0.6, C.stone2, true, true, "castle_stone")     # 무너진 벽
+	hb(side, -27.0, 0, 6.0, 0.6, 1.2, 3.0, C.stone2, true, true, "castle_stone")
+	hb(side, -24.5, 0, 0.6, 2.0, 0.7, 1.2, C.stone_dark, true, true, "castle_stone")
+	for pp: Array in [[-28.0, 3.0], [-22.0, 3.0], [-16.5, 3.0], [-28.0, 9.0], [-16.5, 9.5], [-25.0, 9.0]]:  # 기둥 받침·머리 (충돌 없음, 5cm)
+		for yy: float in [0.0, 3.75]:
+			hb(side, pp[0], yy, pp[1], 1.0, 0.25, 1.0, C.quoin, false, true, "castle_stone")
 	tree(-28.0, 44 * side, 1.0)
 	tree(28.0, 44 * side, 0.9)
 
@@ -274,6 +308,31 @@ func crate_h(side: float, x: float, z: float, s: float, st: int) -> void:
 
 func stall_h(side: float, x: float, z: float, cloth: int) -> void:
 	stall(x, z * side, cloth)
+
+
+## 나무 골조 집 네 모서리 기둥 (충돌 없음)
+func _corner_posts(x: float, z: float, w: float, d: float, h: float) -> void:
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			box(x + sx * (w / 2), 0, z + sz * (d / 2), 0.35, h, 0.35, GameData.C.wood_dark, false, true, "wood_plank_v")
+
+
+## 우물 지붕: 기둥 둘·가로대·작은 박공 지붕(기와)·도르래·밧줄·두레박 (충돌 없음 — 우물 충돌은 그대로)
+func _well_roof() -> void:
+	var C: Dictionary = GameData.C
+	for sx: float in [-1.0, 1.0]:
+		box(sx * 1.15, 1.7, 0, 0.14, 2.1, 0.14, C.beam, false, true, "wood_plank_v")
+	box(0, 3.45, 0, 2.5, 0.12, 0.12, C.beam, false, true, "wood_plank")
+	var slope := atan2(0.55, 0.85)
+	for sz: float in [-1.0, 1.0]:
+		var rm := mesh(_box, C.roof_brown, Vector3(0, 3.95, sz * 0.43), Vector3(2.8, 0.08, 1.1), true, null, "roof_tiles")
+		rm.rotation.x = sz * slope
+	box(0, 4.18, 0, 2.9, 0.1, 0.12, C.beam, false, true, "wood_plank")  # 용마루
+	var pul := mesh(_cyl, C.wood_dark, Vector3(0.5, 3.3, 0), Vector3(0.13, 0.1, 0.13), true)
+	pul.rotation.z = PI / 2
+	box(0.5, 2.15, 0.06, 0.025, 1.1, 0.025, C.rope, false, false)
+	mesh(_cyl, C.wood, Vector3(0.5, 2.05, 0.06), Vector3(0.15, 0.22, 0.15), true, null, "wood_plank_v")
+	mesh(_cyl, C.iron, Vector3(0.5, 2.1, 0.06), Vector3(0.155, 0.04, 0.155), false)
 
 
 ## 합친 뒤에 붙임: 스폰룸 문 막(적만 막힘), 거점 바닥 고리·게이지·빛기둥·깃발

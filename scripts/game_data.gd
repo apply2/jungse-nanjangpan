@@ -21,6 +21,7 @@ const BOT_COUNT := 7
 const RESPAWN := 3.0
 const ARENA := 44.4          # 이동 가능 범위 (±)
 const STEP_H := 0.56         # 자동으로 올라가는 턱 높이
+const STEP_PROBE := 0.12     # 턱 오르기 검사 때 벽 안쪽으로 더 밀어 봄 (비스듬히 걸어도 올라가게 — 사용자 요청)
 
 # ── 피해·처치·부활 (HTML damage / hitTest / spawn / simulate) ──
 const HEAD_R := 0.3          # 머리 판정 반지름 (+투사체 반지름)
@@ -336,7 +337,68 @@ const C := {
 	"roof_b": 0x4f6fa8, "hay": 0xe8c860, "leaf": 0x5aa84a, "leaf2": 0x6dbb55, "trunk": 0x7a5230, "gold": 0xf3b33d,
 	"cloth": 0xe9dfc8, "skin": 0xf2c7a0, "sky": 0x9fd3f0,
 	"roof_slate": 0x6f7684, "roof_brown": 0x9b6a45,  # 쟁탈전 맵 지붕 (팀 색 빨강·파랑과 안 헷갈리게)
+	# 맵 꾸미기 (사용자 요청) 소품 색
+	"brick": 0xb0614a, "iron": 0x3b3b42, "beam": 0x5c3b22, "glass": 0x3d4b6b, "ivy": 0x5c8a45, "ivy2": 0x6f9a52,
+	"shutter_g": 0x5f7d5a, "shutter_b": 0x4f6a8a, "flower_r": 0xd9534a, "flower_y": 0xf0c94a, "flower_box": 0x7a5230,
+	"torch_cup": 0x2e2e33, "flame": 0xff9a3c, "flame_core": 0xffe08a, "marble": 0xe8e1d2,
+	"quoin": 0xd3cbb9, "slit": 0x2a2826, "knob": 0x1e1e22, "rope": 0xc9b58a,
 }
+
+# ── 맵 재질 (사용자 요청 — 무늬는 셰이더로 계산, shaders/ 폴더) ─────────────
+# 맵 빌더가 box(…, style="brick")처럼 고르면 그 style의 재질로 그린다. 바탕색은 상자 색(정점 색) 그대로.
+# 키 "shader" 말고는 전부 셰이더 uniform: 0x 정수 = 색, 나머지는 그대로 (float·Vector2·bool). 크기는 m.
+# style ""(기본)은 지금처럼 단색.
+const MAT_STYLES := {
+	"brick": {"shader": "res://shaders/brick.gdshader", "brick_size": Vector2(0.5, 0.2), "mortar": 0.025,
+		"mortar_col": 0xe6e0d4, "jitter": 0.12, "odd_chance": 0.08, "odd_col": 0x8a5a44, "edge_dark": 0.25, "cap_col": 0xb9b2a4},
+	"castle_stone": {"shader": "res://shaders/castle_stone.gdshader", "block_h": 0.6, "block_len": Vector2(0.8, 1.6), "mortar": 0.05,
+		"mortar_col": 0x5c5952, "jitter": 0.1, "blotch": 0.18, "moss_col": 0x667f45, "moss_h": 1.2, "ao": 0.35, "ao_h": 0.7},
+	"wood_plank": {"shader": "res://shaders/wood_plank.gdshader", "plank_w": 0.22, "gap": 0.018, "gap_col": 0x2e2014,
+		"jitter": 0.14, "grain": 0.12, "joint_len": 1.6, "vertical": false},
+	"wood_plank_v": {"shader": "res://shaders/wood_plank.gdshader", "plank_w": 0.22, "gap": 0.018, "gap_col": 0x2e2014,
+		"jitter": 0.14, "grain": 0.12, "joint_len": 2.4, "vertical": true},
+	"plaster": {"shader": "res://shaders/plaster.gdshader", "stain": 0.07, "patch_scale": 0.32, "patch_cut": 0.69,
+		"brick_col": 0xa85a44, "mortar_col": 0xe6e0d4, "brick_size": Vector2(0.5, 0.2), "mortar": 0.025},
+	"roof_tiles": {"shader": "res://shaders/roof_tiles.gdshader", "tile": Vector2(0.34, 0.24), "jitter": 0.12, "shade": 0.4},
+	"bark": {"shader": "res://shaders/bark.gdshader", "stripes": 14.0, "depth": 0.35},
+	"hay": {"shader": "res://shaders/hay.gdshader", "fiber": 38.0, "jitter": 0.16},
+	"cloth_stripe": {"shader": "res://shaders/cloth_stripe.gdshader", "width": 0.4, "stripe_col": 0xf5eedc},
+	"flame": {"shader": "res://shaders/flame.gdshader", "flicker": 0.045, "speed": 13.0, "glow": 1.6},
+	# 땅 (판 하나) — 잔디 + 흙길 마스크. 잔디색은 캐릭터보다 채도를 낮게
+	"grass_ground": {"shader": "res://shaders/grass_ground.gdshader", "col_a": 0x86b866, "col_b": 0x6f9f55, "col_c": 0x97c272,
+		"col_d": 0x7c9a5a, "soil_col": 0x8c7350, "patch_scale": 0.045, "soil_amount": 0.05, "blade": 0.08,
+		# dirt_path (흙길 — 같은 셰이더 안)
+		"path_col": 0xd6bd85, "rut_col": 0xae9468, "gravel_col": 0x9c968c, "edge_noise": 0.7, "edge_soft": 0.25,
+		"rut_off": 0.8, "rut_w": 0.22, "gravel": 0.12},
+	"grass_blade": {"shader": "res://shaders/grass_blade.gdshader", "sway": 0.06, "wind_speed": 1.8, "wind_scale": 0.32,
+		"height": 1.0, "root_dark": 0.45},  # height: 메시 높이 (포기마다 DECO.grass_h로 줄여 그림)
+}
+
+# ── 맵 장식 (사용자 요청 — 전부 충돌 없음, 벽에서 10cm 넘게 안 튀어나옴. 성벽은 아래 recess 참고) ──
+const DECO := {
+	"seed": 7321,                     # 배치 무작위 시드 (고정 → 친구대전에서도 모두 같은 모양)
+	# 잔디 포기 (MultiMesh): 1m²당 개수(품질 '높음' 기준), 높이, 묶음 크기, 보이는 거리
+	"grass_density": 0.55, "grass_h": 0.22, "grass_chunk": 16.0, "grass_range": 40.0,
+	"grass_cols": [0x7fa865, 0x8cb26e, 0x739a5c, 0x95b878],
+	"flower_ratio": 0.05, "flower_cols": [0xf4f1e6, 0xf0d35a, 0xa98bd6], "flower_h": 0.2,
+	"pebble_per_m": 0.5, "pebble_col": 0x8f8b84,
+	# 나무 골조 집
+	"post_gap": 1.75, "post_w": 0.16, "beam_h": 0.16, "out": 0.06,  # out: 벽에서 튀어나온 두께 (m, 10cm 이하)
+	"chimney_chance": 0.45,
+	# 성벽: 안쪽 면을 recess만큼 들여서 그리고 (충돌은 그대로), 그 앞에 버팀벽(같은 깊이)을 buttress_gap마다 → 버팀벽 앞면 = 충돌 면
+	"recess": 0.5, "buttress_gap": 12.0, "buttress_w": 1.4, "parapet": 0.6,
+	"torches": 8, "banner_every": 2,   # 버팀벽 칸 몇 개마다 현수막
+	"leaf_jitter": 0.1,                # 나뭇잎 덩어리 밝기 흔들림
+}
+
+# ── 그래픽 품질 (설정 화면, user://settings.cfg) — 사용자 요청 ──
+# grass: 잔디 비율 (DECO.grass_density에 곱함), clutter: 작은 소품(덩굴·꽃·횃불·현수막·덧문·자갈·들꽃), shadow_dist: 그림자 거리(0 = 끔)
+const GFX := {
+	"low": {"name": "낮음", "grass": 0.0, "clutter": false, "shadow_dist": 0.0},
+	"normal": {"name": "보통", "grass": 0.5, "clutter": true, "shadow_dist": 130.0},
+	"high": {"name": "높음", "grass": 1.0, "clutter": true, "shadow_dist": 220.0},
+}
+const GFX_ORDER := ["low", "normal", "high"]
 
 # 아이템이 나타나는 자리
 # ── 특수 아이템 (HTML updateChickens / updateSniper / updateAK / updateHorses / lanceCheck) ──
@@ -465,6 +527,9 @@ var squeak_override := -1.0   # 테스트: 0 이상이면 트럼펫 삑사리 �
 var settings_path := "user://settings.cfg"  # 테스트는 다른 파일로 바꿔서 내 설정을 안 건드림
 var difficulty := "normal"
 var mode := "ffa"           # 지금 고른 게임 모드 (ffa 개인전 / control 쟁탈전)
+var gfx_quality := "normal"  # 그래픽 품질 (low / normal / high — GFX)
+
+signal gfx_changed  # 그래픽 품질이 바뀜 (Main: 그림자, 맵: 잔디·소품)
 var chosen_cls := "archer"   # AI대전에서 고른 내 병과
 var ai_enabled := true       # false면 봇이 가만히 서 있음 (자동 테스트용)
 var save_enabled := true     # false면 설정을 파일에 쓰지 않음 (자동 테스트용)
@@ -503,6 +568,9 @@ func load_settings() -> void:
 	var md: String = cf.get_value("game", "mode", mode)
 	if md == "ffa" or MODES.has(md):
 		mode = md
+	var gq: String = cf.get_value("video", "quality", gfx_quality)
+	if GFX.has(gq):
+		gfx_quality = gq
 	var d: String = cf.get_value("game", "diff", difficulty)
 	if DIFF.has(d):
 		difficulty = d
@@ -523,6 +591,7 @@ func save_settings() -> void:
 	cf.set_value("game", "sens", mouse_sens)
 	cf.set_value("game", "third_person", third_person)
 	cf.set_value("game", "nick", nick)
+	cf.set_value("video", "quality", gfx_quality)
 	for k: String in VOL_DEFAULT:
 		cf.set_value("audio", k, volumes[k])
 	cf.save(settings_path)
@@ -565,6 +634,19 @@ func apply_volumes() -> void:
 ## 0xRRGGBB → Color
 static func col(hex: int) -> Color:
 	return Color.hex((hex << 8) | 0xff)
+
+
+## 그래픽 품질 바꾸기 (설정 화면) — 저장하고 gfx_changed로 알림
+func set_gfx(q: String) -> void:
+	if not GFX.has(q):
+		return
+	gfx_quality = q
+	save_settings()
+	gfx_changed.emit()
+
+
+func gfx() -> Dictionary:
+	return GFX[gfx_quality]
 
 
 ## 같은 색은 머티리얼 하나를 같이 쓴다 (HTML의 lam()). 램버트처럼 무광.

@@ -19,6 +19,7 @@ var mode: ControlMode = null      # 쟁탈전 규칙 (개인전이면 null)
 var net: Net
 var bots: Array[PlayerController] = []
 var state := "menu"
+var sun: DirectionalLight3D
 var _lobby_t := 0.0
 var _was_locked := false  # 웹: 지난 프레임에 마우스가 잠겨 있었나
 var time_left: float = GameData.MATCH_TIME
@@ -473,7 +474,7 @@ func _setup_environment() -> void:
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
-	var sun := DirectionalLight3D.new()
+	sun = DirectionalLight3D.new()
 	sun.light_color = GameData.col(0xfff0d2)
 	sun.light_energy = 0.7
 	sun.shadow_enabled = true
@@ -482,6 +483,16 @@ func _setup_environment() -> void:
 	sun.shadow_bias = 0.04
 	add_child(sun)
 	sun.look_at_from_position(Vector3(35, 70, 22), Vector3.ZERO)
+	_apply_gfx()
+	GameData.gfx_changed.connect(_apply_gfx)
+
+
+## 그래픽 품질 → 그림자 (낮음 = 끔, 보통 130m, 높음 220m). 잔디·소품은 맵(WorldBuilder.apply_gfx)이 함
+func _apply_gfx() -> void:
+	var d: float = GameData.gfx().shadow_dist
+	sun.shadow_enabled = d > 0.0
+	if d > 0.0:
+		sun.directional_shadow_max_distance = d
 
 
 ## 웹에선 Esc를 브라우저가 먼저 가져가 마우스 잠금만 풀린다 → 잠금이 풀리면 일시정지 (HTML pointerlockchange)

@@ -1,0 +1,2 @@
+PERF tag=before map=ffa bots=7 fps=331.5 draw=327 prims=248583
+PERF tag=before map=control bots=9 fps=253.8 draw=539 prims=326054
