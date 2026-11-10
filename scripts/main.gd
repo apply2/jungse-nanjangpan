@@ -4,6 +4,7 @@ extends Node3D
 ## 상태: menu(메뉴 뒤에서 봇끼리 싸움) → playing → paused / ended.
 ## 일시정지는 SceneTree.paused로 월드·캐릭터·Combat을 멈춘다. Main·HUD·메뉴는 계속 돈다.
 ## 친구대전(Net)에선 봇을 빼고, 일시정지해도 게임은 멈추지 않는다 (HTML MP). 시간·종료는 방장이 정한다.
+## 친구대전 쟁탈전은 빈자리를 방장 컴퓨터의 봇으로 채운다 (mp_pick_bots). 봇 id는 음수 (bot_by_id).
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 
@@ -102,6 +103,8 @@ func _setup_net() -> void:
 	menu.lobby_class.connect(func(k: String) -> void:
 		player.next_cls = k
 		net.set_cls(k))
+	menu.lobby_mode.connect(func(k: String) -> void: net.set_room_mode(k))
+	menu.lobby_team.connect(func() -> void: net.switch_team())
 
 
 func _save_nick(nick: String) -> void:
@@ -112,13 +115,7 @@ func _save_nick(nick: String) -> void:
 ## 방에 들어감: 봇을 빼고 대기실로 (HTML enterMPMode)
 func enter_mp() -> void:
 	for b in bots:
-		combat.unregister(b)
-		if not b.horse.is_empty():
-			combat.items.dismount(b)
-		b.alive = false
-		b.process_mode = Node.PROCESS_MODE_DISABLED
-		if b.model:
-			b.model.visible = false
+		_bench(b)
 	combat.clear_match_objects()
 	hud.clear()
 	go_lobby()
@@ -132,10 +129,13 @@ func leave_mp() -> void:
 	go_menu("main")
 
 
-## 대기실 (HTML goLobby)
+## 대기실 (HTML goLobby) — 쟁탈전을 하고 왔으면 개인전 맵으로 되돌리고 봇은 다 쉬게 함
 func go_lobby() -> void:
 	get_tree().paused = false
 	_set_state("menu")
+	_use_ffa()
+	for b in bots:
+		_bench(b)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	player.set_spectating(true)
 	menu.show_screen("menu")
@@ -149,6 +149,7 @@ func _render_lobby() -> void:
 		return
 	var list := net.lobby_list()
 	var live := net.live_match()
+	var md := net.mode_now()
 	var sub: String
 	if net.is_host:
 		sub = "%d명 · 친구가 다 들어오면 게임 시작을 누르세요" % list.size()
@@ -159,13 +160,27 @@ func _render_lobby() -> void:
 		sub = "%d명 · 게임이 진행 중이에요" % list.size()
 	else:
 		sub = "%d명 · 방장이 시작하기를 기다리는 중" % list.size()
+	if md == "control":  # 빈자리는 봇
+		var n := net.team_counts()
+		var ts := int(GameData.MODES.control.team_size)
+		sub += " · 빈자리 봇: 블루 %d · 레드 %d" % [maxi(0, ts - int(n.blue)), maxi(0, ts - int(n.red))]
 	var btn := "게임 시작" if net.is_host else ("진행 중인 게임 참가" if live else "")
-	menu.render_lobby(net.code, list, sub, btn)
+	menu.render_lobby(net.code, list, sub, btn, md, net.is_host)
 
 
 ## 친구대전 경기 시작 (HTML mpStart) — 나만 스폰. 친구는 각자 컴퓨터에서 스폰한다
 func mp_start(rem: float) -> void:
+	if net.mode_now() == "control":
+		_mp_start_control()
+		return
 	get_tree().paused = false
+	_use_ffa()
+	for b in bots:
+		if combat.ents.has(b):
+			_bench(b)
+	for e: PlayerController in net.remotes.values():
+		if e.team != "":
+			net._set_remote_team(e, "")
 	combat.clear_match_objects()
 	hud.clear()
 	time_left = rem
@@ -185,6 +200,85 @@ func mp_start(rem: float) -> void:
 	net.send_info()
 
 
+## 친구대전 쟁탈전 시작. 방장은 자기 ControlMode로 라운드를 돌리고(나 + 봇 스폰), 친구는 follower로 따라가며 나만 스폰
+func _mp_start_control() -> void:
+	get_tree().paused = false
+	combat.clear_match_objects()
+	hud.clear()
+	if mode:
+		mode.queue_free()
+		mode = null
+	var w := control_world()
+	_use_world(w)
+	set_team(player, net.team if net.team != "" else "blue")
+	for id: int in net.remotes:
+		var e: PlayerController = net.remotes[id]
+		if id > 0:
+			var t := net.team_of(id)
+			if t != "" and e.team != t:
+				net._set_remote_team(e, t)
+		e.kills = 0
+		e.deaths = 0
+		e.cap_time = 0.0
+	player.next_cls = net.cls
+	player.spectating = false
+	for e in combat.ents:
+		if not e.is_remote:
+			e.kills = 0
+			e.deaths = 0
+			e.cap_time = 0.0
+			e.alive = false
+	mode = ControlMode.new()
+	mode.name = "ControlMode"
+	mode.follower = not net.is_host
+	add_child(mode)
+	mode.banner.connect(func(t: String, sub: String) -> void:
+		if state == "playing" or state == "paused":
+			hud.banner(t, sub))
+	mode.match_over.connect(func(_w: String) -> void: end_match())
+	combat.mode = mode
+	hud.mode = mode
+	_set_state("playing")
+	mode.start(combat, w, player)
+	if mode.follower:  # 친구: 라운드는 방장이 알려주고, 나는 우리 팀 스폰룸에서 시작
+		combat.spawn(player)
+	menu.show_screen("")
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	net.send_info()
+
+
+## 방장: 쟁탈전 빈자리를 봇으로 채움 (팀마다 team_size - 사람 수). 명단 [[id, 이름, 병과, 팀], …]
+func mp_pick_bots() -> Array:
+	var n := net.team_counts()
+	var ts := int(GameData.MODES.control.team_size)
+	var out: Array = []
+	var i := 0
+	for t: String in ["blue", "red"]:
+		for k in maxi(0, ts - int(n[t])):
+			if i >= bots.size():
+				break
+			var b := bots[i]
+			i += 1
+			_unbench(b)
+			set_team(b, t)
+			b.alive = false
+			if b.model:
+				b.model.visible = false
+			b.cls = GameData.bot_classes().pick_random()
+			b.next_cls = b.cls
+			out.append([b.peer, b.ent_name, b.cls, t])
+	while i < bots.size():
+		_bench(bots[i])
+		i += 1
+	return out
+
+
+## 방장 봇 id(-1, -2 …) → 봇
+func bot_by_id(id: int) -> PlayerController:
+	var i := -id - 1
+	return bots[i] if id < 0 and i < bots.size() else null
+
+
 ## 봇 BOT_COUNT명. 이름은 섞어서, 병과는 무작위 (HTML pickBotClass). 스폰은 startMenuSim / startMatch가 한다.
 func _spawn_bots() -> void:
 	var names: Array = GameData.BOT_NAMES.duplicate()
@@ -194,6 +288,7 @@ func _spawn_bots() -> void:
 		bots.append(b)
 		b.is_local = false
 		b.is_bot = true
+		b.peer = -(i + 1)  # 친구대전 쟁탈전에서 친구에게 알릴 때 쓰는 id
 		b.ent_name = names[i % names.size()]
 		b.cls = GameData.bot_classes().pick_random()
 		b.process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -275,7 +370,7 @@ func control_world() -> MapControl:
 ## 팀 나누기 (AI대전: 나 + 봇 4 = 블루, 봇 5 = 레드). 적 팀 스폰룸 문 막에 부딪히게 mask를 정한다
 func set_team(e: PlayerController, team: String) -> void:
 	e.team = team
-	e.collision_mask = 1 | int(MapControl.BARRIER_LAYER[ControlMode.other(team)])
+	e.collision_mask = 1 | int(MapControl.BARRIER_LAYER[ControlMode.other(team)]) if team != "" else 1
 
 
 ## 쟁탈전 시작 (AI대전)

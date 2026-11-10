@@ -92,8 +92,8 @@ static func try_fanfare(combat: Combat, e: PlayerController) -> void:
 			hit_fanfare(combat, e, v)
 		elif reaches(combat, e, v, GameData.WEAPONS.fanfare.range, GameData.WEAPONS.fanfare.half_angle):
 			combat.bard_fx.fanfare_hit(v, _push_dir(e, v))  # 내 화면엔 튕기는 음표만
-	if combat.mp() and e.is_local:
-		combat.net.event(["fan"])
+	if combat.mp() and not e.is_remote:  # 나 (방장이면 내 봇도)
+		combat.net.event(["fan"], e)
 
 
 static func hit_fanfare(combat: Combat, e: PlayerController, v: PlayerController) -> void:

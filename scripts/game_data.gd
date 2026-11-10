@@ -514,8 +514,8 @@ const RAGDOLL_KICK := {"sniper": [26.0, 7.0, 3.0], "lance": [22.0, 10.0, 3.0], "
 const DEATH_CAM := {"back": 5.5, "up": 3.2, "follow": 3.0}  # 죽으면 래그돌 골반을 뒤쪽 위에서 봄
 # 친구대전 (LAN, 9단계: HTML MP) — 방장 컴퓨터가 ENet 서버. 방 코드는 UDP 방송으로 찾는다
 const NET := {
-	"port": 24680, "disc_port": 24681, "max_players": 8, "beacon_tag": "JNP1", "beacon_every": 0.5, "find_timeout": 6.0,
-	"send_hz": 30.0, "host_hz": 4.0, "name_max": 10,
+	"port": 24680, "disc_port": 24681, "max_players": 10, "beacon_tag": "JNP1", "beacon_every": 0.5, "find_timeout": 6.0,
+	"send_hz": 30.0, "host_hz": 4.0, "ctrl_hz": 10.0, "name_max": 10,  # ctrl_hz: 쟁탈전 상태(라운드·점령·점수)를 보내는 빈도
 	"follow": 14.0, "snap_dist": 6.0,   # 남의 캐릭터: 받은 위치로 부드럽게 따라감, 6m 넘게 벌어지면 순간이동
 	"dead_wait": 0.5, "revive_guard": 1.0,  # 죽음 사건보다 상태가 먼저 와도 잠깐 기다림 / 죽은 직후 옛 상태로 안 살아남
 }

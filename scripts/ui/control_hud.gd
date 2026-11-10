@@ -105,6 +105,9 @@ func pick_class(k: String) -> void:
 	hud.player.next_cls = k
 	GameData.chosen_cls = k
 	GameData.save_settings()
+	if hud.combat and hud.combat.mp():  # 친구대전: 대기실 병과도 같이
+		hud.combat.net.cls = k
+		hud.combat.net.send_info()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -166,6 +169,8 @@ func _draw() -> void:
 			draw_colored_polygon(tri, col)
 			_text(sp + Vector2(0, -14), e.ent_name, 13, col)
 		else:  # 적: 조준점 근처에 있고 보일 때만 이름
+			if cam.is_position_behind(e.global_position + Vector3(0, 1.0, 0)):
+				continue
 			var bs := cam.unproject_position(e.global_position + Vector3(0, 1.0, 0))
 			var d := maxf(1.0, cam.global_position.distance_to(e.global_position))
 			var r := clampf(900.0 / d, 18.0, 120.0)

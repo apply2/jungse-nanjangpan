@@ -14,6 +14,8 @@ signal friend_join(nick: String, code: String)   # 친구대전: 코드(또는 �
 signal lobby_leave                                # 대기실: 방 나가기
 signal lobby_start                                # 대기실: 게임 시작 (방장) / 진행 중인 게임 참가
 signal lobby_class(cls: String)                   # 대기실: 내 병과
+signal lobby_mode(mode: String)                   # 대기실: 모드 (방장만 — 개인전 / 쟁탈전)
+signal lobby_team                                 # 대기실: 팀 바꾸기 (쟁탈전)
 
 const SETTINGS_SCENE := preload("res://scenes/ui/settings_panel.tscn")
 const PAGES := ["main", "diff", "mode", "class", "settings", "exit", "friend", "lobby"]
@@ -39,6 +41,9 @@ var _lobby_sub: Label
 var _lobby_list: VBoxContainer
 var _lobby_cards: GridContainer
 var _lobby_btn: Button
+var _lobby_modes := {}  # 모드 키 → 버튼
+var _lobby_mode_note: Label
+var _lobby_team_btn: Button
 var _lobby_sig := ""   # 대기실 목록이 바뀌었을 때만 다시 그림
 var _toast: PanelContainer
 var _toast_l: Label
@@ -383,7 +388,7 @@ func _build_friend() -> void:
 	var do_join := func() -> void: friend_join.emit(nick.text, code.text.strip_edges().to_upper())
 	join.pressed.connect(do_join)
 	code.text_submitted.connect(func(_t: String) -> void: do_join.call())
-	var hint := UiKit.label("같은 와이파이(공유기)에 연결된 친구끼리 들어올 수 있어요. 코드로 못 찾으면 대기실에 보이는 방장 IP를 코드 칸에 넣어 보세요. 친구대전에는 봇과 닭이 나오지 않아요.", 13, UiKit.c("mute"), pg)
+	var hint := UiKit.label("같은 와이파이(공유기)에 연결된 친구끼리 들어올 수 있어요. 코드로 못 찾으면 대기실에 보이는 방장 IP를 코드 칸에 넣어 보세요. 개인전엔 봇과 닭이 나오지 않고, 쟁탈전(방장이 대기실에서 고름)은 빈자리를 봇이 채워요.", 13, UiKit.c("mute"), pg)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
@@ -423,6 +428,18 @@ func _build_lobby() -> void:
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hb.add_child(right)
 	_lobby_sub = _sub2("친구에게 코드를 알려주세요", vb)
+	# 모드 고르기 (방장만 누를 수 있음, 친구는 보기만)
+	var mrow := HBoxContainer.new()
+	mrow.alignment = BoxContainer.ALIGNMENT_CENTER
+	mrow.add_theme_constant_override("separation", 10)
+	pg.add_child(mrow)
+	UiKit.label("모드", 15, UiKit.c("mute"), mrow)
+	for k: String in ["ffa", "control"]:
+		var mb := UiKit.ghost(GameData.MODE_NAMES.get(k, k) + (" 5:5" if k == "control" else ""), 16, Vector4(16, 6, 16, 6))
+		mb.pressed.connect(func() -> void: lobby_mode.emit(k))
+		mrow.add_child(mb)
+		_lobby_modes[k] = mb
+	_lobby_mode_note = UiKit.label("", 13, UiKit.c("mute"), mrow)
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 16)
 	pg.add_child(body)
@@ -443,6 +460,9 @@ func _build_lobby() -> void:
 	_lobby_cards.size_flags_stretch_ratio = 2
 	body.add_child(_lobby_cards)
 	var act := _actions(pg)
+	_lobby_team_btn = UiKit.ghost("팀 바꾸기")
+	_lobby_team_btn.pressed.connect(func() -> void: lobby_team.emit())
+	act.add_child(_lobby_team_btn)
 	_lobby_btn = UiKit.primary("게임 시작")
 	_lobby_btn.pressed.connect(func() -> void: lobby_start.emit())
 	act.add_child(_lobby_btn)
@@ -457,13 +477,30 @@ func open_lobby(cls: String) -> void:
 	show_page("lobby")
 
 
-## HTML renderLobby: list = [{name, cls, host, st}], btn = 버튼 글자 (없으면 숨김)
-func render_lobby(code: String, list: Array, sub: String, btn: String) -> void:
+## HTML renderLobby: list = [{name, cls, host, st, team}], btn = 버튼 글자 (없으면 숨김)
+## md = 방 모드 (control이면 팀별로 나눠 보이고 '팀 바꾸기'), host = 내가 방장 (모드를 바꿀 수 있음)
+func render_lobby(code: String, list: Array, sub: String, btn: String, md := "ffa", host := false) -> void:
 	_lobby_code.text = code if code != "" else "IP"
 	_lobby_sub.text = sub
 	_lobby_btn.visible = btn != ""
 	_lobby_btn.text = btn
-	var sig := str(list)
+	var ctrl := md == "control"
+	_lobby_team_btn.visible = ctrl
+	for k: String in _lobby_modes:
+		var mb: Button = _lobby_modes[k]
+		var on := k == md
+		mb.disabled = not host
+		mb.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if host else Control.CURSOR_ARROW
+		mb.visible = host or on
+		var pad := Vector4(16, 6, 16, 6)
+		mb.add_theme_stylebox_override("normal", UiKit.box(UiKit.c("gold", 0.22) if on else UiKit.ink(0.85), UiKit.c("gold") if on else UiKit.c("line"), 2, 8, pad))
+		mb.add_theme_stylebox_override("disabled", UiKit.box(UiKit.c("gold", 0.22) if on else UiKit.ink(0.85), UiKit.c("gold") if on else UiKit.c("line"), 2, 8, pad))
+	_lobby_mode_note.text = "" if host else "방장이 정해요"
+	if ctrl:  # 블루 먼저, 같은 팀끼리
+		list = list.duplicate()
+		list.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			return (0 if a.get("team", "") == "blue" else 1) < (0 if b.get("team", "") == "blue" else 1))
+	var sig := str(list) + md
 	if sig == _lobby_sig:
 		return
 	_lobby_sig = sig
@@ -471,11 +508,15 @@ func render_lobby(code: String, list: Array, sub: String, btn: String) -> void:
 		ch.queue_free()
 	for p: Dictionary in list:
 		var row := PanelContainer.new()
-		row.add_theme_stylebox_override("panel", UiKit.box(Color(1, 1, 1, 0.04), Color.TRANSPARENT, 0, 6, Vector4(8, 6, 8, 6)))
+		var tm := str(p.get("team", ""))
+		var tcol := Color(str(GameData.MODES.control.teams[tm].ui)) if ctrl and GameData.MODES.control.teams.has(tm) else Color.TRANSPARENT
+		row.add_theme_stylebox_override("panel", UiKit.box(Color(tcol, 0.16) if tcol.a > 0 else Color(1, 1, 1, 0.04), tcol, 2 if tcol.a > 0 else 0, 6, Vector4(8, 6, 8, 6)))
 		_lobby_list.add_child(row)
 		var hb := HBoxContainer.new()
 		hb.add_theme_constant_override("separation", 8)
 		row.add_child(hb)
+		if tcol.a > 0:
+			UiKit.label(str(GameData.MODES.control.teams[tm].short), 13, tcol, hb)
 		var chip := PanelContainer.new()
 		chip.add_theme_stylebox_override("panel", UiKit.box(GameData.col(GameData.CLASS_CHIP[p.cls]), Color.TRANSPARENT, 0, 3, Vector4(6, 1, 6, 1)))
 		chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER

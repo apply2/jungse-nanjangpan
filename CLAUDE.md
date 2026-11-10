@@ -78,6 +78,7 @@ tests/test_music.gd    병과 → 곡·크로스페이드·같은 그룹 이어�
 scripts/sfx.gd         효과음 (오토로드 Sfx, HTML sfx). WebAudio tone·noise 합성을 PCM으로 구워 AudioStreamPlayer 32개로 튼다. 소리 파일 없음
 scripts/net.gd         친구대전 (Main 아래 Net 노드, HTML MP). ENet 방 만들기·코드로 찾기(UDP 방송)·IP로 들어가기, 상태 30Hz, 사건(f·sn·ak·ln·h·k), 방장 경기 시간·아이템·줍기 허락
 tests/test_net.gd      친구대전: Main 둘을 한 프로세스에 띄워 방·대기실·시작·위치·투사체·저격총·처치 수·줍기 허락·끝·나가기 자동 테스트
+tests/test_net_control.gd 친구대전 쟁탈전: 모드·팀 나누기·팀 바꾸기·빈자리 봇·봇 따라가기·봇↔친구 피해·처치 수·거점 열림·점령·라운드·경기 끝·대기실 복귀·개인전 다시 자동 테스트
 tests/test_fx.gd       효과음 합성·소리 나는 곳, 히트스톱, 래그돌(쓰러짐·뼈 길이·무기별 날아감·7초 뒤 사라짐), 흔들림, 붉은 테두리, 피격 방향, 죽음 카메라, 병과 의상 자동 테스트
 fonts/DoHyeon-Regular.ttf  HTML과 같은 '도현' 폰트 (OFL 라이선스)
 fonts/NotoSans-Bold-sub.ttf, NotoSansSymbols2-sub.ttf  도현에 없는 · … ⚠ 세 글자만 담은 대체 폰트 (OFL, fonts/OFL-Noto.txt). GameData가 시작할 때 도현의 fallbacks로 붙인다
@@ -153,7 +154,7 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
 | ✅ 5 | **봇 AI + 난이도**: 대상 고르기, 반응 시간, 조준 오차, 앞질러 쏘기(lead), 포물선 계산, 끼임 탈출 | `botUpdate` 1255, `aimSolve` 1313, `DIFF` |
 | ✅ 6 | **매치 흐름 + 메뉴 + HUD**: 메인메뉴(일반대전 토스트 / AI대전 → 난이도 → 병과 → 바로 시작 / 친구대전 / 설정 / 나가기), 4분·20킬, 킬피드, 점수판(Tab), 사망 화면, 일시정지, 결과 화면 | `startMatch` 1632, `endMatch` 1650, `updateHUD` 1575, HTML 상단 CSS/마크업 |
 | ✅ 7 | **특수 아이템**: 닭(잡기·던지기·맞으면 넘어짐), 대물 저격총, AK-47, 기사의 말+마상창 | `updateChickens` 1114, `updateSniper` 1220, `updateAK`, `updateHorses` 1184, `lanceCheck` 1176 |
-| ✅ 7.5 | **쟁탈전** (HTML에 없는 새 모드, 5대5 거점 점령): AI대전만. 아래 "쟁탈전 명세" | 없음 (새로 만듦) |
+| ✅ 7.5 | **쟁탈전** (HTML에 없는 새 모드, 5대5 거점 점령): AI대전 + 친구대전(빈자리 봇). 아래 "쟁탈전 명세" | 없음 (새로 만듦) |
 | ✅ 8 | **연출**: 죽으면 래그돌, 히트스톱, 화면 흔들림, 피격 방향 표시, 병과별 의상 디테일, 효과음 | `makeRagdoll` 664, `sfx` 747 |
 | ✅ 9 | **친구대전 (멀티플레이)** — 아래 "멀티플레이 설계" 참고 | `MP` 1713 이하 |
 | ✅ 10 | 웹 내보내기 + 최적화 | — |
@@ -345,7 +346,7 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
   - 내가 춤추면 분홍 테두리 + 테두리를 도는 음표 (hud `DanceEdge`, 원·막대로 직접 그림) + 카메라 까딱 (player `_update_camera`).
 - 성능: 8명이 동시에 연주해도 1280×720에서 프레임 3.1ms → 4.3ms, 그리기 호출 515 → 558 (PC 측정).
 
-## 쟁탈전 명세 (7.5단계 — 구현됨, 사용자 요청. AI대전만)
+## 쟁탈전 명세 (7.5단계 — 구현됨, 사용자 요청. AI대전 + 친구대전)
 
 수치는 전부 `GameData.MODES.control`. 개인전(ffa)은 그대로 — `GameData.mode`("ffa"/"control", 설정 파일에 저장)로 고른다.
 - **메뉴**: AI대전 → 난이도 → **모드**(개인전 / 쟁탈전 5:5, menu `mode` 페이지) → 병과 → 시작. 메뉴 뒤 구경은 늘 개인전 맵.
@@ -368,13 +369,21 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
   Tab 점수판은 팀별(이름·병과·처치·죽음·거점 시간 `cap_time`), 킬피드 이름은 팀 색. 죽어 있는 동안 1~5키(또는 버튼)로 다음 부활 병과.
 - **BGM**: 개인전과 같은 규칙 (음유시인이면 match_bard).
 
-### 친구대전(9단계)에 쟁탈전 넣을 때 — 아직 안 함 (메모)
-지금 친구대전은 개인전만 된다. 쟁탈전을 붙이려면:
-- 대기실: 블루/레드 두 줄, 팀 바꾸기 버튼, 최대 10명. 사람을 자동으로 나누고 빈자리는 방장 컴퓨터의 봇으로 채움 (봇 상태도 방장이 보냄).
-- 방장이 `ControlMode`를 돌리고 phase·round_no·wins·pct·holder·cap_team·cap_prog·overtime·unlock_left를 상태로 보냄 (친구는 받아서 HUD·거점 표시만).
-  원 안 인원은 방장이 받은 위치로 셈. 팀(`team`)과 mask(`set_team`)는 시작 사건에 실어 보냄.
-- 피해는 지금처럼 맞은 쪽이 판정 — `Combat.ally()`가 이미 팀킬을 막는다. 스폰룸 공격 금지·회복·부활 5초는 각자 컴퓨터에서.
-- 맵 바꾸기(`_use_world`)를 mp_start에도 넣어야 함.
+### 친구대전 쟁탈전 (구현됨, 사용자 요청)
+- **대기실**: 방장이 모드 버튼(개인전 / 쟁탈전 5:5)으로 고른다 (`Net.room_mode`, `_mt`의 `md`로 친구에게. 친구는 `mode_now()`). 최대 10명 (`NET.max_players`).
+  방장은 블루, 들어오는 친구는 방장이 사람이 적은 팀에 넣어 줌 (`_assign_team`). '팀 바꾸기'는 상대 팀 사람이 5명 미만일 때만. 팀은 `_hello`의 `t`.
+  목록은 팀 색 테두리로 블루 먼저, 아래 문구에 "빈자리 봇: 블루 N · 레드 M".
+- **빈자리 봇**: 방장 컴퓨터의 봇 (`Main.mp_pick_bots` — 팀마다 5 - 사람 수). 봇 id는 음수 (`b.peer = -(i+1)`, `Main.bot_by_id`).
+  방장이 명단 `_roster`([[id, 이름, 병과, 팀]], reliable, 시작 알림보다 먼저)와 상태 `_bots`(30Hz, 4명씩 나눠서 — MTU)를 보낸다. 친구 쪽에선 봇이 `is_remote` 캐릭터.
+  대기실로 돌아가면 빈 명단을 보내 친구 쪽 봇을 지우고, 방장 봇은 `_bench`.
+- **판정**: '내 컴퓨터가 판정하는 캐릭터' = `not is_remote` (나 + 방장이면 봇). `damage()`는 `mp() and v.is_remote`면 안 깎는다.
+  사건은 `net.event(x, 누구)` → `_ev(x, who)`: 봇 일이면 봇 id를 같이 보냄 (방장만 보낼 수 있음). 표적 id는 `Net.mine(id)`로 내 캐릭터·내 봇을 찾음.
+  처치 수: 죽인 쪽이 `not is_remote`면 그 컴퓨터가 셈 (방장 봇 처치는 방장이). 팡파레 사건은 내 봇도 맞음.
+- **규칙**: 방장 `ControlMode`가 돌고 `snapshot()`을 `_cm`으로 10Hz (`NET.ctrl_hz`). 친구는 `follower = true` → `apply_snapshot()`이 값을 받고,
+  바뀐 것(거점 열림·점령·빼앗김·연장전·라운드 끝·경기 끝)을 보고 배너·뿔나팔을 직접 띄우고, 새 라운드면 내 캐릭터만 스폰룸으로(`_begin_round`는 is_remote를 건너뜀).
+  거점 인원은 방장이 받은 위치로 셈. 스폰룸 회복·공격 금지·부활 5초·거점 시간(cap_time)은 각자. 경기 끝은 방장이 `phase == "over"`를 보고 알림 (킬·시간 제한 없음).
+- 말 두 마리: 두 번째 말은 `"hb"`로 보이고 줍기 허락도 따로. 말 등장은 `combat.mode`가 있으면 두 마리 (예전엔 `GameData.mode`를 봤음).
+- 경기 중에 들어온 친구는 봇을 다시 나누지 않는다 (그 팀이 6명이 될 수 있음).
 
 ## 오디오 (BGM·볼륨 — 사용자 요청으로 추가, HTML엔 BGM 없음)
 
@@ -406,8 +415,8 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
 - 방 만들기: 방장 컴퓨터가 ENet 서버(포트 `NET.port` 24680)가 되고, UDP 24681로 `"JNP1|코드|포트"`를 0.5초마다 방송한다 (255.255.255.255와 127.0.0.1).
 - 참가: 코드 4자리를 넣으면 6초 동안 방송을 듣다가 코드가 맞는 방에 접속한다. 코드 칸에 방장 IP(대기실에 보임)를 넣어도 된다.
 - 처음 방을 만들 때 Windows 방화벽이 Godot 허용을 물어본다. **개인 네트워크 허용**을 눌러야 친구가 들어온다.
-- 대기실(menu `lobby` 페이지): 방 코드, 사람 목록(병과·방장·게임 중), 내 병과, 게임 시작(방장) / 진행 중인 게임 참가(친구).
-- 친구대전엔 봇·닭이 없다. 일시정지해도 게임은 안 멈춘다. 20킬·시간 종료는 방장이 판단해 알린다.
+- 대기실(menu `lobby` 페이지): 방 코드, 모드(방장이 고름), 사람 목록(병과·방장·게임 중·쟁탈전이면 팀), 내 병과, 팀 바꾸기(쟁탈전), 게임 시작(방장) / 진행 중인 게임 참가(친구).
+- 친구대전 개인전엔 봇·닭이 없다 (쟁탈전은 빈자리를 방장 봇이 채움 — 위 "친구대전 쟁탈전"). 일시정지해도 게임은 안 멈춘다. 20킬·시간 종료는 방장이 판단해 알린다.
 - 결과 화면: 한 판 더 = 방장만 (친구는 자동으로 들어감), 병과 다시 고르기 = 대기실, 메인 메뉴 = 방 나가기.
 - 남의 캐릭터는 `is_remote`(player.gd `_physics_process`를 안 돎), Net `_apply_remote`가 받은 상태를 따라간다.
 - Combat `damage()`는 친구대전에서 **내 캐릭터만** 깎는다. 남을 맞히면 그쪽 컴퓨터가 판정해 "h"/"k" 사건을 보낸다. 처치 수는 죽인 사람이 "k"를 받고 스스로 센다.
@@ -495,6 +504,7 @@ godot --headless --fixed-fps 60 --path . -s tests/test_match.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_items.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_fx.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_net.gd   # 포트 24680·24681을 씀
+godot --headless --fixed-fps 60 --path . -s tests/test_net_control.gd   # 같은 포트
 godot --headless --fixed-fps 60 --path . -s tests/test_bard.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_bard_fx.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_music.gd

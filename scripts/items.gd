@@ -372,7 +372,7 @@ func update_chickens(dt: float) -> void:
 # ── 기사의 말 + 마상창 ───────────────────────────────────────
 func spawn_horse() -> void:
 	var spots: Array = combat.world.horse_spots()
-	if GameData.mode == "control":  # 쟁탈전: 양 팀 쪽에 하나씩 동시에 (공평하게)
+	if combat.mode:  # 쟁탈전: 양 팀 쪽에 하나씩 동시에 (공평하게)
 		for i in 2:
 			_place(horses[i], spots[i], GameData.ITEM.horse_life)
 			(horses[i].group as Node3D).rotation.y = randf_range(0, TAU)
@@ -447,7 +447,7 @@ func lance_check(e: PlayerController) -> void:
 				continue
 			v.ln_t = I.lance_again
 			if v.is_remote:  # 친구는 친구 쪽에서 피해를 받는다
-				combat.net.event(["ln", v.peer, h.head, f])
+				combat.net.event(["ln", v.peer, h.head, f], e)
 			else:
 				combat.damage(v, e, GameData.WEAPONS.lance.dmg, "lance", h.head, f, a + d * float(h.t))
 			continue
@@ -486,7 +486,7 @@ func update_horses(dt: float) -> void:
 				if not e.is_remote and e.alive and e.mounted <= 0 and e.fall_t <= 0 and e.global_position.distance_to(hd.pos) < float(I.mount_r):
 					if not combat.authority():
 						if e.is_local:
-							combat.net.request("hs")
+							combat.net.request("hb" if hd == horse_b else "hs")
 					else:
 						mount(e, hd)
 					break

@@ -346,7 +346,7 @@ func _star_touch(e: PlayerController, dt: float) -> void:
 		var dir := d.normalized() if d.length_squared() > 1e-4 else Vector3(-sin(e.yaw), 0, -cos(e.yaw))
 		Sfx.play("thud", vp)
 		if v.is_remote:
-			net.event(["st", v.peer, dir])
+			net.event(["st", v.peer, dir], e)
 		else:
 			damage(v, e, GameData.WEAPONS.star.dmg, "star", false, dir, vp + Vector3(0, 1.0, 0))
 
@@ -360,7 +360,7 @@ func damage(v: PlayerController, a: PlayerController, base: float, kind: String,
 		return
 	if mode and mode.no_damage():  # 쟁탈전: 라운드 사이
 		return
-	if mp() and not v.is_local:  # 친구대전: 피해는 맞은 사람 쪽에서만 판정 (HTML damage)
+	if mp() and v.is_remote:  # 친구대전: 피해는 맞은 사람 쪽에서만 판정 (HTML damage). 방장 봇은 방장 컴퓨터가 판정
 		return
 	var knocked := head and v.helmet
 	var dmg := base * (GameData.HEADSHOT if v.helmet else GameData.BARE_HEAD) if head else base
@@ -418,8 +418,8 @@ func damage(v: PlayerController, a: PlayerController, base: float, kind: String,
 		if v.is_local and not dead:
 			toast.emit("투구가 날아갔다! 머리 피해 2배")
 	impact_fx(v, a, pt, kind, head, dir, dmg, dead)
-	if mp() and v.is_local and a and a.is_remote:  # 내가 맞았다고 모두에게 알림 (맞은 효과·히트마크용)
-		net.event(["h", a.peer, roundf(dmg), Net.WEPS.find(kind), head])
+	if mp() and a and a.is_remote:  # 내가(또는 내 봇이) 맞았다고 모두에게 알림 (맞은 효과·히트마크용)
+		net.event(["h", a.peer, roundf(dmg), Net.WEPS.find(kind), head], v)
 	if dead:
 		kill(v, a, kind, head, dir)
 		return
@@ -718,8 +718,8 @@ func fire(e: PlayerController, kind: String, t := 0.0) -> void:
 		"mesh": mesh, "life": life, "radius": float(W.radius),
 		"spin": Vector3(randf_range(-15, 15), randf_range(-15, 15), randf_range(-15, 15)),
 	})
-	if mp() and e.is_local:  # 친구 화면에도 같은 투사체를 만든다 (맞았는지는 맞은 사람이 판정)
-		net.event(["f", Net.WEPS.find(kind), pos, vel, t])
+	if mp() and not e.is_remote:  # 친구 화면에도 같은 투사체를 만든다 (맞았는지는 맞은 사람이 판정)
+		net.event(["f", Net.WEPS.find(kind), pos, vel, t], e)
 
 
 ## 대물 저격총: 400m 히트스캔, 맞으면 즉사. 5발 쓰면 원래 무기로 — HTML fire('sniper') / hitscan
@@ -739,8 +739,8 @@ func _fire_sniper(e: PlayerController, eye: Vector3, dir: Vector3) -> void:
 			head = r.head
 	var end := eye + d * minf(best, 1.0)
 	var from := _muzzle(e, eye, dir, 0.22, 0.18)
-	if mp() and e.is_local:  # 저격총은 쏜 사람 쪽에서 판정해서 알림
-		net.event(["sn", from, end, hit_e.peer if hit_e and hit_e.is_remote else 0, head])
+	if mp() and not e.is_remote:  # 저격총은 쏜 사람 쪽에서 판정해서 알림
+		net.event(["sn", from, end, hit_e.peer if hit_e and hit_e.is_remote else 0, head], e)
 	fx.tracer(from, end)
 	fx.puff(from, 0xffd27a, 0.18, 4)
 	if hit_e:
@@ -815,8 +815,8 @@ func _fire_ak(e: PlayerController, eye: Vector3, dir: Vector3) -> void:
 		fx.puff(from, 0xffd27a, 0.07, 2)
 	fx.tracer(from, end, 0xffd27a, 0.012, 0.1, 0.9)
 	var dmg := ak_dmg(minf(best, 1.0) * L)
-	if mp() and e.is_local:
-		net.event(["ak", from, end, hit_e.peer if hit_e and hit_e.is_remote else 0, head, dmg])
+	if mp() and not e.is_remote:
+		net.event(["ak", from, end, hit_e.peer if hit_e and hit_e.is_remote else 0, head, dmg], e)
 	if hit_e:
 		damage(hit_e, e, dmg, "ak", head, dir, end)
 	elif best < 1:
@@ -976,10 +976,10 @@ func kill(v: PlayerController, a: PlayerController, kind: String, head: bool, di
 	if v.star_t > 0:
 		end_star(v)
 	v.charging = false
-	if a and a != v and not mp():  # 친구대전에선 죽인 사람이 처치 사건을 받고 스스로 센다
+	if a and a != v and not a.is_remote:  # 친구대전에선 죽인 사람(의 컴퓨터)이 처치 사건을 받고 스스로 센다
 		a.kills += 1
-	if mp() and v.is_local:
-		net.event(["k", a.peer if a and a.is_remote else 0, Net.WEPS.find(kind), head, dir])
+	if mp() and not v.is_remote:
+		net.event(["k", net.peer_of(a) if a and a != v else 0, Net.WEPS.find(kind), head, dir], v)
 	# 말에서 내리고, 들고 있던 저격총·AK·닭은 그 자리에 떨어뜨림
 	if v.mounted > 0:
 		items.dismount(v)
@@ -1076,11 +1076,12 @@ func remote_shot(e: PlayerController, kind: String, from: Vector3, end: Vector3)
 		e.rec_v += 1.2
 
 
-## 친구 음유시인이 팡파레를 붊: 효과는 그대로, 내가 앞에 있었으면 내 쪽에서 판정
+## 친구 음유시인이 팡파레를 붊: 효과는 그대로, 나(방장이면 내 봇도)가 앞에 있었으면 내 쪽에서 판정
 func remote_fanfare(e: PlayerController) -> void:
 	Trumpet.fanfare_fx(self, e)
-	if me and me.alive:
-		Trumpet.hit_fanfare(self, e, me)
+	for v in ents:
+		if v.alive and not v.is_remote:
+			Trumpet.hit_fanfare(self, e, v)
 
 
 ## 친구가 맞음 (친구 쪽에서 판정해서 알려줌): 맞은 효과·숫자·히트마크
@@ -1105,8 +1106,9 @@ func remote_kill(e: PlayerController, a: PlayerController, kind: String, head: b
 		items.dismount(e)
 	_ragdoll(e, kind, dir)
 	e.die(dir)
-	if a and a.is_local:
+	if a and not a.is_remote:  # 나 (방장이면 내 봇도)
 		a.kills += 1
+	if a and a.is_local:
 		hitmark.emit(true)
 		Sfx.play("kill")
 		toast.emit(("헤드샷 처치 · " if head else "처치 · ") + e.ent_name)
