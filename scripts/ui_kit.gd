@@ -334,7 +334,7 @@ static func score_table(rows: Array, me: Object) -> VBoxContainer:
 	return vb
 
 
-static func _score_row(parent: Control, cells: Array, cls: Variant, head: bool, me: bool) -> void:
+static func _score_row(parent: Control, cells: Array, cls: Variant, head: bool, me: bool, name_col := Color.TRANSPARENT) -> void:
 	var pc := PanelContainer.new()
 	var sb := box(Color.TRANSPARENT, c("line") if head else Color(61 / 255.0, 70 / 255.0, 128 / 255.0, 0.45), 0, 0,
 		Vector4(8, 4, 8, 4) if head else Vector4(8, 6, 8, 6))
@@ -353,14 +353,52 @@ static func _score_row(parent: Control, cells: Array, cls: Variant, head: bool, 
 	name_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_box.add_theme_constant_override("separation", 6)
 	hb.add_child(name_box)
-	label(cells[1], sz, fg, name_box)
+	label(cells[1], sz, name_col if name_col.a > 0 and not me else fg, name_box)
 	if cls != null:
 		var chip := PanelContainer.new()
 		chip.add_theme_stylebox_override("panel", box(GameData.col(GameData.CLASS_CHIP[cls]), Color.TRANSPARENT, 0, 3, Vector4(6, 1, 6, 1)))
 		chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		label(GameData.CLASSES[cls].name, 11, c("ink"), chip)
 		name_box.add_child(chip)
-	for k in [2, 3]:
+	for k in range(2, cells.size()):
 		var n := label(cells[k], sz, fg, hb)
 		n.custom_minimum_size.x = 48
 		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+
+## 모드 카드 (AI대전 → 난이도 → 모드): 이름 + 설명. 색 띠는 모드 색
+static func mode_card(title: String, desc: String, col: Color) -> Tap:
+	var pad := Vector4(18, 20, 18, 18)
+	var t := Tap.new(box(ink(0.9), c("line"), 2, 10, pad), box(ink(0.9), col, 2, 10, pad))
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	t.add_child(vb)
+	label(title, 34, c("parch"), vb)
+	var p := label(desc, 14, c("mute"), vb)
+	p.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	p.custom_minimum_size.x = 220
+	p.add_theme_constant_override("line_spacing", 4)
+	t.bar_col = col
+	t.seal()
+	return t
+
+
+## 쟁탈전 점수판: 팀마다 (이름·병과·처치·죽음·거점 시간). 이름은 팀 색, 내 줄은 금색
+static func team_table(rows: Array, me: Object) -> VBoxContainer:
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for team: String in ["blue", "red"]:
+		var T: Dictionary = GameData.MODES.control.teams[team]
+		var part := VBoxContainer.new()
+		part.add_theme_constant_override("separation", 0)
+		vb.add_child(part)
+		var tl := label(str(T.name), 16, Color(str(T.ui)), part)
+		tl.custom_minimum_size.y = 24
+		_score_row(part, ["", "이름", "처치", "죽음", "거점"], null, true, false)
+		var mine := rows.filter(func(e: Object) -> bool: return e.team == team)
+		for i in mine.size():
+			var e: Object = mine[i]
+			_score_row(part, [str(i + 1), e.ent_name, str(e.kills), str(e.deaths), "%d초" % int(e.cap_time)], e.cls, false, e == me, Color(str(T.ui)))
+	return vb

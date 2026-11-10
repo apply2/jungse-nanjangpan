@@ -13,6 +13,9 @@ const PLAYER_SCENE := preload("res://scenes/player.tscn")
 @onready var hud: Hud = $HUD
 
 var menu: Menu
+var world_ffa: WorldBuilder      # 개인전 맵 (main.tscn의 World)
+var world_ctrl: MapControl = null # 쟁탈전 맵 (처음 쓸 때 만듦)
+var mode: ControlMode = null      # 쟁탈전 규칙 (개인전이면 null)
 var net: Net
 var bots: Array[PlayerController] = []
 var state := "menu"
@@ -28,6 +31,7 @@ func _ready() -> void:
 	hud.process_mode = Node.PROCESS_MODE_ALWAYS  # 일시정지 중에도 HUD는 그대로 보임
 	_setup_environment()
 	combat.world = world
+	world_ffa = world
 	player.toast.connect(hud.pop_msg)
 	combat.toast.connect(hud.pop_msg)
 	combat.num.connect(hud.spawn_num)
@@ -184,7 +188,7 @@ func mp_start(rem: float) -> void:
 func _spawn_bots() -> void:
 	var names: Array = GameData.BOT_NAMES.duplicate()
 	names.shuffle()
-	for i in GameData.BOT_COUNT:
+	for i in _bot_total():
 		var b: PlayerController = PLAYER_SCENE.instantiate()
 		bots.append(b)
 		b.is_local = false
@@ -194,7 +198,120 @@ func _spawn_bots() -> void:
 		b.process_mode = Node.PROCESS_MODE_PAUSABLE
 		add_child(b)
 		b.alive = false
-		combat.register(b)
+		if i < GameData.BOT_COUNT:  # 나머지는 쟁탈전에서만 씀
+			combat.register(b)
+		else:
+			_bench(b)
+
+
+func _bot_total() -> int:
+	return maxi(GameData.BOT_COUNT, int(GameData.MODES.control.team_size) * 2 - 1)
+
+
+## 안 쓰는 봇은 쉬게 함 (Combat에서 빼고 멈춤)
+func _bench(b: PlayerController) -> void:
+	combat.unregister(b)
+	if not b.horse.is_empty():
+		combat.items.dismount(b)
+	b.alive = false
+	b.process_mode = Node.PROCESS_MODE_DISABLED
+	if b.model:
+		b.model.visible = false
+
+
+func _unbench(b: PlayerController) -> void:
+	b.process_mode = Node.PROCESS_MODE_PAUSABLE
+	combat.register(b)
+
+
+## 맵 바꾸기: 쓰는 맵만 트리에 둔다 (충돌·내비·그리기 다 같이 빠짐)
+func _use_world(w: WorldBuilder) -> void:
+	if combat.world == w and w.is_inside_tree():
+		return
+	var old := combat.world
+	if old and old.is_inside_tree():
+		remove_child(old)
+	if not w.is_inside_tree():
+		add_child(w)
+		move_child(w, 0)
+	world = w
+	combat.world = w
+
+
+## 개인전으로 되돌림: 개인전 맵, 팀 없음, 봇 BOT_COUNT명, 규칙 없음
+func _use_ffa() -> void:
+	if mode:
+		mode.queue_free()
+		mode = null
+	combat.mode = null
+	hud.mode = null
+	_use_world(world_ffa)
+	var all: Array[PlayerController] = [player]
+	all.append_array(bots)
+	for e in all:
+		if e.team != "":
+			e.team = ""
+			e.collision_mask = 1
+			if e.model and not e.alive:
+				e.model.visible = false
+	for i in bots.size():
+		if i < GameData.BOT_COUNT:
+			if not combat.ents.has(bots[i]) and not (net and net.on):
+				_unbench(bots[i])
+		else:
+			_bench(bots[i])
+
+
+## 쟁탈전 맵 (처음 한 번 만든다 — 내비 메시 굽는 데 시간이 조금 걸림)
+func control_world() -> MapControl:
+	if world_ctrl == null:
+		world_ctrl = MapControl.new()
+		world_ctrl.name = "WorldControl"
+		world_ctrl.process_mode = Node.PROCESS_MODE_PAUSABLE
+	return world_ctrl
+
+
+## 팀 나누기 (AI대전: 나 + 봇 4 = 블루, 봇 5 = 레드). 적 팀 스폰룸 문 막에 부딪히게 mask를 정한다
+func set_team(e: PlayerController, team: String) -> void:
+	e.team = team
+	e.collision_mask = 1 | int(MapControl.BARRIER_LAYER[ControlMode.other(team)])
+
+
+## 쟁탈전 시작 (AI대전)
+func _start_control() -> void:
+	get_tree().paused = false
+	var w := control_world()
+	_use_world(w)
+	var n := int(GameData.MODES.control.team_size)
+	for i in bots.size():
+		if i < n * 2 - 1:
+			_unbench(bots[i])
+		else:
+			_bench(bots[i])
+	set_team(player, "blue")
+	for i in n * 2 - 1:
+		set_team(bots[i], "blue" if i < n - 1 else "red")
+	hud.clear()
+	player.next_cls = GameData.chosen_cls
+	player.spectating = false
+	for e in combat.ents:
+		e.kills = 0
+		e.deaths = 0
+		e.cap_time = 0.0
+		e.alive = false
+	mode = ControlMode.new()
+	mode.name = "ControlMode"
+	add_child(mode)
+	mode.banner.connect(func(t: String, sub: String) -> void:
+		if state == "playing" or state == "paused":
+			hud.banner(t, sub))
+	mode.match_over.connect(func(_w: String) -> void: end_match())
+	combat.mode = mode
+	hud.mode = mode
+	_set_state("playing")
+	mode.start(combat, w, player)
+	menu.show_screen("")
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 # ── 경기 흐름 ────────────────────────────────────────────────
@@ -206,6 +323,10 @@ func start_match() -> void:
 		else:
 			menu.toast("방장이 다시 시작하면 자동으로 들어가요")
 		return
+	if GameData.mode == "control":
+		_start_control()
+		return
+	_use_ffa()
 	get_tree().paused = false
 	combat.clear_match_objects()
 	hud.clear()
@@ -227,6 +348,7 @@ func start_match() -> void:
 
 ## HTML startMenuSim: 나는 구경만 하고 봇끼리 싸운다
 func _start_menu_sim() -> void:
+	_use_ffa()
 	combat.clear_match_objects()
 	hud.clear()
 	player.set_spectating(true)
@@ -281,6 +403,9 @@ func end_match() -> void:
 		return
 	_set_state("ended")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if mode:
+		menu.open_end_control(mode.match_winner, mode.wins, combat.score_rows(), player)
+		return
 	menu.open_end(combat.score_rows(), player)
 
 
@@ -308,7 +433,7 @@ func _on_killed(v: PlayerController, a: PlayerController, kind: String, head: bo
 	hud.killfeed(a, v, kind, head)
 	if v == player:
 		hud.show_death(a, kind, head)
-	if not net.on and a and a != v and a.kills >= GameData.KILL_LIMIT and state == "playing":
+	if mode == null and not net.on and a and a != v and a.kills >= GameData.KILL_LIMIT and state == "playing":
 		end_match()  # 친구대전은 방장이 끝낸다
 
 
@@ -321,7 +446,7 @@ func _process(dt: float) -> void:
 		if _lobby_t <= 0:
 			_lobby_t = 0.5
 			_render_lobby()
-	elif state == "playing":
+	elif state == "playing" and mode == null:
 		time_left -= dt / maxf(Engine.time_scale, 0.01)  # 히트스톱 중에도 시계는 실제 시간대로
 		if time_left <= 0:
 			time_left = 0.0

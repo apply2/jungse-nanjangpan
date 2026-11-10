@@ -148,7 +148,8 @@ const WEAPONS := {
 	"star": {"name": "황금 붕어빵", "dmg": 20, "kb": 18, "up": 6},  # 무적 몸박치기 (큰 넉백)
 	"holy": {"name": "성수", "cd": 0.4, "max_charges": 3, "recharge": 3.0, "slow": 0.35,  # slow: 웅덩이 속 이동 배율 (65% 느려짐, 사용자 요청으로 0.25→0.35)
 		 "speed": 19, "lift": 5.5,
-		"grav": 20, "radius": 0.14, "kb": 0, "dmg": 8, "tick_every": 0.5, "dur": 3.0, "area": 3.0},
+		"grav": 20, "radius": 0.14, "kb": 0, "dmg": 8, "tick_every": 0.5, "dur": 3.0, "area": 3.0,
+		"heal": 4.0},  # heal: 웅덩이에 닿아 있는 동안 초당 회복 — 던진 사람 (개인전·쟁탈전), 쟁탈전은 같은 팀도 (사용자 요청)
 	# 트럼펫 (음유시인, 4.5단계). 좌클릭 = 연주(누르는 동안), 우클릭 = 팡파레 (조준 확대 없음)
 	# 연주: 앞쪽 원뿔(range m, 반각 half_angle 도) 안의 적에게 tick초마다 dmg. 벽 뒤는 안 들림. 넉백 없음, 피해 숫자는 dot 스타일
 	# 숨: 최대 breath_max초 연주, 안 불면 초당 breath_regen 회복. 다 쓰면 gasp_t초 동안 연주 못 하고 이동 ×gasp_speed
@@ -209,7 +210,9 @@ const DANCE := {"window": 1.5, "need": 0.75, "dur": 2.0, "immune": 3.0, "speed":
 
 # 트럼펫·음유시인 모양 색 (명세: 금색 트럼펫, 깃털 달린 납작한 베레모)
 const TRUMPET_LOOK := {"brass": 0xf3b33d, "brass_dark": 0xb97a14, "beret": 0x4b2370, "feather": 0xf4ecd6, "feather_tip": 0xd94a3a,
-	"cheek": 0xf3a5a0}
+	"cheek": 0xf3a5a0,
+	# 화려한 의상 (사용자 요청): 조끼 앞 마름모 무늬(금·청록), 하얀 주름 깃, 부푼 어깨(금 + 보라 줄), 들쭉날쭉 밑단, 빨간 망토(금 테), 등에 류트, 베레모 브로치·두 번째 깃털
+	"diamond": 0x2fb8a8, "ruff": 0xfff6e6, "cape": 0xd94a3a, "lute": 0xc98a4a, "lute_dark": 0x6b4226, "gem": 0xe23d6b}
 
 # 트럼펫 소리 (AudioStreamGenerator로 실시간 합성): 톱니파 + 비브라토 + 로우패스
 # melody: base_hz 기준 반음 수 (도-미-솔-미-도-솔-도), note 한 음 길이(초), gap 음 사이 쉼
@@ -277,12 +280,62 @@ const BOT := {
 const BOT_NAMES :=["감자 농부", "졸린 경비병", "수상한 수도사", "대장장이 올라프", "길 잃은 음유시인",
 	"방앗간 한스", "늪지 마녀", "허풍쟁이 기사", "양치기 마르타", "술 취한 용병"]
 
+# ── 게임 모드 (사용자 요청 — HTML엔 개인전만 있음) ─────────────
+# ffa = 개인전 (기존 그대로), control = 쟁탈전 (5대5 거점 점령전, 오버워치 쟁탈 참고). 맵은 scripts/maps/map_control.gd
+const MODE_NAMES := {"ffa": "개인전", "control": "쟁탈전"}
+const MODES := {
+	"control": {
+		"name": "쟁탈전", "team_size": 5,          # AI대전: 나 + 아군 봇 4 vs 적군 봇 5
+		"rounds_to_win": 2,                         # 3판 2선승
+		"unlock": 15.0,                             # 라운드 시작 뒤 거점이 열리기까지
+		"cap_half": 9.0, "cap_h": 4.0,              # 거점 = 정사각형 (가운데에서 가로·세로 ±9m, 18m × 18m — 사용자 요청으로 원 r7 → 네모) / 안으로 세는 높이 (단상 위로)
+		"cap_time": 8.0,                            # 1명이면 이만큼 걸려 점령
+		"cap_mul": [1.0, 1.0, 1.5, 2.0],            # 원 안 인원(0·1·2·3명 이상)별 배율
+		"decay": 0.125,                             # 아무도 없으면 채워 둔 게이지가 초당 이만큼(1/8) 줄어듦
+		"score_every": 0.9,                         # 거점을 가진 팀 %가 이 초마다 1%
+		"overtime_at": 99,                          # 여기서 적이 원 안에 있으면 멈추고 연장전
+		"round_max": 240.0,                         # 라운드가 이만큼 넘으면 %가 높은 팀 승리 (안전장치)
+		"respawn": 5.0,                             # 쟁탈전 부활 시간 (개인전은 RESPAWN 3초 그대로)
+		"spawn_heal": 100.0,                        # 스폰룸 안에서 초당 체력
+		"round_gap": 6.0,                           # 라운드 사이 결과 화면
+		"end_gap": 6.0,                             # 마지막 라운드 뒤 결과 화면까지
+		"barrier_alpha": 0.16,                      # 스폰룸 문 막 (적만 막힘)
+		# 팀 색: 몸 / 밝은 강조색 / 어두운 색(서코트·띠) / 성직자 옷(연한 색)
+		"teams": {
+			"blue": {"name": "블루팀", "short": "블루", "body": 0x3d6fd6, "accent": 0x8fb4ff, "dark": 0x2a4e9e, "pale": 0xc9d7f7, "ui": "#5d8fff"},
+			"red": {"name": "레드팀", "short": "레드", "body": 0xd8453b, "accent": 0xff9a8f, "dark": 0x9e2e27, "pale": 0xf7cdc9, "ui": "#ff6a5f"},
+		},
+		"neutral_col": 0xffffff, "locked_col": 0x8a8a8a,
+		# 병과 색 덮어쓰기: 원래 색(hex) → 팀 색 역할 (body / accent / dark / pale). helm_ 붙은 건 투구(모자) 안에서만
+		"paint": {
+			"barbarian": {0xf28a1e: "body"},
+			"archer": {0xb8322a: "body", 0x8a2620: "dark", 0xd2463c: "accent", 0xc8322a: "accent"},   # 화살 깃·투구 깃털
+			"crossbow": {0x4d72b8: "body", 0x263f78: "dark", 0x3a62a8: "accent"},                   # 등 방패 그림
+			"cleric": {0xeee6d2: "pale", 0x7a52b8: "accent", "helm_gold": "accent"},                 # 영대·모자 띠
+			"bard": {0x7a3fa8: "body", 0xf4ecd6: "accent", 0xd94a3a: "accent"},                     # 조끼·모자 깃털
+		},
+		# 봇
+		"bot_hold_in": 2,                           # 우리 거점이면 원 안에 이만큼, 나머지는 감시 지점
+		"bot_roles": {"barbarian": "point", "cleric": "point", "bard": "point", "archer": "watch", "crossbow": "watch"},
+		"lane_weight": {                            # 3갈래(왼쪽 시장 골목 / 가운데 큰길 / 오른쪽 성벽 길) 고르는 가중치
+			"barbarian": [5, 2, 1], "archer": [1, 2, 4], "crossbow": [1, 2, 4], "cleric": [2, 3, 2], "bard": [3, 3, 1]},
+		"lane_reach": 3.5,                          # 갈래 길 지점에 이만큼 다가가면 다음 지점으로
+		"path_every": 0.6,                          # 경로 다시 찾기 간격
+		"path_reach": 1.2,                          # 경로 점에 이만큼 다가가면 다음 점
+		"no_camp": 16.0,                            # 적 스폰룸 입구에서 이 거리 안으론 쫓아가지 않음 (스폰킬 금지)
+		"fight_r": 14.0,                            # 거점으로 가는 길에도 이 안의 보이는 적과는 싸움 (연장전·뺏김은 제외)
+		"nav_cell": 0.25, "nav_cell_h": 0.1, "nav_agent_r": 0.5, "nav_agent_h": 1.8, "nav_climb": 0.5, "nav_slope": 46.0,  # 칸 크기의 배수로
+		"marker_h": 2.55,                           # 아군 ▼ 표시 높이 (발 기준)
+	},
+}
+
 # ── 맵 색상 (HTML의 C 객체) ──────────────────────────────────
 const C := {
 	"grass": 0x86cf5f, "grass_dark": 0x6fb34e, "path": 0xdcbd80, "stone": 0xbdb6a8, "stone2": 0x9c9586,
 	"stone_dark": 0x857e70, "wood": 0xb98552, "wood_dark": 0x7a4f2c, "plaster": 0xf1e3c4, "roof_r": 0xc9533c,
 	"roof_b": 0x4f6fa8, "hay": 0xe8c860, "leaf": 0x5aa84a, "leaf2": 0x6dbb55, "trunk": 0x7a5230, "gold": 0xf3b33d,
 	"cloth": 0xe9dfc8, "skin": 0xf2c7a0, "sky": 0x9fd3f0,
+	"roof_slate": 0x6f7684, "roof_brown": 0x9b6a45,  # 쟁탈전 맵 지붕 (팀 색 빨강·파랑과 안 헷갈리게)
 }
 
 # 아이템이 나타나는 자리
@@ -411,6 +464,7 @@ var squeak_override := -1.0   # 테스트: 0 이상이면 트럼펫 삑사리 �
 # ── 런타임 설정 (user://settings.cfg에 저장 — HTML localStorage aa-cls / aa-diff / aa-sens / aa-view) ──
 var settings_path := "user://settings.cfg"  # 테스트는 다른 파일로 바꿔서 내 설정을 안 건드림
 var difficulty := "normal"
+var mode := "ffa"           # 지금 고른 게임 모드 (ffa 개인전 / control 쟁탈전)
 var chosen_cls := "archer"   # AI대전에서 고른 내 병과
 var ai_enabled := true       # false면 봇이 가만히 서 있음 (자동 테스트용)
 var save_enabled := true     # false면 설정을 파일에 쓰지 않음 (자동 테스트용)
@@ -446,6 +500,9 @@ func load_settings() -> void:
 	var c: String = cf.get_value("game", "cls", chosen_cls)
 	if CLASSES.has(c):
 		chosen_cls = c
+	var md: String = cf.get_value("game", "mode", mode)
+	if md == "ffa" or MODES.has(md):
+		mode = md
 	var d: String = cf.get_value("game", "diff", difficulty)
 	if DIFF.has(d):
 		difficulty = d
@@ -462,12 +519,30 @@ func save_settings() -> void:
 	var cf := ConfigFile.new()
 	cf.set_value("game", "cls", chosen_cls)
 	cf.set_value("game", "diff", difficulty)
+	cf.set_value("game", "mode", mode)
 	cf.set_value("game", "sens", mouse_sens)
 	cf.set_value("game", "third_person", third_person)
 	cf.set_value("game", "nick", nick)
 	for k: String in VOL_DEFAULT:
 		cf.set_value("audio", k, volumes[k])
 	cf.save(settings_path)
+
+
+## 팀 색 (쟁탈전). role = body / accent / dark / pale
+static func team_hex(team: String, role: String) -> int:
+	return int(MODES.control.teams[team][role])
+
+
+## 쟁탈전에서 이 병과·팀의 원래 색 hex를 팀 색으로 (in_helm: 투구·모자 안의 조각인가). 안 바꾸면 그대로
+static func team_paint(cls: String, team: String, hex: int, in_helm := false) -> int:
+	if team == "":
+		return hex
+	var P: Dictionary = MODES.control.paint.get(cls, {})
+	if P.has(hex):
+		return team_hex(team, P[hex])
+	if in_helm and hex == C.gold and P.has("helm_gold"):
+		return team_hex(team, P.helm_gold)
+	return hex
 
 
 ## 볼륨 하나 바꾸기 (0~1) — 바로 버스에 반영. 저장은 부르는 쪽이 save_settings()로

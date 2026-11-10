@@ -22,7 +22,7 @@ static func in_cone(from: Vector3, dir: Vector3, pt: Vector3, rng: float, half_d
 
 ## e가 부는 소리(또는 팡파레)가 v에게 닿나 — 몸이나 머리가 원뿔 안에 있고, 벽에 안 막혀야 한다
 static func reaches(combat: Combat, e: PlayerController, v: PlayerController, rng: float, half_deg: float) -> bool:
-	if v == e or not v.alive:
+	if v == e or not v.alive or Combat.ally(e, v):  # 아군에겐 트럼펫·팡파레가 안 닿음
 		return false
 	var eye := e.eye_pos()
 	var dir := e.aim_dir()

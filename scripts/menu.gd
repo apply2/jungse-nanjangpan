@@ -16,7 +16,7 @@ signal lobby_start                                # 대기실: 게임 시작 (�
 signal lobby_class(cls: String)                   # 대기실: 내 병과
 
 const SETTINGS_SCENE := preload("res://scenes/ui/settings_panel.tscn")
-const PAGES := ["main", "diff", "class", "settings", "exit", "friend", "lobby"]
+const PAGES := ["main", "diff", "mode", "class", "settings", "exit", "friend", "lobby"]
 
 var cur_page := "main"
 var screens := {}     # menu / pause / end
@@ -24,6 +24,7 @@ var pages := {}       # 메뉴 안의 페이지
 var _class_host: GridContainer
 var _class_sub: Label
 var _diff_host: HBoxContainer
+var _mode_host: HBoxContainer
 var _pause_cards: GridContainer
 var _end_title: Label
 var _end_sub: RichTextLabel
@@ -52,6 +53,7 @@ func _ready() -> void:
 	screens.end = _screen()
 	_build_main()
 	_build_diff()
+	_build_mode()
 	_build_class()
 	_build_settings()
 	_build_exit()
@@ -243,16 +245,47 @@ func open_diff_page() -> void:
 		card.pressed.connect(func() -> void:
 			GameData.difficulty = k
 			GameData.save_settings()
-			open_class_page())
+			open_mode_page())
 		_diff_host.add_child(card)
 	show_page("diff")
+
+
+## 모드 고르기 (난이도 다음): 개인전 / 쟁탈전 5:5 (사용자 요청)
+func _build_mode() -> void:
+	var pg := _sheet(screens.menu)
+	pages.mode = pg
+	_pagehead(pg, "게임 모드", "diff")
+	_mode_host = HBoxContainer.new()
+	_mode_host.add_theme_constant_override("separation", 14)
+	pg.add_child(_mode_host)
+
+
+func open_mode_page() -> void:
+	for ch in _mode_host.get_children():
+		ch.queue_free()
+	var list := [
+		["ffa", "개인전", "봇 7명과 모두가 적. 4분 동안 %d킬을 먼저 따내면 승리." % GameData.KILL_LIMIT, UiKit.c("gold")],
+		["control", "쟁탈전 5:5", "블루팀(나 + 아군 봇 4) 대 레드팀(봇 5). 가운데 우물 거점을 지켜 100%%를 먼저 채우면 라운드 승리, 3판 2선승.",
+			Color(str(GameData.MODES.control.teams.blue.ui))],
+	]
+	for it: Array in list:
+		var k: String = it[0]
+		var card := UiKit.mode_card(it[1], it[2], it[3])
+		card.on_box = card.h_box
+		card.set_on(k == GameData.mode)
+		card.pressed.connect(func() -> void:
+			GameData.mode = k
+			GameData.save_settings()
+			open_class_page())
+		_mode_host.add_child(card)
+	show_page("mode")
 
 
 # ── 병과 선택 ────────────────────────────────────────────────
 func _build_class() -> void:
 	var pg := _sheet(screens.menu)
 	pages["class"] = pg
-	var head := _pagehead(pg, "병과 선택", "diff")
+	var head := _pagehead(pg, "병과 선택", "mode")
 	_class_sub = _sub2("고르면 바로 전투에 들어갑니다", head)
 	pg.custom_minimum_size.x = 1180  # 병과 5개가 한 줄에 들어가게
 	_class_host = GridContainer.new()
@@ -286,7 +319,7 @@ func _fill_cards(host: GridContainer, current: String, mini: bool, on_pick: Call
 
 func open_class_page() -> void:
 	_fill_cards(_class_host, GameData.chosen_cls, false, select_class)
-	_class_sub.text = "AI대전 · %s · 고르면 바로 전투에 들어갑니다" % GameData.DIFF[GameData.difficulty].name
+	_class_sub.text = "AI대전 · %s · %s · 고르면 바로 전투에 들어갑니다" % [GameData.DIFF[GameData.difficulty].name, GameData.MODE_NAMES.get(GameData.mode, "개인전")]
 	show_page("class")
 
 
@@ -566,6 +599,18 @@ func open_end(rows: Array, me: PlayerController) -> void:
 	show_screen("end")
 
 
+## 쟁탈전 결과: 이긴 팀 + 라운드 점수 + 팀 점수판
+func open_end_control(winner: String, wins: Dictionary, rows: Array, me: PlayerController) -> void:
+	var mine := winner != "" and me.team == winner
+	_end_title.text = "승리!" if mine else ("무승부" if winner == "" else "패배")
+	var wn := ControlMode.team_name(winner)
+	_end_sub.text = "[center]%s · 블루 %d : %d 레드[/center]" % [UiKit.gold(wn + (" 승리" if winner != "" else "")), int(wins.blue), int(wins.red)]
+	for ch in _end_table.get_children():
+		ch.queue_free()
+	_end_table.add_child(UiKit.team_table(rows, me))
+	show_screen("end")
+
+
 # ── 화면 전환 ────────────────────────────────────────────────
 func show_screen(id: String) -> void:
 	for k: String in screens:
@@ -592,7 +637,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				select_class(GameData.CLASS_ORDER[n])
 				return
 	if event.is_action_pressed("ui_cancel"):  # Esc = 뒤로
-		var back := {"diff": "main", "class": "diff", "settings": "main", "friend": "main"}
+		var back := {"diff": "main", "mode": "diff", "class": "mode", "settings": "main", "friend": "main"}
 		if back.has(cur_page):
 			get_viewport().set_input_as_handled()
 			show_page(back[cur_page])

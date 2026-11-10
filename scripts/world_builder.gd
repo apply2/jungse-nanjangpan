@@ -10,6 +10,22 @@ const ARENA_HALF := 46.0  # 성벽 위치 (HTML의 A)
 var body: StaticBody3D
 var aabbs: Array[AABB] = []
 var spawn_points: Array[Vector3] = []
+var half_x: float = GameData.ARENA   # 이동 가능 범위 (±). 쟁탈전 맵은 따로 정함
+var half_z: float = GameData.ARENA
+var map_id := "ffa"
+
+
+## 특수 아이템이 나오는 자리 (맵마다 다름 — 개인전은 GameData 그대로)
+func item_spots() -> Array:
+	return GameData.SNIPER_SPOTS
+
+
+func horse_spots() -> Array:
+	return GameData.HORSE_SPOTS
+
+
+func chicken_spots() -> Array:
+	return GameData.ITEM.chicken_spots
 
 var _box := BoxMesh.new()
 var _sph := SphereMesh.new()
@@ -43,7 +59,13 @@ func _ready() -> void:
 	add_child(body)
 	build()
 	_merge_static()
+	_build_live()
 	_build_spawns()
+
+
+## 합치기(_merge_static) 뒤에 붙이는, 움직이거나 색이 바뀌는 조각 (쟁탈전 맵의 거점 표시 등). 개인전 맵은 없음
+func _build_live() -> void:
+	pass
 
 
 func _process(dt: float) -> void:

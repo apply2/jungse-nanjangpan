@@ -22,6 +22,7 @@ var star_fx: StarFx         # 황금 붕어빵 무적 반짝임 (scripts/fx/star
 var items: Items            # 닭·말·저격총·AK
 var me: PlayerController    # 내 캐릭터 (스코프·3인칭 판단)
 var net: Net = null         # 친구대전 중이면 Net (아니면 null)
+var mode: ControlMode = null  # 쟁탈전이면 규칙 (개인전은 null — 기존 그대로)
 var ents: Array[PlayerController] = []
 var loose_helms: Array[Dictionary] = []
 var projectiles: Array[Dictionary] = []
@@ -111,6 +112,8 @@ func _physics_process(dt: float) -> void:
 	items.update_horses(dt)
 	_update_world_arrows(dt)
 	_update_helms(dt)
+	if mode:
+		mode.update(dt)
 	for i in range(ragdolls.size() - 1, -1, -1):
 		var rd: Ragdoll = ragdolls[i]
 		if rd.update(dt):
@@ -201,6 +204,9 @@ func clear_match_objects() -> void:
 
 # ── 스폰: 살아 있는 다른 사람에게서 가장 먼 지점 몇 곳 중 하나 ──
 func spawn(e: PlayerController) -> void:
+	if mode:  # 쟁탈전: 자기 팀 스폰룸
+		e.spawn_at(mode.spawn_pos(e))
+		return
 	var others := ents.filter(func(o: PlayerController) -> bool: return o != e and o.alive)
 	var scored: Array[Dictionary] = []
 	for p: Vector3 in world.spawn_points:
@@ -216,6 +222,11 @@ func spawn(e: PlayerController) -> void:
 	scored.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.d > b.d)
 	var pick: Vector3 = scored[randi() % mini(GameData.SPAWN_PICK, scored.size())].p
 	e.spawn_at(pick)
+
+
+## 같은 팀인가 (쟁탈전). 개인전은 team이 ""라 늘 false. 아군끼리는 투사체가 통과하고 피해·넘어짐·둔화·춤이 없다
+static func ally(a: PlayerController, b: PlayerController) -> bool:
+	return a != null and b != null and a != b and a.team != "" and a.team == b.team
 
 
 # ── 선분 판정 도구 (HTML segSeg / segPoint) ──
@@ -323,7 +334,7 @@ func _star_touch(e: PlayerController, dt: float) -> void:
 		e.star_hits[k] = float(e.star_hits[k]) - dt
 	var ep := e.global_position
 	for v in ents:
-		if v == e or not v.alive or v.invuln > 0 or v.star_t > 0:
+		if v == e or not v.alive or v.invuln > 0 or v.star_t > 0 or ally(e, v):
 			continue
 		var vp := v.global_position
 		var d := Vector3(vp.x - ep.x, 0, vp.z - ep.z)
@@ -344,6 +355,10 @@ func _star_touch(e: PlayerController, dt: float) -> void:
 ## v가 a에게 kind 무기로 base만큼 맞음. dir = 날아온 방향(넉백 방향), pt = 맞은 지점(없으면 null)
 func damage(v: PlayerController, a: PlayerController, base: float, kind: String, head: bool, dir: Vector3, pt: Variant = null) -> void:
 	if not v.alive or v.invuln > 0 or v.star_t > 0:  # 황금 붕어빵 무적: 피해·넉백 다 막음
+		return
+	if ally(a, v):  # 쟁탈전: 팀킬 없음 (마상창·닭·팡파레·트럼펫·몸박치기도 여기서 막힘)
+		return
+	if mode and mode.no_damage():  # 쟁탈전: 라운드 사이
 		return
 	if mp() and not v.is_local:  # 친구대전: 피해는 맞은 사람 쪽에서만 판정 (HTML damage)
 		return
@@ -502,11 +517,11 @@ func weapon_update(e: PlayerController, held: bool, dt: float) -> void:
 	var dancing := e.dance_t > 0
 	# 음유시인은 숨이 다른 무기를 들고 있어도 돌아온다. 연주·팡파레는 트럼펫을 들고 넘어지지·춤추지 않았을 때만
 	if GameData.CLASSES[e.cls].weapon == "trumpet":
-		var can := e.wep == "trumpet" and e.swap_t <= 0 and e.fall_t <= 0 and not dancing
+		var can := e.wep == "trumpet" and e.swap_t <= 0 and e.fall_t <= 0 and not dancing and not (mode and mode.no_attack(e))
 		Trumpet.update(self, e, held and can, dt)
 		if can and e.aim_held:
 			Trumpet.try_fanfare(self, e)
-	if e.swap_t > 0 or e.fall_t > 0 or dancing:
+	if e.swap_t > 0 or e.fall_t > 0 or dancing or (mode and mode.no_attack(e)):  # 쟁탈전: 스폰룸 안·라운드 사이엔 공격 금지
 		e.trig_prev = held
 		if dancing and e.charging:  # 당기던 활은 놓침 (춤 끝나고 놓아도 안 나감)
 			e.reset_charge()
@@ -596,7 +611,7 @@ func tp_aim(e: PlayerController) -> Vector3:
 	var d := e.aim_dir() * GameData.TP_AIM_DIST
 	var best := minf(1.0, world_ray(o, d))
 	for v in ents:
-		if v == e or not v.alive:
+		if v == e or not v.alive or ally(e, v):  # 아군은 조준점이 지나감
 			continue
 		var h := hit_test(o, d, v, GameData.TP_AIM_R)
 		if not h.is_empty() and h.t < best:
@@ -715,7 +730,7 @@ func _fire_sniper(e: PlayerController, eye: Vector3, dir: Vector3) -> void:
 	var hit_e: PlayerController = null
 	var head := false
 	for v in ents:
-		if v == e or not v.alive:
+		if v == e or not v.alive or ally(e, v):  # 아군은 그냥 통과
 			continue
 		var r := hit_test(eye, d, v, I.sniper_r)
 		if not r.is_empty() and r.t < best:
@@ -784,7 +799,7 @@ func _fire_ak(e: PlayerController, eye: Vector3, dir: Vector3) -> void:
 	var hit_e: PlayerController = null
 	var head := false
 	for v in ents:
-		if v == e or not v.alive or v.global_position.distance_to(eye) > L + 3:
+		if v == e or not v.alive or ally(e, v) or v.global_position.distance_to(eye) > L + 3:
 			continue
 		var r := hit_test(eye, d, v, I.ak_r)
 		if not r.is_empty() and r.t < best:
@@ -845,7 +860,7 @@ func update_projectiles(dt: float) -> void:
 		var mid := pos + d * 0.5
 		var seg := d.length()
 		for v in ents:
-			if v == p.owner or not v.alive or v.global_position.distance_to(mid) > seg + GameData.PROJ_CULL:
+			if v == p.owner or not v.alive or ally(p.owner, v) or v.global_position.distance_to(mid) > seg + GameData.PROJ_CULL:
 				continue
 			var r := hit_test(pos, d, v, p.radius)
 			if not r.is_empty() and r.t < th:
@@ -862,7 +877,7 @@ func update_projectiles(dt: float) -> void:
 			if hit_e and th <= tw:
 				var cdir := Vector3(vel.x, 0, vel.z).normalized()
 				damage(hit_e, p.owner, p.dmg, "chicken", false, cdir, pt)
-				if hit_e.alive and hit_e.fall_t <= 0 and hit_e.mounted <= 0 and hit_e.star_t <= 0:
+				if hit_e.alive and hit_e.fall_t <= 0 and hit_e.mounted <= 0 and hit_e.star_t <= 0 and not ally(p.owner, hit_e):
 					hit_e.trip()
 			items.spawn_chicken(Vector3(pt.x, ground_below(pt), pt.z), GameData.ITEM.chicken_no_pick)
 			projectiles.remove_at(i)
@@ -957,7 +972,7 @@ func _update_world_arrows(dt: float) -> void:
 
 func kill(v: PlayerController, a: PlayerController, kind: String, head: bool, dir: Vector3) -> void:
 	v.deaths += 1
-	v.respawn = GameData.RESPAWN
+	v.respawn = mode.respawn_time() if mode else GameData.RESPAWN
 	if v.star_t > 0:
 		end_star(v)
 	v.charging = false
@@ -1183,7 +1198,10 @@ func shatter(thrower: PlayerController, pt: Vector3) -> void:
 	Sfx.play("glass", pt)
 	var disc := _flat(Meshes.disc(), _flat_mat(H.disc, H.disc_alpha, 2), Vector3(c.x, gy + 0.03, c.z))
 	var mine := thrower != null and thrower.is_local
-	var rim := _flat(Meshes.flat_ring(), _flat_mat(H.rim_mine if mine else H.rim_enemy, H.rim_alpha, 3), Vector3(c.x, gy + 0.04, c.z))
+	var rim_hex: int = H.rim_mine if mine else H.rim_enemy
+	if thrower and thrower.team != "" and me and me.team != "":  # 쟁탈전: 우리 팀 파랑·적 팀 빨강
+		rim_hex = GameData.team_hex("blue", "accent") if thrower.team == me.team else GameData.team_hex("red", "body")
+	var rim := _flat(Meshes.flat_ring(), _flat_mat(rim_hex, H.rim_alpha, 3), Vector3(c.x, gy + 0.04, c.z))
 	zones.append({"owner": thrower, "pos": c, "r": float(W.area), "life": float(W.dur), "tick": float(H.first_tick),
 		"disc": disc, "rim": rim, "t": 0.0})
 
@@ -1200,6 +1218,7 @@ func _in_zone(z: Dictionary, v: PlayerController) -> bool:
 func update_zones(dt: float) -> void:
 	var W: Dictionary = GameData.WEAPONS.holy
 	var H: Dictionary = GameData.HOLY
+	var healed := {}
 	for i in range(zones.size() - 1, -1, -1):
 		var z := zones[i]
 		z.life -= dt
@@ -1225,7 +1244,7 @@ func update_zones(dt: float) -> void:
 			fx.puff(Vector3(zp.x + cos(a) * rr, zp.y + 0.1, zp.z + sin(a) * rr), 0xffe07a if randf() < 0.5 else 0xffffff, 0.05, 1)
 		# 안에 있으면 느려짐 (던진 사람은 빼고)
 		for v in ents:
-			if not v.alive or v == thrower or not _in_zone(z, v):
+			if not v.alive or v == thrower or ally(thrower, v) or not _in_zone(z, v):
 				continue
 			if v.star_t > 0:  # 황금 붕어빵 무적: 둔화 안 걸림
 				continue
@@ -1233,11 +1252,16 @@ func update_zones(dt: float) -> void:
 			if (not v.is_local or tp_on()) and randf() < dt * 6:
 				var vp := v.global_position
 				fx.puff(Vector3(vp.x + randf_range(-0.3, 0.3), vp.y + 0.15, vp.z + randf_range(-0.3, 0.3)), 0x9fe4ff, 0.07, 1)
+		# 닿아 있는 동안 회복: 던진 사람 (개인전도), 쟁탈전은 같은 팀도 (사용자 요청). 웅덩이가 겹쳐도 한 번만
+		for v in ents:
+			if v.alive and not v.is_remote and not healed.has(v) and (v == thrower or ally(thrower, v)) and _in_zone(z, v):
+				healed[v] = true
+				v.hp = minf(float(GameData.class_hp(v.cls)), v.hp + float(W.heal) * dt)
 		# 0.5초마다 지짐
 		if z.tick <= 0:
 			z.tick += float(W.tick_every)
 			for v in ents:
-				if not v.alive or v == thrower or not _in_zone(z, v):
+				if not v.alive or v == thrower or ally(thrower, v) or not _in_zone(z, v):
 					continue
 				var vp := v.global_position
 				var off := Vector3(vp.x - zp.x, 0, vp.z - zp.z)

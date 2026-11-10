@@ -18,6 +18,8 @@ var runaways: Array[Dictionary] = []  # 시간이 끝나 달아나는 말 {h, di
 var sniper_timer := 0.0
 var ak_timer := 0.0
 var horse_timer := 30.0
+var horse_b := {"active": false, "pos": Vector3.ZERO, "life": 0.0, "t": 0.0, "seq": 0}  # 쟁탈전: 양 팀 집결 마당 옆에 하나씩 동시에
+var horses: Array[Dictionary] = []
 ## 황금 붕어빵 (사용자 요청 — HTML에 없음). 닿으면 바로 먹고 GameData.ITEM.golden_fish.dur초 무적
 var fish := {"active": false, "pos": Vector3.ZERO, "life": 0.0, "t": 0.0, "seq": 0}
 var fish_timer := 20.0
@@ -26,14 +28,16 @@ var fish_timer := 20.0
 func _ready() -> void:
 	_build_gun_item(sniper, "sniper", 1.3, 0xffcf5a, 0xffd56b)
 	_build_gun_item(ak, "ak", 1.7, 0xff7a45, 0xff9a6a)
-	var g := Node3D.new()
-	add_child(g)
-	var h := WeaponModels.make_horse(true)
-	g.add_child(h.g)
-	horse.model = h
-	horse.group = g
-	horse.pillar = _pillar(g, 1.2, 0xff8a3d, 0.22)
-	g.visible = false
+	horses = [horse, horse_b]
+	for hd: Dictionary in horses:
+		var g := Node3D.new()
+		add_child(g)
+		var h := WeaponModels.make_horse(true)
+		g.add_child(h.g)
+		hd.model = h
+		hd.group = g
+		hd.pillar = _pillar(g, 1.2, 0xff8a3d, 0.22)
+		g.visible = false
 	_build_fish_item()
 
 
@@ -102,10 +106,11 @@ func clear() -> void:
 	chickens.clear()
 	chicken_timer = I.chicken_first
 	if not combat.mp():  # 친구대전엔 닭이 없다
-		for p: Vector3 in I.chicken_spots:
+		for p: Vector3 in combat.world.chicken_spots():
 			spawn_chicken(p)
-	horse.active = false
-	(horse.group as Node3D).visible = false
+	for hd: Dictionary in horses:
+		hd.active = false
+		(hd.group as Node3D).visible = false
 	horse_timer = rr(I.horse_first)
 	for r in runaways:
 		(r.h.g as Node).queue_free()
@@ -134,7 +139,7 @@ func _place(it: Dictionary, pos: Vector3, life: float) -> void:
 
 
 func spawn_sniper() -> void:
-	var spots: Array = GameData.SNIPER_SPOTS
+	var spots: Array = combat.world.item_spots()
 	_place(sniper, spots[randi() % spots.size()], GameData.ITEM.life)
 	sniper.ammo = int(GameData.WEAPONS.sniper.ammo)
 	announce("sn")
@@ -164,7 +169,7 @@ func announce(key: String) -> void:
 
 
 func spawn_ak() -> void:
-	var spots: Array = GameData.SNIPER_SPOTS
+	var spots: Array = combat.world.item_spots()
 	var opts := spots.filter(func(q: Vector3) -> bool:
 		return not sniper.active or Vector2(q.x - sniper.pos.x, q.z - sniper.pos.z).length() > float(GameData.ITEM.ak_apart))
 	var q: Vector3 = opts[randi() % opts.size()] if opts.size() > 0 else spots[0]
@@ -347,8 +352,7 @@ func update_chickens(dt: float) -> void:
 		if c.grounded and body.velocity.y < 0:
 			body.velocity.y = 0
 		pos = body.global_position
-		var A: float = GameData.ARENA
-		if absf(pos.x) > A - 0.5 or absf(pos.z) > A - 0.5:
+		if absf(pos.x) > combat.world.half_x - 0.5 or absf(pos.z) > combat.world.half_z - 0.5:
 			c.heading += PI
 		var g: Node3D = c.c.g
 		var hs := Vector2(body.velocity.x, body.velocity.z).length()
@@ -367,15 +371,31 @@ func update_chickens(dt: float) -> void:
 
 # ── 기사의 말 + 마상창 ───────────────────────────────────────
 func spawn_horse() -> void:
-	var spots: Array = GameData.HORSE_SPOTS
-	_place(horse, spots[randi() % spots.size()], GameData.ITEM.horse_life)
-	(horse.group as Node3D).rotation.y = randf_range(0, TAU)
+	var spots: Array = combat.world.horse_spots()
+	if GameData.mode == "control":  # 쟁탈전: 양 팀 쪽에 하나씩 동시에 (공평하게)
+		for i in 2:
+			_place(horses[i], spots[i], GameData.ITEM.horse_life)
+			(horses[i].group as Node3D).rotation.y = randf_range(0, TAU)
+	else:
+		_place(horse, spots[randi() % spots.size()], GameData.ITEM.horse_life)
+		(horse.group as Node3D).rotation.y = randf_range(0, TAU)
 	announce("hs")
 
 
-func mount(e: PlayerController) -> void:
-	horse.active = false
-	(horse.group as Node3D).visible = false
+## 지금 나와 있는 말 중 pos에서 가장 가까운 것 (없으면 {})
+func nearest_horse(pos: Vector3) -> Dictionary:
+	var best := {}
+	for hd: Dictionary in horses:
+		if hd.active and (best.is_empty() or pos.distance_to(hd.pos) < pos.distance_to(best.pos)):
+			best = hd
+	return best
+
+
+func mount(e: PlayerController, hd: Dictionary = {}) -> void:
+	if hd.is_empty():
+		hd = horse
+	hd.active = false
+	(hd.group as Node3D).visible = false
 	e.mounted = GameData.HORSE_TIME
 	e.mount_h = GameData.MOUNT_H
 	e.wep = "lance"
@@ -419,7 +439,7 @@ func lance_check(e: PlayerController) -> void:
 	var tip := ep + Vector3(0, I.lance_tip_y, 0) + f * float(I.lance_tip)
 	var d := tip - a
 	for v in combat.ents:
-		if v == e or not v.alive or v.invuln > 0:
+		if v == e or not v.alive or v.invuln > 0 or Combat.ally(e, v):  # 아군은 창·말 몸통에 안 걸림
 			continue
 		var h := Combat.hit_test(a, d, v, I.lance_r)  # 창 판정을 넉넉하게
 		if not h.is_empty():
@@ -445,28 +465,30 @@ func update_horses(dt: float) -> void:
 	var I: Dictionary = GameData.ITEM
 	for v in combat.ents:
 		v.ln_t -= dt
-	if combat.authority() and not horse.active and not combat.ents.any(func(e: PlayerController) -> bool: return e.mounted > 0):
+	if combat.authority() and not horses.any(func(hd: Dictionary) -> bool: return hd.active) and not combat.ents.any(func(e: PlayerController) -> bool: return e.mounted > 0):
 		horse_timer -= dt
 		if horse_timer <= 0:
 			horse_timer = rr(I.horse_timer)
 			if randf() < float(I.horse_chance):
 				spawn_horse()
-	if horse.active:
-		horse.t += dt
-		horse.life -= dt
-		WeaponModels.anim_horse(horse.model, 0, dt)
-		((horse.pillar as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.a = 0.16 + sin(horse.t * 4) * 0.06
-		if horse.life <= 0:
-			horse.active = false
-			(horse.group as Node3D).visible = false
+	for hd: Dictionary in horses:
+		if not hd.active:
+			continue
+		hd.t += dt
+		hd.life -= dt
+		WeaponModels.anim_horse(hd.model, 0, dt)
+		((hd.pillar as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.a = 0.16 + sin(hd.t * 4) * 0.06
+		if hd.life <= 0:
+			hd.active = false
+			(hd.group as Node3D).visible = false
 		else:
 			for e in combat.ents:
-				if not e.is_remote and e.alive and e.mounted <= 0 and e.fall_t <= 0 and e.global_position.distance_to(horse.pos) < float(I.mount_r):
+				if not e.is_remote and e.alive and e.mounted <= 0 and e.fall_t <= 0 and e.global_position.distance_to(hd.pos) < float(I.mount_r):
 					if not combat.authority():
 						if e.is_local:
 							combat.net.request("hs")
 					else:
-						mount(e)
+						mount(e, hd)
 					break
 	for e in combat.ents:
 		if e.is_remote:  # 친구의 말: 보이기만 (창 판정은 타는 사람 쪽에서)
@@ -595,12 +617,15 @@ func _fish_part(parent: Node3D, mesh: Mesh, mt: Material, pos: Vector3, scl: Vec
 ## SNIPER_SPOTS 중 다른 특수 아이템(저격총·AK·말)과 apart m 이상 떨어진 곳에
 func spawn_fish() -> void:
 	var G: Dictionary = GameData.ITEM.golden_fish
-	var spots: Array = GameData.SNIPER_SPOTS
+	var spots: Array = combat.world.item_spots()
 	var others: Array[Vector3] = []
-	for it: Dictionary in [sniper, ak, horse]:
+	for it: Dictionary in [sniper, ak, horse, horse_b]:
 		if it.active:
 			others.append(it.pos)
+	var cap: Variant = combat.world.get("cap_pos")  # 쟁탈전: 거점 원 안엔 안 나옴
 	var opts := spots.filter(func(q: Vector3) -> bool:
+		if cap is Vector3 and maxf(absf(q.x - cap.x), absf(q.z - cap.z)) < float(GameData.MODES.control.cap_half) + 1.0:
+			return false
 		return others.all(func(o: Vector3) -> bool: return Vector2(q.x - o.x, q.z - o.z).length() >= float(G.apart)))
 	var q: Vector3 = opts.pick_random() if opts.size() > 0 else spots.pick_random()
 	_place(fish, q, G.life)

@@ -9,6 +9,16 @@ var player: PlayerController
 var combat: Combat
 var time_left := 0.0
 var show_board := false
+var mode: ControlMode = null:  # 쟁탈전이면 규칙 (위쪽 시간 대신 쟁탈전 HUD)
+	set(v):
+		mode = v
+		if _ctrl:
+			_ctrl.mode = v
+			_ctrl.visible = v != null
+		if _topbar:
+			_topbar.visible = v == null
+var _ctrl: ControlHud
+var _topbar: PanelContainer
 
 var _speed: RichTextLabel
 var _cls: Label
@@ -170,6 +180,10 @@ func _ready() -> void:
 	_build_vitals(root)
 	_build_weapon(root)
 	_build_star_bar(root)
+	_ctrl = ControlHud.new()
+	_ctrl.hud = self
+	_ctrl.visible = false
+	root.add_child(_ctrl)
 
 	# 큰 문구 (HTML #banner: 위에서 24%)
 	_banner = VBoxContainer.new()
@@ -232,6 +246,7 @@ func _ready() -> void:
 ## 위쪽 가운데: 남은 시간 + 1위 (HTML #topbar)
 func _build_topbar(root: Control) -> void:
 	var tb := PanelContainer.new()
+	_topbar = tb
 	tb.add_theme_stylebox_override("panel", UiKit.panel_box(Vector4(16, 4, 16, 4)))
 	tb.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	tb.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -362,16 +377,23 @@ func killfeed(a: PlayerController, v: PlayerController, kind: String, head: bool
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 7)
 	pc.add_child(hb)
-	UiKit.label(a.ent_name if a else "?", 13, PARCH, hb)
+	UiKit.label(a.ent_name if a else "?", 13, _name_col(a), hb)
 	UiKit.label(GameData.WEAPONS[kind].name, 13, GOLD, hb)
 	if head:
 		UiKit.label("헤드샷", 12, BLOOD, hb).size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	UiKit.label(v.ent_name, 13, PARCH, hb)
+	UiKit.label(v.ent_name, 13, _name_col(v), hb)
 	_feed.add_child(pc)
 	_feed.move_child(pc, 0)
 	_feed_items.push_front({"n": pc, "t": 0.0})
 	while _feed_items.size() > GameData.FEED_MAX:
 		(_feed_items.pop_back().n as Node).queue_free()
+
+
+## 킬피드 이름 색: 쟁탈전이면 팀 색
+static func _name_col(e: PlayerController) -> Color:
+	if e and e.team != "":
+		return Color(str(GameData.MODES.control.teams[e.team].ui))
+	return PARCH
 
 
 ## 내가 죽었을 때 — HTML showDeath
@@ -574,7 +596,7 @@ func _process(dt: float) -> void:
 			_board_tick = GameData.BOARD_TICK
 			for ch in _board_host.get_children():
 				ch.queue_free()
-			_board_host.add_child(UiKit.score_table(rows, e))
+			_board_host.add_child(UiKit.team_table(rows, e) if mode else UiKit.score_table(rows, e))
 	else:
 		_board_tick = 0.0
 

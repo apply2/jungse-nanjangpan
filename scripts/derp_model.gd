@@ -7,6 +7,7 @@ extends Node3D
 ## mk = 래그돌이 쓰는 몸의 점 8개 (HTML m.mk).
 
 var cls := "archer"
+var team := ""   # 쟁탈전 팀 (blue / red). 있으면 몸통·강조 파츠를 팀 색으로 (GameData.team_paint)
 var upper: Node3D
 var body: Node3D
 var neck: Node3D
@@ -61,8 +62,9 @@ const STEEL := 0xaab3bd
 const STEEL_D := 0x7d858f
 
 
-func _init(class_key := "archer") -> void:
+func _init(class_key := "archer", team_key := "") -> void:
 	cls = class_key
+	team = team_key
 	_sph.radius = 1.0
 	_sph.height = 2.0
 	_sph.radial_segments = 16
@@ -159,6 +161,7 @@ func _part(m: Mesh, hex: int, pos: Vector3, scl: Vector3, parent: Node3D, shadow
 
 
 func _mat(hex: int) -> StandardMaterial3D:
+	hex = GameData.team_paint(cls, team, hex, _in_helm)  # 쟁탈전: 병과 색 → 팀 색 (투구 모양·소품은 그대로)
 	var cache := _helm_mats if _in_helm else _mats
 	if not cache.has(hex):
 		var m := StandardMaterial3D.new()
@@ -324,6 +327,70 @@ func _build_outfit() -> void:
 				_part(_box, 0xf3b33d, Vector3(x, 0, 0), Vector3(0.05, 0.82, 0.07), pv)
 			var em := _part(_cyl, 0xf3b33d, Vector3(0, 0.05, -0.04), Vector3(0.13, 0.02, 0.13), pv)
 			em.rotation.x = PI / 2
+		"bard":
+			_bard_outfit()
+
+
+## 음유시인: 화려한 광대풍 옷 (사용자 요청). 색은 GameData.TRUMPET_LOOK
+## 조끼 앞 마름모 무늬 · 하얀 주름 깃 · 부푼 어깨 · 들쭉날쭉 밑단 · 금 허리띠 · 빨간 망토 · 등에 류트
+func _bard_outfit() -> void:
+	var T: Dictionary = GameData.TRUMPET_LOOK
+	var gold: int = GameData.C.gold
+	var vest: int = GameData.CLASSES.bard.color
+	# 조끼 앞 마름모 체크 무늬 (금·청록 번갈아)
+	for row in 3:
+		for col in [-1, 0, 1]:
+			if row == 2 and col != 0:
+				continue
+			var n := Vector3(col * 0.42, 0.22 - row * 0.27, 0.85)
+			var d := _part(_box, gold if (row + col) % 2 == 0 else T.diamond, _on_body(n) * 1.01, Vector3(0.12, 0.12, 0.02), body)
+			d.quaternion = Quaternion(Vector3(0, 0, 1), n.normalized()) * Quaternion(Vector3(0, 0, 1), PI / 4)
+	# 하얀 주름 깃 (목둘레 작은 공 12개)
+	for i in 12:
+		var a := i / 12.0 * TAU
+		_part(_sph, T.ruff, Vector3(sin(a) * 0.27, 0.42, cos(a) * 0.25), Vector3(0.075, 0.06, 0.075), body)
+	# 부푼 어깨: 금빛 공 + 보라 세로줄
+	for sx in [1, -1]:
+		_part(_sph, gold, Vector3(sx * 0.38, 0.3, 0), Vector3(0.17, 0.14, 0.18), body)
+		for k in 3:
+			var st := _part(_sph, vest, Vector3(sx * (0.4 + 0.12 * 0.0), 0.3, (k - 1) * 0.09), Vector3(0.175, 0.145, 0.03), body)
+			st.rotation.y = (k - 1) * 0.5
+	# 금 허리띠 + 보석 버클
+	_part(_cyl, gold, Vector3(0, -0.2, 0), Vector3(0.44, 0.06, 0.4), body)
+	_part(_sph, T.gem, Vector3(0, -0.2, 0.4), Vector3(0.05, 0.05, 0.03), body)
+	# 들쭉날쭉 밑단 (보라·금 번갈아)
+	for i in 16:
+		var a := i / 16.0 * TAU
+		var cn := _part(_cone, vest if i % 2 == 0 else gold, Vector3(sin(a) * 0.37, -0.38, cos(a) * 0.335), Vector3(0.07, 0.15, 0.055), body)
+		_rot(cn, Vector3(PI + cos(a) * 0.25, 0, -sin(a) * 0.25))
+	# 빨간 망토 (어깨에서 등으로) + 금 테
+	var cape := _group(Vector3(0, 0.3, -0.38), body)
+	cape.rotation.x = 0.18
+	_part(_box, T.cape, Vector3(0, -0.36, 0), Vector3(0.66, 0.78, 0.035), cape)
+	_part(_box, gold, Vector3(0, -0.76, 0), Vector3(0.68, 0.05, 0.045), cape)
+	for sx in [1, -1]:
+		_part(_box, gold, Vector3(sx * 0.33, -0.36, 0), Vector3(0.035, 0.8, 0.045), cape)
+		_part(_sph, gold, Vector3(sx * 0.26, 0.02, 0.06), Vector3.ONE * 0.05, cape)  # 망토 고정 단추
+	# 등에 멘 류트 (망토 위)
+	var lute := _group(Vector3(0.05, -0.05, -0.5), body)
+	lute.rotation.z = 0.55
+	_part(_sph, T.lute, Vector3(0, -0.08, 0), Vector3(0.17, 0.21, 0.06), lute)
+	_part(_cyl, T.lute_dark, Vector3(0, -0.06, -0.06), Vector3(0.05, 0.01, 0.05), lute).rotation.x = PI / 2
+	_part(_box, T.lute_dark, Vector3(0, 0.25, 0), Vector3(0.045, 0.32, 0.04), lute)
+	_part(_box, T.lute_dark, Vector3(0, 0.43, 0.01), Vector3(0.07, 0.07, 0.05), lute)
+	_flatten(cape)  # 몸통 조각과 한 덩어리로 합쳐지게 (그리기 호출 수 유지)
+	_flatten(lute)
+
+
+## 묶음 노드를 풀어 조각들을 부모로 옮김 (변환은 그대로) — _merge가 부모별로 합치므로
+func _flatten(g: Node3D) -> void:
+	var par := g.get_parent()
+	for c in g.get_children():
+		var t: Transform3D = g.transform * (c as Node3D).transform
+		g.remove_child(c)
+		par.add_child(c)
+		(c as Node3D).transform = t
+	g.free()
 
 
 ## 성직자: 긴 사제복 + 보라 영대 + 밧줄 허리띠 + 금 십자가
@@ -462,6 +529,9 @@ func _build_helm() -> void:
 			_part(_sph, T.beret, Vector3(0.04, 0.33, -0.03), Vector3(0.05, 0.04, 0.05), helm)
 			_rot(_part(_sph, T.feather, Vector3(-0.2, 0.42, -0.2), Vector3(0.04, 0.34, 0.06), helm), Vector3(-0.85, 0, 0.45))
 			_rot(_part(_sph, T.feather_tip, Vector3(-0.32, 0.64, -0.42), Vector3(0.03, 0.12, 0.045), helm), Vector3(-1.1, 0, 0.55))
+			_rot(_part(_sph, T.diamond, Vector3(-0.12, 0.4, -0.24), Vector3(0.03, 0.26, 0.05), helm), Vector3(-1.0, 0, 0.15))  # 두 번째 깃털
+			_part(_sph, GameData.C.gold, Vector3(-0.17, 0.3, -0.1), Vector3(0.06, 0.06, 0.04), helm)  # 깃털 꽂은 금 브로치
+			_part(_sph, T.gem, Vector3(-0.17, 0.3, -0.06), Vector3(0.035, 0.035, 0.025), helm)
 		"cleric":  # 주교 모자
 			var mt := CylinderMesh.new()
 			mt.top_radius = 0.12

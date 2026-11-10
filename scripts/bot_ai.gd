@@ -28,6 +28,14 @@ var slide_hold := 0.0
 var aim_head := false
 var sm := Vector3.ZERO       # 부드럽게 만든 이동 방향
 var resting := false         # 음유시인: 숨 고르는 중 (연주 멈추고 거리를 벌림)
+# 쟁탈전 (사용자 요청): 갈래 길 → 내비 경로로 거점·감시 지점까지
+var lane := -1               # 고른 갈래 (0 시장 골목 / 1 큰길 / 2 성벽 길). -1 = 부활 뒤 아직 안 고름
+var lane_i := 0              # 갈래 길에서 다음 지점
+var path := PackedVector3Array()
+var path_i := 0
+var path_t := 0.0
+var goal := Vector3.INF      # 지금 가려는 곳
+var slot := Vector3.ZERO     # 거점 원 안에서 설 자리 (봇마다 다르게)
 
 
 ## 정규분포 난수 — HTML gauss()
@@ -54,6 +62,12 @@ func reset(world_point: Vector3) -> void:
 	stuck = 0.0
 	unstuck_t = 0.0
 	wander = world_point
+	lane = -1
+	lane_i = 0
+	path = PackedVector3Array()
+	goal = Vector3.INF
+	var a := randf() * TAU
+	slot = Vector3(sin(a), 0, cos(a)) * randf_range(1.8, 6.0)
 
 
 ## 맞으면 때린 사람을 바로 노림 — HTML damage() 마지막 줄
@@ -78,7 +92,9 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 		var bv := false
 		var eye := e.eye_pos()
 		for o in combat.ents:
-			if o == e or not o.alive:
+			if o == e or not o.alive or Combat.ally(e, o):  # 쟁탈전: 아군은 대상이 아님
+				continue
+			if combat.mode and camping(o):  # 쟁탈전: 적 스폰룸 앞에 있는 적은 쫓지 않음 (스폰킬 금지)
 				continue
 			var d := o.global_position.distance_to(epos)
 			if d > float(B.sight):
@@ -120,7 +136,9 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 	if strafe_t <= 0:
 		strafe_t = rr(B.strafe_t)
 		strafe = 0.0 if randf() < float(B.strafe_stop) else (-1.0 if randf() < 0.5 else 1.0)
-	var t: PlayerController = target if target and target.alive else null
+	var t: PlayerController = target if target and target.alive and not Combat.ally(e, target) else null
+	# 쟁탈전: 거점·감시 지점으로 가는 길 (싸울 만큼 가까운 적이 없거나, 급할 때)
+	var ctl: Variant = control_move(e, combat, t, dt) if combat.mode else null
 	# ── 어디로 갈지 ──
 	var move := Vector3.ZERO
 	var want_fire := false
@@ -133,17 +151,20 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 	var go_item: bool = it.sniper.active and free_hands and epos.distance_to(it.sniper.pos) < float(B.item_seek) and not busy
 	var go_ak: bool = it.ak.active and free_hands and epos.distance_to(it.ak.pos) < float(B.item_seek) and not busy
 	var go_fish: bool = it.fish.active and e.star_t <= 0 and epos.distance_to(it.fish.pos) < float(B.fish_seek) and not busy
-	var go_horse: bool = it.horse.active and e.mounted <= 0 and epos.distance_to(it.horse.pos) < float(B.horse_seek) and not busy
+	var near_h: Dictionary = it.nearest_horse(epos)
+	var go_horse: bool = not near_h.is_empty() and e.mounted <= 0 and epos.distance_to(near_h.pos) < float(B.horse_seek) and not busy
 	if e.mounted > 0:
 		move = (Vector3(t.global_position.x - epos.x, 0, t.global_position.z - epos.z)) if t else wp - epos
 	elif go_horse:
-		move = (it.horse.pos as Vector3) - epos
+		move = (near_h.pos as Vector3) - epos
 	elif go_item:
 		move = (it.sniper.pos as Vector3) - epos
 	elif go_fish:  # 황금 붕어빵 (저격총과 같은 우선순위)
 		move = (it.fish.pos as Vector3) - epos
 	elif go_ak:
 		move = (it.ak.pos as Vector3) - epos
+	elif ctl != null:
+		move = ctl
 	elif t and e.star_t > 0:  # 무적: 엄폐·거리 유지 없이 가장 가까운 적에게 돌진 (몸박치기)
 		move = Vector3(t.global_position.x - epos.x, 0, t.global_position.z - epos.z)
 	elif t:
@@ -291,6 +312,110 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 	else:
 		held = want_fire and aligned
 	return {"wish": move, "jump": jump, "crouch": crouch, "sprint": sprint, "fire": held, "aim": want_fan and aligned}
+
+
+## 쟁탈전: 이 적이 자기 팀 스폰룸 문 앞에 있나 (거기선 안 쫓음)
+func camping(o: PlayerController) -> bool:
+	return o.team != "" and o.global_position.distance_to(MapControl.door_pos(o.team)) < float(GameData.MODES.control.no_camp)
+
+
+## 쟁탈전 이동: 갈 곳을 정하고 (거점 / 감시 지점 / 갈래 길) 내비 경로를 따라간다.
+## 싸울 만한 적(보이고 fight_r 안)이 있으면 null → 원래 싸움 움직임. 연장전·뺏김·경합이면 싸우면서도 거점으로.
+func control_move(e: PlayerController, combat: Combat, t: PlayerController, dt: float) -> Variant:
+	var CM: Dictionary = GameData.MODES.control
+	var mode: ControlMode = combat.mode
+	var w := combat.world as MapControl
+	if w == null or e.team == "":
+		return null
+	var epos := e.global_position
+	var cap := w.cap_pos
+	var role: String = CM.bot_roles.get(e.cls, "point")
+	var ours := mode.holder == e.team
+	var urgent := mode.phase == "open" and (mode.overtime or mode.contested or (mode.holder != "" and not ours))
+	var in_circle := mode.in_circle(e)
+	# 어디로 갈지
+	var g: Vector3
+	var to_point := true
+	if mode.phase == "locked" or mode.phase == "gap":
+		to_point = false
+	elif ours and not urgent:
+		to_point = role == "point" and _holder_rank(e, combat) < int(CM.bot_hold_in)
+	elif not urgent and role == "watch" and mode.holder == "":
+		to_point = false  # 중립이면 궁수·석궁병은 감시 지점에서 거점을 겨눔
+	if to_point:
+		g = cap + slot
+	elif role == "watch" or mode.phase != "locked":
+		var spots := MapControl.watch_spots(e.team)
+		g = spots[(hash(e.ent_name) & 0x7fffffff) % spots.size()]
+	else:  # 거점 열리기 전: 고른 갈래 끝에서 기다림
+		g = _lane_end(e)
+	if mode.overtime and mode.holder != e.team:
+		g = cap + slot * 0.6  # 연장전: 다 원 안으로
+	# 싸움: 보이고 가까운 적이 있으면 원래 움직임 (급할 땐 거점으로 계속, 원 안이면 원 안에서)
+	if t and vis and t.global_position.distance_to(epos) < float(CM.fight_r) and not urgent:
+		if not (to_point and not in_circle and mode.phase == "open"):
+			return null
+	if to_point and in_circle and t and vis:
+		return null if maxf(absf(epos.x - cap.x), absf(epos.z - cap.z)) < float(CM.cap_half) - 1.5 else (cap - epos)
+	# 갈래 길 먼저 (부활하고 처음 한 번)
+	if lane < 0:
+		lane = _pick_lane(e.cls)
+		lane_i = 0
+	var lp: Array = MapControl.lane_points(e.team)[lane]
+	var tgt := g
+	if lane_i < lp.size():
+		var lpt: Vector3 = lp[lane_i]
+		if Vector2(epos.x - lpt.x, epos.z - lpt.z).length() < float(CM.lane_reach) or epos.distance_to(g) < epos.distance_to(lpt):
+			lane_i += 1
+		else:
+			tgt = lpt
+	# 내비 경로 따라가기
+	path_t -= dt
+	if path_t <= 0 or goal.distance_to(tgt) > 1.5 or path_i >= path.size():
+		path_t = float(CM.path_every)
+		goal = tgt
+		path = w.nav_path(epos, tgt)
+		path_i = 1 if path.size() > 1 else 0
+	while path_i < path.size() and Vector2(path[path_i].x - epos.x, path[path_i].z - epos.z).length() < float(CM.path_reach):
+		path_i += 1
+	var nxt: Vector3 = path[path_i] if path_i < path.size() else tgt
+	var mv := Vector3(nxt.x - epos.x, 0, nxt.z - epos.z)
+	if mv.length() < 0.6 and epos.distance_to(tgt) < 1.5:
+		return Vector3.ZERO if not t else null  # 도착: 서서 지킴 (적이 있으면 싸움)
+	return mv
+
+
+## 우리 팀 거점 역할 봇 중 몇 번째인가 (거점을 가지면 앞에서 bot_hold_in명만 원 안에)
+func _holder_rank(e: PlayerController, combat: Combat) -> int:
+	var CM: Dictionary = GameData.MODES.control
+	var list: Array = combat.ents.filter(func(o: PlayerController) -> bool:
+		return o.is_bot and o.alive and o.team == e.team)
+	list.sort_custom(func(a: PlayerController, b: PlayerController) -> bool:
+		var ra := 0 if CM.bot_roles.get(a.cls, "point") == "point" else 1
+		var rb := 0 if CM.bot_roles.get(b.cls, "point") == "point" else 1
+		return ra < rb or (ra == rb and a.ent_name < b.ent_name))
+	return list.find(e)
+
+
+func _lane_end(e: PlayerController) -> Vector3:
+	if lane < 0:
+		lane = _pick_lane(e.cls)
+	var lp: Array = MapControl.lane_points(e.team)[lane]
+	return lp[lp.size() - 1]
+
+
+## 병과별 가중치로 갈래 고르기 (야만인은 시장 골목, 궁수·석궁병은 성벽 길을 좋아함)
+static func _pick_lane(cls: String) -> int:
+	var wts: Array = GameData.MODES.control.lane_weight.get(cls, [1, 1, 1])
+	var tot := 0.0
+	for x in wts:
+		tot += float(x)
+	var r := randf() * tot
+	for i in wts.size():
+		r -= float(wts[i])
+		if r <= 0:
+			return i
+	return 1
 
 
 ## 맞히려면 어디를 봐야 하나 — HTML aimSolve(). {yaw, pitch} (오차 ex·ey 포함)

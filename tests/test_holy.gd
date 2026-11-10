@@ -167,5 +167,25 @@ func _run() -> void:
 	await wait(20)
 	check("적 웅덩이에선 나도 피해", p.hp < 100.0 and p.slow_t > 0, "hp=%.1f" % p.hp)
 
+	# ── 개인전: 성직자가 자기 웅덩이에 닿아 있으면 초당 2 회복 (사용자 요청). 남은 회복 안 됨 ──
+	await wait(200)
+	C.zones.clear()
+	put(p, SHOOTER, "cleric", EAST_YAW)
+	put(dm, SHOOTER + Vector3(1.0, 0, 0))
+	await wait(3)
+	p.hp = 50.0
+	dm.hp = 50.0
+	p.no_hit_t = 0.0
+	dm.no_hit_t = 0.0
+	C.shatter(p, p.global_position)
+	await wait(60)
+	check("내 웅덩이: 초당 %.0f 회복" % G.WEAPONS.holy.heal, near(p.hp, 50.0 + G.WEAPONS.holy.heal, 0.15), "hp=%.2f" % p.hp)
+	check("내 웅덩이: 나는 안 느려짐", p.slow_t <= 0, "")
+	check("개인전: 다른 사람은 회복 안 됨 (지져짐)", dm.hp < 50.0, "hp=%.2f" % dm.hp)
+	p.hp = 50.0
+	C.shatter(p, p.global_position)  # 두 웅덩이가 겹쳐도 한 번만
+	await wait(60)
+	check("웅덩이가 겹쳐도 초당 %.0f" % G.WEAPONS.holy.heal, near(p.hp, 50.0 + G.WEAPONS.holy.heal, 0.15), "hp=%.2f" % p.hp)
+
 	print("ALL PASS" if fails == 0 else "%d FAILED" % fails)
 	quit(1 if fails > 0 else 0)

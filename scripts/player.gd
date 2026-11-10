@@ -77,6 +77,8 @@ var orbit := false     # 나: 메뉴·결과 화면 뒤에서 맵을 빙 도는 
 var menu_angle := 0.0
 var helmet := true
 var invuln := 0.0      # 무적 남은 시간
+var team := ""         # 쟁탈전 팀 (blue / red, 개인전은 "")
+var cap_time := 0.0     # 쟁탈전: 거점 원 안에 있었던 시간 (점수판)
 var star_t := 0.0      # 황금 붕어빵 무적 남은 시간 (피해·넉백·남이 넘어뜨림·둔화·춤 막음)
 var star_hits := {}    # 몸박치기: 대상 → 다시 때릴 수 있기까지 남은 시간
 var no_hit_t := 0.0    # 마지막으로 맞은 뒤 지난 시간
@@ -158,7 +160,7 @@ func set_class(c: String) -> void:
 	helmet = true
 	if model:
 		model.queue_free()
-	model = DerpModel.new(c)
+	model = DerpModel.new(c, team)
 	model.top_level = true
 	model.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(model)
@@ -500,9 +502,10 @@ func _integrate(dt: float) -> void:
 	grounded = is_on_floor()
 	if grounded and velocity.y < 0:
 		velocity.y = 0
-	var a := GameData.ARENA
-	global_position.x = clampf(global_position.x, -a, a)
-	global_position.z = clampf(global_position.z, -a, a)
+	var ax: float = combat.world.half_x if combat and combat.world else GameData.ARENA  # 맵마다 이동 범위
+	var az: float = combat.world.half_z if combat and combat.world else GameData.ARENA
+	global_position.x = clampf(global_position.x, -ax, ax)
+	global_position.z = clampf(global_position.z, -az, az)
 	if global_position.y < -5:  # 혹시 바닥을 뚫으면 복구
 		global_position.y = 0.5
 		velocity.y = 0
