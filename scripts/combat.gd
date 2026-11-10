@@ -628,11 +628,47 @@ func player_aim_dir(e: PlayerController, from: Vector3) -> Vector3:
 	return f if d.dot(f) < 1.5 else d.normalized()
 
 
+## 내가 쏠 때 나가는 곳·방향 — 화면 가운데 조준선 위로 정확히 (사용자 요청: 좌하탄 고침. HTML은 눈에서 조준점으로 쏴서
+## 3인칭이면 조준점이 멀 때 가까운 거리에선 조준선보다 왼쪽 아래(카메라가 오른쪽 위라서)로 지나갔다)
+##   3인칭: 카메라 조준선에서 내 눈에 가장 가까운 점(+FIRE_FWD)에서 조준선 방향 그대로.
+##          눈 → 그 점, 카메라 → 그 점이 벽에 막히거나 조준점이 그보다 가까우면 예전처럼 눈에서 조준점으로.
+##   1인칭: 손 자리(눈에서 오른쪽·아래, hand = true일 때)에서 조준점(조준선이 처음 닿는 곳)으로.
+## 돌려주는 값: {pos, dir}
+func local_launch(e: PlayerController, kind: String, hand := true) -> Dictionary:
+	var eye := e.eye_pos()
+	var f := e.aim_dir()
+	if not e.cam:
+		return {"pos": eye + f * GameData.FIRE_FWD, "dir": f}
+	var o := e.cam.global_position
+	var target := tp_aim(e)
+	var reach := (target - o).dot(f)
+	if tp_on():
+		var s := maxf(0.0, (eye - o).dot(f)) + GameData.FIRE_FWD
+		var start := o + f * s
+		if reach > s + 0.1 and world_ray(eye, start - eye) >= 1.0 and world_ray(o, start - o) >= 1.0:
+			return {"pos": start, "dir": f}
+		var d := player_aim_dir(e, eye)
+		return {"pos": eye + d * GameData.FIRE_FWD, "dir": d}
+	var pos := eye + f * GameData.FIRE_FWD
+	if hand:
+		var right := Vector3(cos(e.yaw), 0, -sin(e.yaw))
+		pos += right * float(GameData.FIRE_RIGHT.get(kind, GameData.FIRE_RIGHT_DEFAULT))
+		pos.y -= GameData.FIRE_DROP
+	var to := target - pos
+	return {"pos": pos, "dir": to.normalized() if to.dot(f) > 1.0 else f}
+
+
 ## 발사 — HTML fire(). 저격총·AK는 히트스캔, 나머지는 투사체
 ## t = 활을 당긴 정도 0~1
 func fire(e: PlayerController, kind: String, t := 0.0) -> void:
 	var eye := e.eye_pos()
-	var dir := player_aim_dir(e, eye) if e.is_local else e.aim_dir()
+	var dir := e.aim_dir()
+	var launch := {}
+	if e.is_local:  # 조준선 위로 (히트스캔은 손 자리 없이 눈·조준선에서)
+		launch = local_launch(e, kind, kind != "sniper" and kind != "ak")
+		dir = launch.dir
+		if kind == "sniper" or kind == "ak":
+			eye = launch.pos - dir * GameData.FIRE_FWD
 	var W: Dictionary = GameData.WEAPONS[kind]
 	var mesh: Node3D
 	var speed: float
@@ -699,11 +735,7 @@ func fire(e: PlayerController, kind: String, t := 0.0) -> void:
 			push_warning("아직 없는 투사체: " + kind)
 			return
 	e.fire_anim = 1.0
-	var pos := eye + dir * GameData.FIRE_FWD
-	if e.is_local:
-		var right := Vector3(cos(e.yaw), 0, -sin(e.yaw))
-		pos += right * float(GameData.FIRE_RIGHT.get(kind, GameData.FIRE_RIGHT_DEFAULT))
-		pos.y -= GameData.FIRE_DROP
+	var pos: Vector3 = launch.pos if e.is_local else eye + dir * GameData.FIRE_FWD
 	var vel := dir * speed
 	add_child(mesh)
 	mesh.global_position = pos
@@ -1288,9 +1320,9 @@ func _process(dt: float) -> void:
 		return
 	var W: Dictionary = GameData.WEAPONS.holy
 	var H: Dictionary = GameData.HOLY
-	var eye := e.eye_pos()
-	var dir := player_aim_dir(e, eye)
-	var p := eye + dir * GameData.FIRE_FWD
+	var L := local_launch(e, "holy")  # 실제로 던질 때와 같은 자리·방향
+	var dir: Vector3 = L.dir
+	var p: Vector3 = L.pos
 	var v := dir * float(W.speed)
 	v.y += float(W.lift)
 	var step: float = H.aim_dt
