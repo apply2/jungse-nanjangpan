@@ -30,10 +30,9 @@ var _hp: HpBar
 var _hp_num: Label
 var _medal: Medal
 var _vitals_regen := false
-var _pop: Label
-var _pop_box: Control
+var _pop: Label         # 조준점 아래 자막 (배경 없음)
 var _pop_t := 0.0
-var _death: PanelContainer
+var _death: VBoxContainer  # 사망 자막 (배경 없음)
 var _death_by: RichTextLabel
 var _death_sub: Label
 var _death_text := ""   # '무기 · 헤드샷' 부분 (뒤의 'N초 뒤 부활'만 매 프레임 바뀜)
@@ -189,45 +188,37 @@ func _ready() -> void:
 	root.add_child(_banner)
 	_banner_t = UiKit.label("", 52, GOLD, _banner)
 	_banner_t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_banner_t.add_theme_color_override("font_outline_color", INK)
-	_banner_t.add_theme_constant_override("outline_size", 9)
-	UiKit.shadow(_banner_t, UiKit.ink(0.85), 3)
-	_banner_s = UiKit.label("", 16, PARCH, _banner)
+	UiKit.caption(_banner_t)
+	_banner_s = UiKit.label("", 18, PARCH, _banner)
 	_banner_s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_banner_s.add_theme_color_override("font_outline_color", INK)
-	_banner_s.add_theme_constant_override("outline_size", 4)
+	UiKit.caption(_banner_s)
 	_banner.modulate.a = 0.0
 
-	# 조준점 아래 작은 양피지 쪽지 (HTML #killPop: 가운데 + 48px)
+	# 조준점 아래 자막 (HTML #killPop: 가운데 + 48px) — 배경 없이 금색 글자 + 외곽선
 	var P: Dictionary = GameData.HUD_UI.pop
-	var pb := UiKit.Board.new("parch", P.pad)
-	pb.radius = 4
-	pb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(pb)
-	_pop_box = pb
-	_pop = UiKit.label("", int(P.font), INK, pb)
+	_pop = UiKit.label("", int(P.font), GOLD, root)
 	_pop.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_pop_box.modulate.a = 0.0
+	UiKit.caption(_pop)
+	_pop.modulate.a = 0.0
 
-	# 사망 화면 (HTML #death: 위에서 30%) — 양피지 쪽지, 개구 "넘어졌다... 다시?"
+	# 사망 자막 (HTML #death: 위에서 30%) — 배경 없이 개구 "넘어졌다... 다시?"
 	var D: Dictionary = GameData.HUD_UI.death
-	var db := UiKit.Board.new("parch", D.pad)
-	db.nails = 2
-	_death = db
+	_death = VBoxContainer.new()
+	_death.add_theme_constant_override("separation", int(D.gap))
 	_death.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_death.anchor_top = 0.3
 	_death.anchor_bottom = 0.3
 	_death.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_death.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_death)
-	var dv := VBoxContainer.new()
-	dv.add_theme_constant_override("separation", 2)
-	_death.add_child(dv)
-	var dt := UiKit.scribble(str(D.title), int(D.font), INK, dv)
+	var dt := UiKit.scribble(str(D.title), int(D.font), PARCH, _death)
 	dt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_death_by = UiKit.rich(int(D.by), INK, dv)
-	_death_sub = UiKit.label("", int(D.sub), UiKit.c("faded"), dv)
+	UiKit.caption(dt)
+	_death_by = UiKit.rich(int(D.by), PARCH, _death)
+	UiKit.caption(_death_by)
+	_death_sub = UiKit.label("", int(D.sub), MUTE, _death)
 	_death_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UiKit.caption(_death_sub)
 	_death.visible = false
 
 	# 점수판 (HTML #board: 가운데, Tab 누르는 동안) — 나무판 (줄 글자가 밝은 색이라)
@@ -422,8 +413,7 @@ func _build_notes(root: Control) -> void:
 		var l := UiKit.label("", 15, kv[1], _notes)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		l.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		l.add_theme_color_override("font_outline_color", INK)
-		l.add_theme_constant_override("outline_size", 4)
+		UiKit.caption(l)
 		_info[kv[0]] = l
 	_build_star_bar(_notes)
 
@@ -432,9 +422,9 @@ func _build_notes(root: Control) -> void:
 ## 조준점 아래 양피지 쪽지 — HTML popMsg / killPopShow (1초 동안 커졌다 줄고, 위로 살짝 뜨며 사라짐)
 func pop_msg(text: String) -> void:
 	_pop.text = text
-	_pop_box.reset_size()
+	_pop.reset_size()
 	_pop_t = 0.0
-	_pop_box.pivot_offset = _pop_box.size / 2
+	_pop.pivot_offset = _pop.size / 2
 
 
 ## 가운데 위 큰 문구 — HTML banner (2.8초)
@@ -511,7 +501,7 @@ func _build_star_bar(parent: Control) -> void:
 	parent.add_child(_star_box)
 	_star_lbl = UiKit.label("", 20, GOLD, _star_box)
 	_star_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UiKit.wood_text(_star_lbl, 20, GOLD)
+	UiKit.caption(_star_lbl)
 	_star_bar = ProgressBar.new()
 	_star_bar.show_percentage = false
 	_star_bar.custom_minimum_size = Vector2(240, 12)
@@ -533,7 +523,7 @@ func clear() -> void:
 	_feed_items.clear()
 	_death.visible = false
 	_pop_t = 99.0
-	_pop_box.modulate.a = 0.0
+	_pop.modulate.a = 0.0
 	_banner_age = 99.0
 	_banner.modulate.a = 0.0
 	show_board = false
@@ -560,9 +550,7 @@ func dmg_dir(from: Vector3) -> void:
 func spawn_num(pos: Vector3, text: String, style: String) -> void:
 	var st: Dictionary = NUM_STYLE.get(style, NUM_STYLE[""])
 	var l := UiKit.label(text, st.size, st.color, _nums_root)
-	l.add_theme_constant_override("outline_size", 6)
-	l.add_theme_color_override("font_outline_color", SHADOW)
-	UiKit.shadow(l, SHADOW, 2)
+	UiKit.caption(l)
 	l.reset_size()
 	l.pivot_offset = l.size / 2
 	l.visible = false
@@ -713,16 +701,16 @@ func _update_anims(dt: float) -> void:
 	_pop_t += dt
 	var pt: float = GameData.POP_T
 	var k := _pop_t / pt
-	var area := _pop_box.get_parent_area_size()
+	var area := _pop.get_parent_area_size()
 	var y := area.y / 2 + float(GameData.HUD_UI.pop.y)
 	if k < 1.0:  # 0~12%: 1.7배에서 줄며 나타남, 75~100%: 12px 떠오르며 사라짐
-		_pop_box.modulate.a = k / 0.12 if k < 0.12 else (1.0 if k < 0.75 else 1.0 - (k - 0.75) / 0.25)
-		_pop_box.scale = Vector2.ONE * (lerpf(1.7, 1.0, k / 0.12) if k < 0.12 else 1.0)
+		_pop.modulate.a = k / 0.12 if k < 0.12 else (1.0 if k < 0.75 else 1.0 - (k - 0.75) / 0.25)
+		_pop.scale = Vector2.ONE * (lerpf(1.7, 1.0, k / 0.12) if k < 0.12 else 1.0)
 		if k > 0.75:
 			y -= 12 * (k - 0.75) / 0.25
 	else:
-		_pop_box.modulate.a = 0.0
-	_pop_box.position = Vector2((area.x - _pop_box.size.x) / 2, y)
+		_pop.modulate.a = 0.0
+	_pop.position = Vector2((area.x - _pop.size.x) / 2, y)
 	for i in range(_feed_items.size() - 1, -1, -1):
 		var f := _feed_items[i]
 		f.t += dt

@@ -105,6 +105,7 @@ func _process(_dt: float) -> void:
 	var st := mode.status_text()
 	if _status.text != st:
 		_status.text = st
+		_note.reset_size()  # 짧은 문구(연장전!)로 바뀌면 쪽지도 줄임
 	var hot := mode.contested or mode.overtime
 	_status.add_theme_color_override("font_color", Color(str(GameData.MODES.control.teams.red.ink)) if hot else Hud.INK)
 	_status_mk.visible = st != ""

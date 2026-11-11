@@ -218,6 +218,23 @@ static func wood_text(l: Label, size := 0, col := Color.TRANSPARENT) -> Label:
 	return l
 
 
+## 자막 글자 (경기 화면 위에 잠깐 뜨는 글자): 배경판 없이 색은 그대로 + 두꺼운 잉크 외곽선 + 아래 단단한 그림자.
+## 큰 글자(UI_KIT.caption.big 이상) 외곽선 10~14, 작은 글자 6~8. Label·RichTextLabel 둘 다
+static func caption(l: Control, size := 0) -> Control:
+	var C: Dictionary = GameData.UI_KIT.caption
+	var key := "normal_font_size" if l is RichTextLabel else "font_size"
+	if size > 0:
+		l.add_theme_font_size_override(key, size)
+	var fs: int = size if size > 0 else l.get_theme_font_size(key)
+	var big := fs >= int(C.big)
+	var r: Array = C.outline_big if big else C.outline_small
+	var o := clampi(roundi(fs * float(C.outline_k)), int(r[0]), int(r[1]))
+	l.add_theme_color_override("font_outline_color", c("ink"))
+	l.add_theme_constant_override("outline_size", o)
+	shadow(l, c("ink", float(C.shadow_a)), int(C.drop_big if big else C.drop_small), o)
+	return l
+
+
 ## 개구 글씨 (한마디·쪽지·팁 — 한 화면에 1~2곳만)
 static func scribble(text: String, size: int, col: Color, parent: Node = null) -> Label:
 	var l := label(text, size, col, parent)

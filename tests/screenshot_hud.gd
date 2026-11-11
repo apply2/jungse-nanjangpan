@@ -5,12 +5,14 @@ extends SceneTree
 ##   death    사망 화면 "넘어졌다... 다시?"
 ## 가운데 40% 안에 들어간 HUD 판이 있으면 CENTER! 줄을 출력한다.
 ## 화면이 있어야 함: godot --path . --resolution 1280x720 -s tests/screenshot_hud.gd -- mode=control tag=after
-##                  (1920x1080도 같은 식으로. 모드: control / ffa — ffa는 death도 찍음)
+##                  (1920x1080도 같은 식으로. 모드: control / ffa — ffa는 death도 찍음.
+##                   쟁탈전 상태 쪽지: state=contested / overtime)
 
 var G: Node
 var M: Node
 var tag := "after"
 var mode := "control"
+var state := ""  # 쟁탈전 상태 쪽지: contested(경합 중!) / overtime(연장전!)
 
 
 func _initialize() -> void:
@@ -19,6 +21,8 @@ func _initialize() -> void:
 			tag = a.substr(4)
 		if a.begins_with("mode="):
 			mode = a.substr(5)
+		if a.begins_with("state="):
+			state = a.substr(6)
 	G = root.get_node("GameData")
 	G.save_enabled = false
 	G.ai_enabled = false
@@ -85,6 +89,8 @@ func _run() -> void:
 		cm.cap_team = "red"
 		cm.cap_prog = 0.38
 		cm.pct = {"blue": 37, "red": 12}
+		cm.contested = state == "contested"
+		cm.overtime = state == "overtime"
 	else:
 		p.global_position = Vector3(0, 0.3, 14)
 		p.yaw = 0.0
@@ -102,7 +108,7 @@ func _run() -> void:
 	if mode != "control":
 		M.hud.pop_msg("처치! " + bots[4].ent_name)
 		await frames(14)
-	await snap(mode)
+	await snap(mode + ("_" + state if state != "" else ""))
 	center_check()
 	if mode != "control":
 		p.scripted_input = {}

@@ -48,7 +48,7 @@ scripts/viewmodel.gd   1인칭 손·무기 (HTML buildVM·updateVM). 따로 된 
 scripts/player.gd      캐릭터 하나(나·봇 공용, is_local로 구분. 봇은 ai가 입력을 만듦). Quake식 이동, 달리기, 슬라이드, 점프, 급회전 넘어짐, 계단 오르기, 1·3인칭 카메라
 scripts/derp_model.gd  흐물 캐릭터 몸 + 애니메이션 (뒤뚱 걸음, 젤리 출렁, 굴러다니는 눈, 넘어지면 만세)
 scripts/main.gd        경기 흐름 (HTML startMatch·endMatch·startMenuSim·pauseGame·goMenu). state = menu / playing / paused / ended, 남은 시간, 20킬 종료
-scripts/hud.gd         경기 중 화면 (HTML updateHUD, 모양은 시안 Hud — 아래 "경기 화면 HUD"): 시간·1위, 킬피드, 병과·체력, 무기, 속도, 조준점(움직이면 벌어짐), banner, 조준점 아래 쪽지(pop_msg), 데미지 숫자, 사망 화면, 점수판(Tab)
+scripts/hud.gd         경기 중 화면 (HTML updateHUD, 모양은 시안 Hud — 아래 "경기 화면 HUD"): 시간·1위, 킬피드, 병과·체력, 무기, 속도, 조준점(움직이면 벌어짐), banner, 조준점 아래 자막(pop_msg), 데미지 숫자, 사망 자막, 점수판(Tab)
 scripts/menu.gd        메뉴 (메인·난이도·병과·설정·친구대전 자리·나가기), 일시정지, 결과 화면, 아래쪽 알림 상자(toast)
 scripts/ui_kit.gd      메뉴·HUD 공용 조각 (HTML CSS의 .panel·.primary·.ghost·.navbtn·병과 카드·난이도 카드·점수판, 병과 아이콘 SVG) + 마을 게시판 재료 (Board·Face·KitButton·tilted·쇠못) — 아래 "UI: 마을 게시판 스타일"
 tests/test_movement.gd 이동 자동 테스트 (HTML과 같은 값이 나오는지)
@@ -101,6 +101,7 @@ reference/ui_design/    UI 시안 "마을 게시판 스타일" (README.md·Guide
 tests/test_ui_kit.gd   UI 재료: 팔레트·HUD 상수·개구·Board 재질 3개·이정표·seed 나뭇결·기울기 한도·버튼 3종(Button 그대로)·고름·마우스 올림·설정 패널 자동 테스트
 tests/screenshot_hud.gd 경기 화면 HUD 사진 hud_<tag>_control·ffa·death_<가로>.png + 가운데 40% 겹침 검사 (화면 있어야 함: godot --path . --resolution 1920x1080 -s tests/screenshot_hud.gd -- mode=control)
 tests/screenshot_ui.gd  UI 사진 ui_<tag>_main·settings·diff·mode·class·exit·friend·lobby·toast·pause·pause_settings·kit.png (화면 있어야 함: godot --path . --resolution 1280x720 -s tests/screenshot_ui.gd -- tag=after)
+tests/screenshot_captions.gd 자막(배경 없는 글자) 사진 cap_<tag>_sky·ground·wall(_death)_<가로>.png (화면 있어야 함: godot --path . --resolution 1280x720 -s tests/screenshot_captions.gd)
 tests/screenshot_result.gd 결과 화면 사진 result_<tag>_ffa_win·ffa_lose·ctrl_win·ctrl_lose_<가로>.png (화면 있어야 함, 시안 Result*.jpg와 비교)
 ```
 
@@ -495,6 +496,7 @@ TABS 느낌 로우폴리 + 굵은 줄눈·또렷한 모양. **겉모양만** 바
 - **말투** (Guide "말투"): 농담은 제목·한마디에만, 수치·조작 안내는 정확하고 짧게. 나가기 = "도망가기", 불러오는 중 = "돌 줍는 중..."(웹 `export_presets.cfg` head_include), "돌멩이".
 - **HUD 규칙**: 가운데 40%는 비움(조준점·고리·맞힘 X·쪽지·배너·사망 쪽지만), 정보는 네 모서리 + 위 가운데, 모서리 판 높이 1080p 120px(게임 80) 이하,
   팀 = 색 + 글자 + 방패 귀퉁이 모양. `test_match`가 확인한다. 자세한 건 아래 "경기 화면 HUD".
+- **자막(잠깐 뜨는 글자)은 배경 없이 외곽선+그림자만. 배경판은 고정 HUD 패널·메뉴에만.** `UiKit.caption(l)` (수치 `UI_KIT.caption`: 큰 글자 외곽선 10~14, 작은 글자 6~8, 잉크 그림자 0.8). 배너·조준점 아래 자막·데미지 숫자·춤춰라!·삑!·무적 남은 시간·아이템 안내 줄·사망 자막. 사진: `tests/screenshot_captions.gd` (하늘·바닥·성벽).
 
 ## UI: 마을 게시판 스타일 (사용자 요청 — 화면별 기록)
 
@@ -547,7 +549,7 @@ TABS 느낌 로우폴리 + 굵은 줄눈·또렷한 모양. **겉모양만** 바
     투구 없음·성수 젖음·다음 부활 병과는 판 위 작은 양피지 쪽지(`_cls_note`).
   - 오른쪽 아래: 양피지 칸(못 2) = 무기 아이콘 + 이름(형광펜 밑줄) + 상태 한 줄(+ 음유시인 숨 막대), 위에 Q 안내, 맨 아래 "속도 · Esc 메뉴 · Tab 점수판".
   - 특수 아이템 안내 줄·무적 막대는 위 가운데 점수판 바로 아래(`_notes`). 속도는 가운데 아래에서 오른쪽 아래로 옮김.
-  - 사망 = 양피지 쪽지(못 2) 개구 "넘어졌다... 다시?" + "X에게 당했다" + 무기·부활. Tab 점수판 = 나무판(못 4). pop_msg = 조준점 아래 작은 양피지 쪽지.
+  - 사망 = 배경 없는 자막: 개구 "넘어졌다... 다시?"(양피지색) + "X에게 당했다" + 무기·부활. Tab 점수판 = 나무판(못 4). pop_msg = 조준점 아래 금색 자막 (배경 없음).
   - 글자 줄 높이가 커서(대체 폰트) 판이 높아지면 `UiKit.trim_font`로 위아래 빈 줄을 줄인다.
 - **결과 화면 (완료, 시안 Result*.jpg 4장)**: `menu._build_end`, 배치 수치는 `GameData.RESULT_UI`. 연출(아래 "결과 화면 승리·패배 연출")은 그대로.
   - 왼쪽 위: 밧줄에 매달린 나무 제목 판 "1등!"/"6등..."(지면 바랜 색 `lose_paint`, 긴 제목은 작은 글씨·왼쪽으로) + 쪽지(이기면 노랑·개구). 쟁탈전 승리는 판 대신 팀 깃발 `Pennant` "블루팀 / 승리!" + 라운드 동그라미 `RoundDots`.

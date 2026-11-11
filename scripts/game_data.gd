@@ -549,13 +549,13 @@ const HUD_UI := {
 	"edge": 20.0,                         # 화면 가장자리 여백 (30px)
 	"top": {"top": 12.0, "rope": 16.0, "timer_font": 22, "tag_pad": Vector4(14, 0, 14, 2), "tag_r": 5.0,
 		"leader_font": 15, "leader_pad": Vector4(12, 3, 12, 5), "gap": -2},
-	"ctrl": {"w": 507.0, "h": 150.0, "line": 2.7, "drop": 4.0,
+	"ctrl": {"w": 507.0, "h": 166.0, "line": 2.7, "drop": 4.0,
 		"tag_top": 12.0, "tag_font": 17, "tag_pad": Vector4(12, 0, 12, 2),
 		"shield": Vector2(153, 56), "shield_x": 47.0, "shield_top": 44.0, "shield_r": [7.0, 7.0, 27.0, 7.0],
 		"shield_font": 31, "shield_pad": 15.0, "dot": 15.0, "dot_gap": 5.0, "dot_off": Color(1, 1, 1, 0.25),
 		"medal_top": 39.0, "medal": 72.0, "medal_in": 52.0, "flag": 29.0, "track": 0xe2c992, "neutral": 0xc9a77c,
 		"bar_top": 113.0, "bar": Vector2(191, 15), "bar_bg": Color(0.957, 0.894, 0.737, 0.85),
-		"pct_font": 25, "pct_x": 4.0, "note_top": 117.0, "note_font": 20, "note_tilt": -1.0, "note_pad": Vector4(12, 2, 12, 4)},
+		"pct_font": 25, "pct_x": 4.0, "note_top": 132.0, "note_font": 20, "note_tilt": -1.0, "note_pad": Vector4(12, 2, 12, 4)},  # 상태 쪽지는 % 막대(113~128) 바로 아래 — 막대를 안 가리게 (사용자 요청)
 	"sign": {"font": 20, "sub": 15, "lift": 3.4, "pad": Vector2(11, 4), "tri": Vector2(16, 9), "fade_r": 140.0, "fade_min": 0.35},
 	"ally": {"font": 16, "tri": Vector2(14, 9)},
 	"feed": {"font": 19, "icon": 20.0, "gap": 7, "sep": 8, "pad": Vector4(11, 3, 11, 5), "r": 4.0,
@@ -566,8 +566,8 @@ const HUD_UI := {
 	"weapon": {"size": Vector2(267, 75), "pad": Vector4(15, 5, 15, 6), "r": 5.0, "icon": 43.0, "gap": 12,
 		"name_font": 29, "state_font": 16, "hint_font": 15, "bottom": 37.0, "breath_h": 7.0, "trim": 0.3},
 	"keys": {"font": 15, "bottom": 11.0, "text": "Esc 메뉴 · Tab 점수판"},
-	"pop": {"font": 19, "y": 48.0, "pad": Vector4(12, 2, 12, 4)},
-	"death": {"title": "넘어졌다... 다시?", "font": 34, "by": 22, "sub": 14, "pad": Vector4(28, 14, 28, 14)},
+	"pop": {"font": 22, "y": 48.0},       # 조준점 아래 자막 (배경 없음)
+	"death": {"title": "넘어졌다... 다시?", "font": 38, "by": 24, "sub": 16, "gap": 2},  # 사망 자막 (배경 없음)
 	"notes_gap": 6.0,                     # 위 가운데 점수판 아래 아이템 안내 줄까지
 	"center_free": 0.4,                   # 가운데 비워 둘 비율 (테스트가 확인)
 }
@@ -614,6 +614,9 @@ const UI_KIT := {
 	"tilt_max": 3.0,                      # 기울기 한도(도). 숫자는 안 기울인다
 	"text_outline": [3, 9], "text_outline_k": 0.22,  # 나무판 위 글자 외곽선 = 글자 크기 × k (3~9, 시안 5~14px)
 	"text_drop": 3,                       # 나무판 위 글자 아래 그림자
+	# 자막 (경기 화면 위에 잠깐 뜨는 글자 — 배경판 없이 외곽선 + 그림자만, UiKit.caption)
+	"caption": {"big": 28, "outline_big": [10, 14], "outline_small": [6, 8], "outline_k": 0.25,
+		"drop_big": 4, "drop_small": 3, "shadow_a": 0.8},
 	"hover_t": 0.12, "hover_shift": Vector2(0, -2), "hover_tilt": -1.0,  # 마우스 올림: 살짝 들리고 기울기
 	"sign_shift": Vector2(7, 0),          # 이정표는 오른쪽으로 밀림 (시안 translateX 10px rotate -1deg)
 	"press_sink": 3.0,                    # 누르면 그림자 쪽으로 꾹
