@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>쟁탈전 패배</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&amp;family=Gaegu:wght@700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2b1d12;text-decoration:none}a:hover{color:#2b1d12}
+.wood{background-color:#7d6a5a;background-image:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 26px,rgba(30,20,10,.38) 26px 29px),linear-gradient(180deg,#8e7a68,#6c5a4b)}
+.parch{background-color:#e9e0cc;background-image:radial-gradient(ellipse at 18% 12%,rgba(255,255,255,.5),rgba(255,255,255,0) 50%),radial-gradient(ellipse at 92% 96%,rgba(100,80,50,.25),rgba(0,0,0,0) 55%)}
+.ink{box-shadow:inset 0 0 0 4px #2b1d12,0 8px 0 #2b1d12}
+.inkp{box-shadow:inset 0 0 0 3px #2b1d12,inset 0 0 22px rgba(90,70,40,.3),0 6px 0 rgba(43,29,18,.9)}
+.nail{position:absolute;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8e2d8,#77706a 55%,#35302b);box-shadow:0 2px 0 rgba(0,0,0,.45)}
+.rope{position:absolute;width:12px;border-radius:6px;background:repeating-linear-gradient(-35deg,#c8b48c 0 7px,#8a7550 7px 12px);box-shadow:inset 0 0 0 2px #4a3a22}
+.out{color:#eef0f2;-webkit-text-stroke:8px #2b1d12;paint-order:stroke fill}
+.btn{display:flex;align-items:center;justify-content:center;border-radius:12px}
+.shield{clip-path:polygon(0 0,100% 0,100% 58%,50% 100%,0 58%)}
+.pip{width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 3px #2b1d12}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1080px; position: relative; overflow: hidden; font-family: 'Do Hyeon', sans-serif; color: #2b1d12; background: #7f8a93">
+  <img src="img/ingame_bg.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(3px) grayscale(.85) brightness(.68)">
+  <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(40,50,60,.5), rgba(40,50,60,.15))"></div>
+
+  <!-- 작은 레드팀 방패 (남의 잔치) -->
+  <div style="position: absolute; left: 1010px; top: 40px; width: 170px; height: 120px; transform: rotate(6deg); filter: drop-shadow(0 5px 0 #2b1d12)">
+    <div class="shield" style="position: absolute; inset: 0; background: #2b1d12"></div>
+    <div class="shield" style="position: absolute; inset: 4px; background: linear-gradient(180deg,#e2645a,#d8453b 60%,#a8322a)"></div>
+    <div style="position: absolute; left: 0; right: 0; top: 18px; text-align: center"><span class="out" style="font-size: 30px; line-height: 1.05; color: #fff8e6; -webkit-text-stroke-width: 6px">레드팀<br>승리</span></div>
+  </div>
+
+  <!-- 비뚤게 매달린 간판 -->
+  <div class="rope" style="left: 300px; top: -10px; height: 70px"></div>
+  <div class="rope" style="left: 760px; top: -10px; height: 170px; transform: rotate(-5deg); transform-origin: top"></div>
+  <div class="wood ink" style="position: absolute; left: 160px; top: 52px; width: 760px; height: 190px; border-radius: 18px; transform: rotate(9deg); transform-origin: 150px 20px; display: flex; align-items: center; justify-content: center">
+    <span class="nail" style="left: 134px; top: 14px"></span>
+    <h1 class="out" style="margin: 0; font-size: 104px; line-height: 1; font-weight: 400; -webkit-text-stroke-width: 12px; text-shadow: 0 8px 0 #2b1d12">우물을 빼앗겼다...</h1>
+  </div>
+  <div class="parch inkp" style="position: absolute; left: 230px; top: 330px; transform: rotate(-3deg); padding: 10px 30px 14px; border-radius: 6px; display: flex; align-items: center; gap: 22px">
+    <span style="font-family: 'Gaegu', cursive; font-size: 50px; line-height: 1">{{line}}</span>
+    <span style="display: flex; gap: 8px; align-items: center">
+      <span class="pip" style="background: #3d6fd6"></span><span class="pip" style="background: rgba(0,0,0,.18)"></span>
+      <span style="font-size: 30px; padding: 0 4px">:</span>
+      <span class="pip" style="background: #d8453b"></span><span class="pip" style="background: #d8453b"></span>
+    </span>
+  </div>
+
+  <!-- 먹구름 + 비 -->
+  <div style="position: absolute; left: 150px; top: 460px; width: 1000px; height: 160px">
+    <div style="position: absolute; left: 40px; top: 50px; width: 240px; height: 100px; border-radius: 50%; background: #5d6670; box-shadow: inset 0 0 0 4px #2b1d12"></div>
+    <div style="position: absolute; left: 220px; top: 0; width: 260px; height: 150px; border-radius: 50%; background: #66707a; box-shadow: inset 0 0 0 4px #2b1d12"></div>
+    <div style="position: absolute; left: 430px; top: 30px; width: 280px; height: 120px; border-radius: 50%; background: #5d6670; box-shadow: inset 0 0 0 4px #2b1d12"></div>
+    <div style="position: absolute; left: 660px; top: 55px; width: 220px; height: 95px; border-radius: 50%; background: #66707a; box-shadow: inset 0 0 0 4px #2b1d12"></div>
+    <div style="position: absolute; left: 90px; top: 92px; width: 740px; height: 58px; border-radius: 30px; background: #66707a"></div>
+  </div>
+  <sc-for list="{{rain}}" as="d" hint-placeholder-count="30">
+    <div style="position: absolute; left: {{d.x}}; top: {{d.y}}; width: 7px; height: 30px; border-radius: 4px; background: #9fd0f0; box-shadow: 0 0 0 2px #2b1d12; transform: rotate(12deg)"></div>
+  </sc-for>
+
+  <!-- 축 처진 블루팀 -->
+  <div style="position: absolute; left: 90px; bottom: 0; width: 1100px; height: 440px">
+    <div style="position: absolute; left: 30px; right: 30px; bottom: 30px; height: 46px; border-radius: 50%; background: rgba(20,25,30,.35)"></div>
+    <sc-for list="{{team}}" as="m" hint-placeholder-count="5">
+      <div style="position: absolute; left: {{m.x}}; bottom: 40px; width: 210px; height: 400px">
+        <img src="{{m.img}}" alt="{{m.alt}}" style="position: absolute; left: 50%; bottom: 0; height: {{m.h}}; transform: translateX(-50%) rotate({{m.r}}); transform-origin: 50% 100%; filter: grayscale(.55) brightness(.85)">
+        <sc-if value="{{m.me}}" hint-placeholder-val="{{ true }}">
+          <div style="position: absolute; left: 50%; top: 0; transform: translateX(-50%) rotate(6deg); background: #c9d3dc; padding: 2px 16px 6px; border-radius: 6px; box-shadow: inset 0 0 0 3px #2b1d12, 0 4px 0 #2b1d12; font-size: 36px">나</div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- 팀 기록 -->
+  <div class="parch inkp" style="position: absolute; right: 90px; top: 210px; width: 640px; border-radius: 8px; padding: 36px 40px 30px; box-sizing: border-box">
+    <span class="nail" style="left: 16px; top: 16px"></span>
+    <span class="nail" style="right: 16px; top: 16px"></span>
+    <h2 style="margin: 0 0 18px; font-size: 48px; font-weight: 400; text-align: center">쟁탈전 결과</h2>
+    <div style="display: grid; grid-template-columns: 1fr 120px 120px; gap: 8px 12px; font-size: 32px; align-items: center">
+      <span></span><span style="text-align: center; color: #3d6fd6">블루</span><span style="text-align: center; color: #d8453b">레드</span>
+      <span>라운드</span><span style="text-align: center">1</span><span style="text-align: center">2</span>
+      <span>처치</span><span style="text-align: center">28</span><span style="text-align: center">44</span>
+      <span>우물 차지 시간</span><span style="text-align: center">1:21</span><span style="text-align: center">3:39</span>
+    </div>
+    <div style="height: 3px; background: #2b1d12; opacity: .25; margin: 22px 0 18px"></div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+        <div style="display: grid; grid-template-columns: 1fr 100px 70px 70px; gap: 12px; font-size: 30px; align-items: center; padding: 5px 10px; border-radius: 6px; background: {{r.bg}}; box-shadow: {{r.ring}}">
+          <span>{{r.name}}</span><span style="font-size: 24px; color: #5a4a3a">{{r.cls}}</span><span style="text-align: right">{{r.k}}</span><span style="text-align: right">{{r.d}}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-top: 18px; font-family: 'Gaegu', cursive; font-size: 34px; text-align: center; transform: rotate(-1deg)">거점 위에 서 있던 시간: 나 0초</div>
+  </div>
+
+  <nav aria-label="다음" style="position: absolute; right: 90px; bottom: 70px; display: flex; gap: 22px; align-items: center">
+    <a href="Main.dc.html" class="btn parch" style="height: 84px; padding: 0 30px; font-size: 36px; box-shadow: inset 0 0 0 3px #2b1d12, 0 6px 0 #2b1d12">메인 메뉴</a>
+    <a href="ClassSelect.dc.html" class="btn parch" style="height: 84px; padding: 0 30px; font-size: 36px; box-shadow: inset 0 0 0 3px #2b1d12, 0 6px 0 #2b1d12">병과 다시 고르기</a>
+    <a href="Hud.dc.html" class="btn" style="position: relative; height: 110px; padding: 0 50px; font-size: 52px; background: linear-gradient(180deg,#f6c25a,#d9922e); box-shadow: inset 0 0 0 5px #2b1d12, inset 0 6px 0 5px rgba(255,240,200,.35), 0 9px 0 #2b1d12; transform: rotate(1deg)"><span class="nail" style="left: 12px; top: 12px"></span><span class="nail" style="right: 12px; top: 12px"></span>우물 되찾기</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080},"line":{"type":"enum","options":["목마르다","거점 근처라도 가 보자","레드팀이 우리 우물에서 세수 중"],"default":"레드팀이 우리 우물에서 세수 중"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const team = [
+      ['img/barbarian_blue_q34.png', '야만인', 0, '380px', '-9deg'],
+      ['img/crossbow_blue_q34.png', '석궁병', 210, '350px', '8deg'],
+      ['img/archer_blue_q34.png', '궁수 (나)', 420, '390px', '-14deg'],
+      ['img/cleric_blue_q34.png', '성직자', 630, '340px', '10deg'],
+      ['img/bard_blue_q34.png', '음유시인', 840, '360px', '-7deg'],
+    ].map((t, i) => ({ img: t[0], alt: '축 처진 블루팀 ' + t[1], x: (30 + t[2]) + 'px', h: t[3], r: t[4], me: i === 2 }));
+    const rows = [
+      ['쇠고집 바바', '야만인', 8, 9], ['방앗간 한스', '석궁병', 7, 8], ['늪지 마녀', '음유시인', 6, 9],
+      ['감자 농부', '성직자', 4, 10], ['나', '궁수', 3, 8],
+    ].map(r => ({ name: r[0], cls: r[1], k: String(r[2]), d: String(r[3]),
+      bg: r[0] === '나' ? '#c9d3dc' : 'rgba(0,0,0,0)', ring: r[0] === '나' ? 'inset 0 0 0 3px #2b1d12' : 'none' }));
+    const rain = [];
+    for (let i = 0; i < 30; i++) {
+      rain.push({ x: (230 + ((i * 89) % 820)) + 'px', y: (630 + ((i * 47) % 300)) + 'px' });
+    }
+    return { team, rows, rain, line: this.props.line };
+  }
+}
+</script>
+</body>
+</html>

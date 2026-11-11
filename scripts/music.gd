@@ -167,6 +167,7 @@ func _fade(i: int, to: float, sec: float) -> void:
 
 
 func _process(dt: float) -> void:
+	dt /= maxf(Engine.time_scale, 0.01)  # 페이드는 실제 시간대로 (히트스톱·결과 화면 느린 화면과 상관없이)
 	_duck = move_toward(_duck, _duck_target, _duck_rate * dt)
 	_ov_gain = move_toward(_ov_gain, _ov_target, _ov_rate * dt)
 	_ov.volume_db = linear_to_db(maxf(_ov_gain, 0.0001))

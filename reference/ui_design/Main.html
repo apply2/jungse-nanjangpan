@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>메인 메뉴</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&amp;family=Gaegu:wght@700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2b1d12;text-decoration:none}a:hover{color:#2b1d12}
+.wood{background-color:#9a6236;background-image:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 26px,rgba(60,30,10,.38) 26px 29px),repeating-linear-gradient(90deg,rgba(255,220,170,.07) 0 2px,rgba(0,0,0,0) 2px 13px),linear-gradient(180deg,#b57a47,#8a542b)}
+.parch{background-color:#f4e4bc;background-image:radial-gradient(ellipse at 18% 12%,rgba(255,255,255,.6),rgba(255,255,255,0) 50%),radial-gradient(ellipse at 92% 96%,rgba(150,100,40,.25),rgba(0,0,0,0) 55%)}
+.ink{box-shadow:inset 0 0 0 4px #2b1d12,inset 0 6px 0 4px rgba(255,220,170,.22),0 8px 0 #2b1d12}
+.inkp{box-shadow:inset 0 0 0 3px #2b1d12,inset 0 0 26px rgba(120,80,30,.35),0 6px 0 rgba(43,29,18,.9)}
+.nail{position:absolute;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8e2d8,#77706a 55%,#35302b);box-shadow:0 2px 0 rgba(0,0,0,.45)}
+.rope{position:absolute;width:12px;border-radius:6px;background:repeating-linear-gradient(-35deg,#dcb878 0 7px,#9c7438 7px 12px);box-shadow:inset 0 0 0 2px #5a3e1a}
+.sign{filter:drop-shadow(3px 0 0 #2b1d12) drop-shadow(-3px 0 0 #2b1d12) drop-shadow(0 3px 0 #2b1d12) drop-shadow(0 -3px 0 #2b1d12) drop-shadow(0 8px 0 rgba(43,29,18,.9))}
+.arrow{clip-path:polygon(0 0,90% 0,100% 50%,90% 100%,0 100%)}
+.btn{transition:transform .12s}
+.btn:hover{transform:translateX(10px) rotate(-1deg)}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1080px; position: relative; overflow: hidden; font-family: 'Do Hyeon', sans-serif; color: #2b1d12; background: #8fc6ea">
+  <img src="img/menu_bg.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover">
+  <div style="position: absolute; inset: 0; background: radial-gradient(ellipse at 70% 55%, rgba(255,240,200,0) 30%, rgba(43,29,18,.45) 100%)"></div>
+  <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 860px; background: linear-gradient(90deg, rgba(43,29,18,.42), rgba(43,29,18,0))"></div>
+
+  <!-- 캐릭터 무리 -->
+  <img src="img/cleric_base_q34.png" alt="성직자" style="position: absolute; left: 1560px; top: 300px; height: 470px; filter: drop-shadow(0 18px 14px rgba(0,0,0,.25))">
+  <img src="img/archer_base_q34.png" alt="궁수" style="position: absolute; left: 1010px; top: 300px; height: 500px; filter: drop-shadow(0 18px 14px rgba(0,0,0,.25))">
+  <img src="img/bard_base_q34.png" alt="음유시인" style="position: absolute; left: 1380px; top: 380px; height: 600px; filter: drop-shadow(0 20px 16px rgba(0,0,0,.3))">
+  <img src="img/barbarian_base_q34.png" alt="야만인" style="position: absolute; left: 1010px; top: 420px; height: 680px; filter: drop-shadow(0 22px 16px rgba(0,0,0,.32))">
+
+  <!-- 타이틀 간판 (밧줄에 매달림) -->
+  <div class="rope" style="left: 150px; top: -10px; height: 70px"></div>
+  <div class="rope" style="left: 620px; top: -10px; height: 70px"></div>
+  <div class="wood ink" style="position: absolute; left: 70px; top: 52px; width: 660px; height: 220px; border-radius: 18px; transform: rotate(-2deg); display: flex; align-items: center; justify-content: center">
+    <div class="nail" style="left: 74px; top: 14px"></div>
+    <div class="nail" style="left: 544px; top: 14px"></div>
+    <div class="nail" style="left: 22px; bottom: 22px"></div>
+    <div class="nail" style="right: 22px; bottom: 22px"></div>
+    <h1 style="margin: 0; font-size: 132px; line-height: 1; letter-spacing: -2px; color: #fff8e6; -webkit-text-stroke: 14px #2b1d12; paint-order: stroke fill; text-shadow: 0 8px 0 #2b1d12">중세난장판</h1>
+  </div>
+  <div class="parch inkp" style="position: absolute; left: 300px; top: 252px; padding: 10px 34px 14px; border-radius: 6px; transform: rotate(3deg)">
+    <span style="font-family: 'Gaegu', cursive; font-size: 46px; line-height: 1">일단 던져.</span>
+  </div>
+
+  <!-- 이정표 메뉴 -->
+  <div class="wood" style="position: absolute; left: 118px; top: 330px; width: 34px; height: 780px; border-radius: 6px; box-shadow: inset 0 0 0 4px #2b1d12, 6px 0 0 rgba(43,29,18,.35)"></div>
+  <nav aria-label="메인 메뉴" style="position: absolute; left: 70px; top: 372px; display: flex; flex-direction: column; gap: 22px">
+    <a href="Main.dc.html" class="btn sign" style="display: block; width: 560px">
+      <div class="wood arrow" style="height: 96px; display: flex; align-items: center; gap: 22px; padding: 0 60px 0 34px; box-sizing: border-box">
+        <svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/></svg>
+        <span style="font-size: 56px; color: #fff8e6; -webkit-text-stroke: 8px #2b1d12; paint-order: stroke fill">일반대전</span>
+        <span style="margin-left: auto; font-family: 'Gaegu', cursive; font-size: 26px; color: #fff; background: #b8322a; border-radius: 50%; width: 92px; height: 92px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: .95; transform: rotate(-12deg); box-shadow: inset 0 0 0 4px #7d1f19, 0 3px 0 #2b1d12">준비<br>중</span>
+      </div>
+    </a>
+    <a href="ClassSelect.dc.html" class="btn sign" style="display: block; width: 620px; transform: translateX(14px)">
+      <div class="wood arrow" style="height: 112px; display: flex; align-items: center; gap: 22px; padding: 0 70px 0 34px; box-sizing: border-box; background-color: #e2a23a; background-image: repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 26px,rgba(120,60,10,.3) 26px 29px),linear-gradient(180deg,#f6c25a,#d9922e)">
+        <svg aria-hidden="true" width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#2b1d12" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4"/><circle cx="12" cy="3" r="1"/><circle cx="9" cy="14" r="1.4"/><circle cx="15" cy="14" r="1.4"/></svg>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 64px; line-height: 1; color: #2b1d12">AI대전</span>
+          <span style="font-family: 'Gaegu', cursive; font-size: 26px; line-height: 1; color: #5a3410">멍청한 봇이랑 한판</span>
+        </div>
+      </div>
+    </a>
+    <a href="Main.dc.html" class="btn sign" style="display: block; width: 580px">
+      <div class="wood arrow" style="height: 96px; display: flex; align-items: center; gap: 22px; padding: 0 60px 0 34px; box-sizing: border-box">
+        <svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M15 14.5c3 0 6 2 6 5.5"/></svg>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 56px; line-height: 1; color: #fff8e6; -webkit-text-stroke: 8px #2b1d12; paint-order: stroke fill">친구대전</span>
+          <span style="font-family: 'Gaegu', cursive; font-size: 24px; line-height: 1; color: #ffe9bf">친구를 넘어뜨리자</span>
+        </div>
+      </div>
+    </a>
+    <a href="Main.dc.html" class="btn sign" style="display: block; width: 470px">
+      <div class="wood arrow" style="height: 84px; display: flex; align-items: center; gap: 20px; padding: 0 56px 0 34px; box-sizing: border-box">
+        <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff8e6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+        <span style="font-size: 50px; color: #fff8e6; -webkit-text-stroke: 8px #2b1d12; paint-order: stroke fill">설정</span>
+      </div>
+    </a>
+    <a href="Main.dc.html" class="btn sign" style="display: block; width: 400px">
+      <div class="parch arrow" style="height: 72px; display: flex; align-items: center; gap: 18px; padding: 0 50px 0 34px; box-sizing: border-box">
+        <svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#2b1d12" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h5v16h-5"/><path d="M10 16l4-4-4-4"/><path d="M14 12H3"/></svg>
+        <span style="font-size: 42px">도망가기</span>
+      </div>
+    </a>
+  </nav>
+
+  <!-- 오늘의 팁 쪽지 -->
+  <div class="parch inkp" style="position: absolute; right: 70px; top: 70px; width: 380px; padding: 28px 30px 26px; border-radius: 6px; transform: rotate(2.5deg); box-sizing: border-box">
+    <div class="nail" style="left: 50%; top: 12px; margin-left: -7px"></div>
+    <div style="font-size: 30px; margin-top: 8px">오늘의 팁</div>
+    <p style="margin: 8px 0 0; font-family: 'Gaegu', cursive; font-size: 32px; line-height: 1.15">달리다가 급하게 돌면<br>넘어집니다. 진짜로.</p>
+  </div>
+
+  <div style="position: absolute; left: 70px; bottom: 26px; font-size: 22px; color: #fff8e6; -webkit-text-stroke: 5px #2b1d12; paint-order: stroke fill">v0.11 · 같은 와이파이 친구대전 지원</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

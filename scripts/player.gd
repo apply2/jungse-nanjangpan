@@ -164,6 +164,8 @@ func set_class(c: String) -> void:
 	model.top_level = true
 	model.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(model)
+	if is_local and not GameData.HELD_SCALE_SELF.is_empty():  # 내 무기만 다른 배율 (조준점 가림 방지)
+		model.set_mine(true)
 	if changed:
 		class_changed.emit(c)
 

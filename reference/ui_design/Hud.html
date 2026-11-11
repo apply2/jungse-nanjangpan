@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>인게임 HUD 쟁탈전</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&amp;family=Gaegu:wght@700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2b1d12}a:hover{color:#2b1d12}
+.wood{background-color:#9a6236;background-image:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 22px,rgba(60,30,10,.38) 22px 25px),repeating-linear-gradient(90deg,rgba(255,220,170,.07) 0 2px,rgba(0,0,0,0) 2px 13px),linear-gradient(180deg,#b57a47,#8a542b)}
+.parch{background-color:#f4e4bc;background-image:radial-gradient(ellipse at 18% 12%,rgba(255,255,255,.6),rgba(255,255,255,0) 50%),radial-gradient(ellipse at 92% 96%,rgba(150,100,40,.25),rgba(0,0,0,0) 55%)}
+.ink{box-shadow:inset 0 0 0 3px #2b1d12,inset 0 5px 0 3px rgba(255,220,170,.22),0 5px 0 #2b1d12}
+.inkp{box-shadow:inset 0 0 0 3px #2b1d12,inset 0 0 18px rgba(120,80,30,.3),0 5px 0 rgba(43,29,18,.85)}
+.nail{position:absolute;width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8e2d8,#77706a 55%,#35302b);box-shadow:0 1px 0 rgba(0,0,0,.45)}
+.rope{position:absolute;width:9px;border-radius:5px;background:repeating-linear-gradient(-35deg,#dcb878 0 6px,#9c7438 6px 10px);box-shadow:inset 0 0 0 2px #5a3e1a}
+.out{color:#fff8e6;-webkit-text-stroke:6px #2b1d12;paint-order:stroke fill}
+.marker{background:linear-gradient(180deg,rgba(0,0,0,0) 50%,#ffd84a 50% 92%,rgba(0,0,0,0) 92%)}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1080px; position: relative; overflow: hidden; font-family: 'Do Hyeon', sans-serif; color: #2b1d12; background: #8fc6ea">
+  <img src="img/ingame_bg.jpg" alt="쟁탈전 경기 화면: 거점 우물 앞에 적 레드팀이 모여 있다" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover">
+
+  <!-- 위: 점수판 -->
+  <div style="position: absolute; left: 50%; top: 0; transform: translateX(-50%); width: 760px; height: 230px">
+    <div class="rope" style="left: 360px; top: -6px; height: 30px"></div>
+    <div class="rope" style="left: 392px; top: -6px; height: 30px"></div>
+    <div class="wood ink" style="position: absolute; left: 310px; top: 18px; width: 140px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 26px"><span class="out" style="-webkit-text-stroke-width: 5px">쟁탈전 · 2판</span></div>
+
+    <!-- 블루 방패 -->
+    <div style="position: absolute; left: 70px; top: 66px; width: 230px; height: 84px; background: #3d6fd6; border-radius: 10px 10px 40px 10px; box-shadow: inset 0 0 0 4px #2b1d12, inset 0 6px 0 4px rgba(255,255,255,.2), 0 6px 0 #2b1d12; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; box-sizing: border-box">
+      <span class="out" style="font-size: 46px">블루</span>
+      <span style="display: flex; gap: 8px" aria-label="이긴 라운드 1">
+        <span style="width: 22px; height: 22px; border-radius: 50%; background: #ffd84a; box-shadow: inset 0 0 0 3px #2b1d12"></span>
+        <span style="width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.25); box-shadow: inset 0 0 0 3px #2b1d12"></span>
+      </span>
+    </div>
+    <!-- 레드 방패 -->
+    <div style="position: absolute; right: 70px; top: 66px; width: 230px; height: 84px; background: #d8453b; border-radius: 10px 10px 10px 40px; box-shadow: inset 0 0 0 4px #2b1d12, inset 0 6px 0 4px rgba(255,255,255,.2), 0 6px 0 #2b1d12; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; box-sizing: border-box">
+      <span style="display: flex; gap: 8px" aria-label="이긴 라운드 0">
+        <span style="width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.25); box-shadow: inset 0 0 0 3px #2b1d12"></span>
+        <span style="width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.25); box-shadow: inset 0 0 0 3px #2b1d12"></span>
+      </span>
+      <span class="out" style="font-size: 46px">레드</span>
+    </div>
+    <!-- 가운데 거점 메달 (주인 색 + 점령 고리) -->
+    <div style="position: absolute; left: 50%; top: 58px; width: 108px; height: 108px; margin-left: -54px; border-radius: 50%; background: conic-gradient(#3d6fd6 0 62%, #e2c992 62% 100%); box-shadow: inset 0 0 0 4px #2b1d12, 0 6px 0 #2b1d12; display: flex; align-items: center; justify-content: center">
+      <div class="parch" style="width: 78px; height: 78px; border-radius: 50%; box-shadow: inset 0 0 0 3px #2b1d12; display: flex; align-items: center; justify-content: center">
+        <svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#2b1d12" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V3"/><path d="M6 4h11l-2.5 4L17 12H6" fill="#3d6fd6"/></svg>
+      </div>
+    </div>
+    <!-- 점수 막대 -->
+    <div style="position: absolute; left: 70px; top: 170px; width: 286px; height: 22px; border-radius: 11px; background: rgba(244,228,188,.85); box-shadow: inset 0 0 0 3px #2b1d12; overflow: hidden; display: flex; justify-content: flex-end">
+      <div style="width: 37%; height: 100%; background: #3d6fd6; box-shadow: inset 0 0 0 3px #2b1d12, inset 0 -5px 0 rgba(0,0,0,.18)"></div>
+    </div>
+    <div style="position: absolute; right: 70px; top: 170px; width: 286px; height: 22px; border-radius: 11px; background: rgba(244,228,188,.85); box-shadow: inset 0 0 0 3px #2b1d12; overflow: hidden">
+      <div style="width: 12%; height: 100%; background: #d8453b; box-shadow: inset 0 0 0 3px #2b1d12, inset 0 -5px 0 rgba(0,0,0,.18)"></div>
+    </div>
+    <span class="out" style="position: absolute; left: 6px; top: 160px; font-size: 38px">37%</span>
+    <span class="out" style="position: absolute; right: 6px; top: 160px; font-size: 38px">12%</span>
+    <div class="parch inkp" style="position: absolute; left: 50%; top: 176px; transform: translateX(-50%) rotate(-1deg); padding: 4px 18px 6px; border-radius: 6px; font-size: 30px; white-space: nowrap"><span class="marker">블루팀 점령 중</span></div>
+  </div>
+
+  <!-- 거점 표지판 (월드) -->
+  <div style="position: absolute; left: 812px; top: 300px; display: flex; flex-direction: column; align-items: center">
+    <div class="wood ink" style="padding: 4px 16px 6px; border-radius: 8px; display: flex; gap: 8px; align-items: baseline">
+      <span class="out" style="font-size: 30px">거점</span><span class="out" style="font-size: 22px">16m</span>
+    </div>
+    <div style="width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 14px solid #2b1d12"></div>
+  </div>
+
+  <!-- 아군 표시 -->
+  <div style="position: absolute; left: 6px; top: 470px; display: flex; flex-direction: column; align-items: center">
+    <span class="out" style="font-size: 24px; -webkit-text-stroke-width: 5px">감자 농부</span>
+    <div style="width: 0; height: 0; border-left: 11px solid transparent; border-right: 11px solid transparent; border-top: 14px solid #3d6fd6; filter: drop-shadow(0 2px 0 #2b1d12)"></div>
+  </div>
+
+  <!-- 킬피드 -->
+  <ul aria-label="처치 기록" style="position: absolute; right: 30px; top: 30px; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; font-size: 28px">
+    <li class="parch inkp" style="display: flex; align-items: center; gap: 12px; padding: 6px 16px 8px; border-radius: 6px">
+      <span style="color: #2f5cc0">감자 농부</span>
+      <svg aria-label="돌멩이" role="img" width="30" height="30" viewBox="0 0 24 24" fill="#c9bfae" stroke="#2b1d12" stroke-width="2" stroke-linejoin="round"><path d="M5 9l5-5 7 2 3 7-4 6-8 0-4-5z"/></svg>
+      <span style="color: #b8322a">졸린 경비병</span>
+    </li>
+    <li class="parch inkp" style="display: flex; align-items: center; gap: 12px; padding: 6px 16px 8px; border-radius: 6px">
+      <span style="color: #b8322a">늪지 마녀</span>
+      <svg aria-label="트럼펫" role="img" width="34" height="30" viewBox="0 0 28 24" fill="none" stroke="#2b1d12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h14" stroke="#c99a2e" stroke-width="4"/><path d="M2 12h14"/><path d="M16 12l9-6v12z" fill="#f3b33d"/><path d="M8 12V8M11 12V8"/></svg>
+      <span style="color: #2f5cc0">양치기 마르타</span>
+    </li>
+    <li class="parch" style="display: flex; align-items: center; gap: 12px; padding: 6px 16px 8px; border-radius: 6px; box-shadow: inset 0 0 0 3px #2b1d12, 0 0 0 4px #ffd84a, 0 5px 0 4px rgba(43,29,18,.85)">
+      <span class="marker" style="color: #2f5cc0">나</span>
+      <svg aria-label="활" role="img" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2b1d12" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3c9 3 9 15 0 18" stroke="#8a542b" stroke-width="3"/><path d="M5 3v18"/><path d="M3 12h18"/><path d="M18 9l3 3-3 3"/></svg>
+      <span style="color: #b8322a">술 취한 용병</span>
+      <span style="font-size: 20px; color: #fff; background: #c4302b; border-radius: 6px; padding: 2px 8px; transform: rotate(-4deg)">헤드샷</span>
+    </li>
+  </ul>
+
+  <!-- 조준점 + 활 당김 고리 -->
+  <div style="position: absolute; left: 920px; top: 500px; width: 80px; height: 80px; border-radius: 50%; background: conic-gradient(#ffd84a 0 65%, rgba(0,0,0,0) 65% 100%); -webkit-mask: radial-gradient(circle, rgba(0,0,0,0) 33px, #000 34px 39px, rgba(0,0,0,0) 40px); mask: radial-gradient(circle, rgba(0,0,0,0) 33px, #000 34px 39px, rgba(0,0,0,0) 40px)"></div>
+  <svg aria-hidden="true" style="position: absolute; left: 930px; top: 510px" width="60" height="60" viewBox="0 0 60 60" stroke-linecap="round">
+    <g stroke="#2b1d12" stroke-width="7"><path d="M30 8v12M30 40v12M8 30h12M40 30h12"/></g>
+    <g stroke="#fff8e6" stroke-width="3.5"><path d="M30 8v12M30 40v12M8 30h12M40 30h12"/></g>
+    <circle cx="30" cy="30" r="3" fill="#fff8e6" stroke="#2b1d12" stroke-width="2"/>
+  </svg>
+
+  <!-- 왼쪽 아래: 나 -->
+  <div style="position: absolute; left: 30px; bottom: 30px; display: flex; align-items: center">
+    <div class="wood" style="position: relative; z-index: 1; width: 134px; height: 134px; border-radius: 50%; box-shadow: inset 0 0 0 4px #2b1d12, 0 6px 0 #2b1d12; display: flex; align-items: center; justify-content: center">
+      <div style="width: 104px; height: 104px; border-radius: 50%; background: #9fd0f0; box-shadow: inset 0 0 0 3px #2b1d12; overflow: hidden">
+        <img src="img/archer_blue_front.png" alt="궁수" style="width: 150%; margin-left: -25%; margin-top: 2px">
+      </div>
+    </div>
+    <div class="wood ink" style="margin-left: -26px; width: 400px; height: 104px; border-radius: 0 14px 14px 0; padding: 12px 22px 0 44px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; align-items: baseline; justify-content: space-between">
+        <span class="out" style="font-size: 36px">궁수</span>
+        <span class="out" style="font-size: 44px; line-height: .8">100</span>
+      </div>
+      <div style="height: 22px; border-radius: 11px; background: #3a2414; box-shadow: inset 0 0 0 3px #2b1d12; overflow: hidden">
+        <div style="width: 100%; height: 100%; background: #6cc35a; box-shadow: inset 0 0 0 3px #2b1d12, inset 0 -6px 0 rgba(0,0,0,.2)"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 오른쪽 아래: 무기 -->
+  <div class="parch inkp" style="position: absolute; right: 30px; bottom: 56px; width: 400px; height: 112px; border-radius: 8px; display: flex; align-items: center; gap: 18px; padding: 0 22px; box-sizing: border-box">
+    <div class="nail" style="left: 10px; top: 10px"></div>
+    <div class="nail" style="right: 10px; top: 10px"></div>
+    <svg aria-hidden="true" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#2b1d12" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3c9 3 9 15 0 18" stroke="#8a542b" stroke-width="3"/><path d="M5 3v18"/><path d="M3 12h18"/><path d="M18 9l3 3-3 3"/></svg>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <span class="marker" style="font-size: 44px; line-height: 1; align-self: flex-start">활</span>
+      <span style="font-size: 24px; color: #5a3410">누르고 당겼다 놓기 · 당김 65%</span>
+    </div>
+  </div>
+  <div class="out" style="position: absolute; right: 34px; bottom: 16px; font-size: 22px; -webkit-text-stroke-width: 5px">Esc 메뉴 · Tab 점수판</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

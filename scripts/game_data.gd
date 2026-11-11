@@ -43,6 +43,16 @@ const HIT_WOB_DEFAULT := 6.0
 const HIT_WOB_HEAD := 1.3
 
 # ── 투사체 발사 (HTML fire / updateProjectiles) ──
+## 3인칭 캐릭터가 손(트럼펫은 입)에 든 무기 크기 배율 — 보기만 (판정·사거리·뷰모델·투사체 그대로, 사용자 요청: 잘 안 보여서)
+## 무기 그룹 원점(손잡이·마우스피스) 기준으로 커진다. 닭은 원래 0.75로 줄여 둔 값에 곱함
+## lance: 탄 사람 말의 마상창 — 굵기만 (길이를 늘리면 판정 창끝 3.5m보다 길어 보임), 창끝 뾰족한 부분은 tip배 (끝점은 그대로)
+const HELD_SCALE := {
+	"stone": 1.7, "bow": 1.45, "crossbow": 1.4, "holy": 1.6, "trumpet": 1.35,
+	"sniper": 1.3, "ak": 1.45, "chicken": 1.35,
+	"lance": {"thick": 1.6, "len": 1.0, "tip": 1.3},
+}
+## 내 캐릭터만 다르게 할 무기 (어깨 너머 화면에서 조준점을 가리면). 없는 무기는 HELD_SCALE
+const HELD_SCALE_SELF := {"chicken": 1.0}  # 닭: 1.35면 어깨 너머 화면에서 조준점 둘레(화면 높이 10%)를 13%, 1.1이면 1% 가려서 내 닭만 원래 크기
 const FIRE_FWD := 0.35       # 눈에서 조준 방향으로 이만큼 앞에서 나감
 const FIRE_DROP := 0.08      # 내가 쏠 땐 살짝 아래에서 (손 위치 느낌)
 const FIRE_RIGHT := {"stone": 0.12, "bow": 0.16}  # 내가 쏠 땐 오른쪽으로 (나머지 0.08)
@@ -303,8 +313,8 @@ const MODES := {
 		"barrier_alpha": 0.16,                      # 스폰룸 문 막 (적만 막힘)
 		# 팀 색: 몸 / 밝은 강조색 / 어두운 색(서코트·띠) / 성직자 옷(연한 색)
 		"teams": {
-			"blue": {"name": "블루팀", "short": "블루", "body": 0x3d6fd6, "accent": 0x8fb4ff, "dark": 0x2a4e9e, "pale": 0xc9d7f7, "ui": "#5d8fff"},
-			"red": {"name": "레드팀", "short": "레드", "body": 0xd8453b, "accent": 0xff9a8f, "dark": 0x9e2e27, "pale": 0xf7cdc9, "ui": "#ff6a5f"},
+			"blue": {"name": "블루팀", "short": "블루", "body": 0x3d6fd6, "accent": 0x8fb4ff, "dark": 0x2a4e9e, "pale": 0xc9d7f7, "ui": "#5d8fff", "ink": "#2f5cc0"},  # ink: 양피지 위 이름 글자
+			"red": {"name": "레드팀", "short": "레드", "body": 0xd8453b, "accent": 0xff9a8f, "dark": 0x9e2e27, "pale": 0xf7cdc9, "ui": "#ff6a5f", "ink": "#b8322a"},
 		},
 		"neutral_col": 0xffffff, "locked_col": 0x8a8a8a,
 		# 병과 색 덮어쓰기: 원래 색(hex) → 팀 색 역할 (body / accent / dark / pale). helm_ 붙은 건 투구(모자) 안에서만
@@ -461,6 +471,107 @@ const HORSE_SPOTS := [Vector3(-30, 0, 0), Vector3(30, 0, -4), Vector3(2, 0, 30),
 	Vector3(34, 0, 32), Vector3(-34, 0, -30), Vector3(-20, 0, 22)]
 
 # ── 매치·메뉴·HUD (HTML startMatch / startMenuSim / updateHUD / killfeed / banner / toast) ──
+## 메인 메뉴 (마을 게시판 — reference/ui_design/Main.html, px는 1080 시안 × 0.667)
+const VERSION := "v0.2"
+const MAIN_MENU := {
+	"tips": [  # 오늘의 팁 (메인 화면을 열 때마다 하나, \n = 줄 바꿈 자리). 규칙이 바뀌면 같이 고칠 것
+		"달리다가 급하게 돌면\n넘어집니다. 진짜로.",
+		"활을 끝까지 당긴 채\n3초 버티면 손이 미끄러진다.",
+		"석궁은 머리에 맞히면\n한 방.",
+		"남이 던진 성수 웅덩이에선\n느려진다.",
+		"황금 붕어빵을 먹으면\n5초 무적.",
+		"Tab을 누르면 점수판.",
+	],
+	"shade_w": 573.0, "shade_a": 0.42,      # 왼쪽 어둡게 (시안 860px, 잉크 .42 → 0)
+	"title": {"pos": Vector2(47, 35), "size": Vector2(440, 147), "font": 88, "tilt": -2.0, "rope": 40.0},
+	"motto": {"pos": Vector2(200, 166), "font": 31, "tilt": 3.0, "text": "일단 던져."},
+	"pole": {"x": 79.0, "y": 220.0, "w": 23.0},
+	"nav": {"x": 47.0, "y": 248.0, "gap": 12.0, "stack": -18},  # stack = 큰 글자와 작은 글씨 사이 (음수 = 겹치게)
+	# 이정표: 폭·높이·글자·아이콘 크기 (시안 그대로 들쑥날쑥). AI대전은 오른쪽으로 9px 나옴
+	"signs": {
+		"ranked": {"w": 373.0, "h": 64.0, "font": 37, "icon": 29},
+		"ai": {"w": 413.0, "h": 75.0, "font": 43, "icon": 33, "dx": 9.0, "sub": 17},
+		"friend": {"w": 387.0, "h": 64.0, "font": 37, "icon": 29, "sub": 16},
+		"settings": {"w": 313.0, "h": 56.0, "font": 33, "icon": 27},
+		"exit": {"w": 267.0, "h": 48.0, "font": 28, "icon": 23},
+	},
+	"stamp": {"d": 61.0, "font": 17, "tilt": -12.0, "col": 0xb8322a, "ring": 0x7d1f19},  # '준비 중' 빨간 도장
+	"tip": {"right": 47.0, "top": 47.0, "w": 280.0, "tilt": 2.5, "head": 20, "font": 20, "line": -7},
+	"foot": {"x": 47.0, "bottom": 17.0, "font": 15},
+	# 오른쪽 병과 무리 (SubViewport 하나, 투명 배경). 위치는 m, 카메라는 +z에서 -z를 봄
+	"crowd": {
+		"rect": Rect2(610, 130, 670, 590), "fov": 30.0, "cam": Vector3(0.4, 1.45, 7.3), "look": Vector3(0.4, 1.2, 0),
+		"cast": [  # [병과, 위치, 몸 돌림(도, +면 화면 왼쪽을 봄), 무기]
+			["cleric", Vector3(2.35, 0, -1.5), -18.0, "holy"],
+			["archer", Vector3(-1.45, 0, -1.1), 22.0, "bow"],
+			["bard", Vector3(1.15, 0, 0.2), -14.0, "trumpet"],
+			["barbarian", Vector3(-0.35, 0, 1.25), 16.0, "stone"],
+		],
+		"sway": 0.12, "sway_hz": 0.23, "nod": 0.12, "nod_hz": 0.31,  # 느린 대기 동작: 몸 좌우로 살짝, 고개 까딱
+		"shadow_a": 0.28, "shadow_r": 0.55,
+	},
+}
+## 병과 선택 화면 (시안 ClassSelect.html, px × 0.667). 막대 숫자는 class_stats()가 실제 값으로 계산
+const CLASS_PAGE := {
+	"lines": {  # 개구 한마디
+		"barbarian": "생각 없음. 돌 있음.", "archer": "당기다 손 미끄러짐 주의.", "crossbow": "한 발이면 끝. 장전은 4초.",
+		"cleric": "성수 맛 좀 봐라.", "bard": "내 연주에 춤춰라.",
+	},
+	# 아래 한 줄 설명. {..}는 WEAPONS 값으로 채움 (game_data를 고치면 문구도 따라감)
+	"blurbs": {
+		"barbarian": "{cd}초마다 돌을 퍼붓는 돌격형. 가장 빠르지만 가장 약하다.",
+		"archer": "오래 당길수록 세진다. 끝까지 당긴 채 {slip_t}초 버티면 손이 미끄러진다.",
+		"crossbow": "피해 {dmg}, 머리에 맞히면 한 방. 대신 느리고 장전이 {cd}초.",
+		"cleric": "성수병 {max_charges}개를 모아 던진다. 웅덩이가 적을 지지고 느리게 만든다.",
+		"bard": "트럼펫을 불면 적이 춤춘다. 춤추는 적은 느리고 공격을 못 한다.",
+	},
+	"eye_h": 1.62,   # 사거리 계산: 눈높이(player.eye_pos)에서 정면으로 쏴서 땅에 닿는 거리 (무기 range가 있으면 거기까지)
+	"bar_cols": {"hp": 0xe5484d, "speed": 0x3fa7e0, "range": 0x6cc35a, "track": 0xe2c992},
+	"title": {"top": 27.0, "font": 64, "pad": Vector4(47, 5, 47, 10), "tilt": -1.5},
+	"sub": {"font": 15},   # 제목 아래 작은 글씨 (AI대전 · 난이도 · 모드)
+	"frame": {"pos": Vector2(113, 146), "size": Vector2(347, 347), "tilt": -2.0},
+	"stamp": {"pos": Vector2(375, 160), "font": 43, "tilt": 14.0, "col": 0xc4302b, "line": 4.0, "pop_t": 0.22, "from": 2.2},
+	"info": {"pos": Vector2(507, 147), "size": Vector2(673, 347), "pad": Vector4(40, 22, 40, 20), "gap": 5,
+		"trim": 0.2, "row_gap": 4, "name": 69, "weapon": 23, "weapon_col": 0x6b3f1f, "line": 33, "stat": 23, "bar_h": 17.0, "desc": 19},
+	"cards": {"pos": Vector2(100, 527), "size": Vector2(133, 157), "gap": 17.0, "name": 24, "img": Vector2(118, 115),
+		"key": 27.0, "key_font": 17, "tilts": [-2.0, 1.5, -1.0, 2.0, -1.5], "lift": Vector2(0, -5)},
+	"back": {"pos": Vector2(887, 527), "size": Vector2(93, 60), "font": 25},
+	"go": {"pos": Vector2(887, 601), "size": Vector2(293, 91), "font": 44, "tilt": -1.0},
+	"hint": {"pos": Vector2(996, 539), "font": 20, "tilt": -3.0, "text": "1~5 키로도 골라요"},
+	# 3D 무대: big = 큰 액자 (천천히 좌우로), card = 카드 그림 (정면, 한 번만 찍음)
+	"big": {"px": Vector2i(340, 340), "fov": 30.0, "cam": Vector3(0, 1.1, 5.6), "look": Vector3(0, 0.98, 0), "yaw": 22.0, "sway": 14.0, "sway_hz": 0.12},
+	"card": {"px": Vector2i(236, 230), "fov": 30.0, "cam": Vector3(0, 1.0, 4.4), "look": Vector3(0, 0.95, 0), "yaw": 8.0, "sway": 0.0, "sway_hz": 0.0},
+}
+## 난이도·모드 카드 (병과 카드와 같은 양피지 카드 규칙)
+## 경기 화면 HUD (시안 Hud.html, 1920 px × 0.667). 규칙: 가운데 40%는 비움(조준점·알림 쪽지만),
+## 정보는 네 모서리 + 위 가운데 점수판, 판 높이 1080p 120px(= 80) 이하, 팀은 색 + 글자 + 방패 귀퉁이
+const HUD_UI := {
+	"edge": 20.0,                         # 화면 가장자리 여백 (30px)
+	"top": {"top": 12.0, "rope": 16.0, "timer_font": 22, "tag_pad": Vector4(14, 0, 14, 2), "tag_r": 5.0,
+		"leader_font": 15, "leader_pad": Vector4(12, 3, 12, 5), "gap": -2},
+	"ctrl": {"w": 507.0, "h": 150.0, "line": 2.7, "drop": 4.0,
+		"tag_top": 12.0, "tag_font": 17, "tag_pad": Vector4(12, 0, 12, 2),
+		"shield": Vector2(153, 56), "shield_x": 47.0, "shield_top": 44.0, "shield_r": [7.0, 7.0, 27.0, 7.0],
+		"shield_font": 31, "shield_pad": 15.0, "dot": 15.0, "dot_gap": 5.0, "dot_off": Color(1, 1, 1, 0.25),
+		"medal_top": 39.0, "medal": 72.0, "medal_in": 52.0, "flag": 29.0, "track": 0xe2c992, "neutral": 0xc9a77c,
+		"bar_top": 113.0, "bar": Vector2(191, 15), "bar_bg": Color(0.957, 0.894, 0.737, 0.85),
+		"pct_font": 25, "pct_x": 4.0, "note_top": 117.0, "note_font": 20, "note_tilt": -1.0, "note_pad": Vector4(12, 2, 12, 4)},
+	"sign": {"font": 20, "sub": 15, "lift": 3.4, "pad": Vector2(11, 4), "tri": Vector2(16, 9), "fade_r": 140.0, "fade_min": 0.35},
+	"ally": {"font": 16, "tri": Vector2(14, 9)},
+	"feed": {"font": 19, "icon": 20.0, "gap": 7, "sep": 8, "pad": Vector4(11, 3, 11, 5), "r": 4.0,
+		"head_font": 13, "head_col": 0xc4302b, "head_tilt": -4.0, "me": "나", "trim": 0.28},
+	"vitals": {"medal": 80.0, "medal_in": 62.0, "plank": Vector2(267, 69), "overlap": 17.0, "pad": Vector4(29, 6, 15, 9), "r": 9.0,
+		"name_font": 24, "hp_font": 29, "bar_h": 15.0, "bar_bg": 0x3a2414, "note_font": 14,
+		"low": 0.25, "blink_hz": 3.0, "blink_col": 0xff9a8f},
+	"weapon": {"size": Vector2(267, 75), "pad": Vector4(15, 5, 15, 6), "r": 5.0, "icon": 43.0, "gap": 12,
+		"name_font": 29, "state_font": 16, "hint_font": 15, "bottom": 37.0, "breath_h": 7.0, "trim": 0.3},
+	"keys": {"font": 15, "bottom": 11.0, "text": "Esc 메뉴 · Tab 점수판"},
+	"pop": {"font": 19, "y": 48.0, "pad": Vector4(12, 2, 12, 4)},
+	"death": {"title": "넘어졌다... 다시?", "font": 34, "by": 22, "sub": 14, "pad": Vector4(28, 14, 28, 14)},
+	"notes_gap": 6.0,                     # 위 가운데 점수판 아래 아이템 안내 줄까지
+	"center_free": 0.4,                   # 가운데 비워 둘 비율 (테스트가 확인)
+}
+const PICK_CARDS := {"tilts": [-1.5, 1.0, -0.8], "lift": Vector2(0, -5), "w": 300.0, "pad": Vector4(18, 22, 18, 18)}
 const MENU_CAM := {"r": 52.0, "h": 26.0, "speed": 0.05, "fov": 60.0, "look": Vector3(0, 2, 0)}  # 메뉴 뒤 구경 카메라
 const TIMER_LOW := 30         # 남은 시간이 이 초 이하면 빨간 글씨
 const FEED_MAX := 5           # 킬피드 최대 줄 수
@@ -470,10 +581,47 @@ const POP_T := 1.0            # 조준점 아래 문구 (처치·알림)
 const TOAST_T := 2.2          # 아래쪽 알림 상자
 const BOARD_TICK := 0.3       # 점수판 다시 그리는 간격
 const SENS_RANGE := [0.4, 3.0, 0.1]  # 감도 슬라이더 최소·최대·간격
-# 메뉴·HUD 색 (HTML :root)
+# 메뉴·HUD 색 — "마을 게시판 스타일" (reference/ui_design/Guide.html). 재질은 나무·양피지·금칠 셋뿐
 const UI := {
-	"ink": 0x161a33, "ink2": 0x232a55, "line": 0x3d4680, "parch": 0xfbf1dc, "mute": 0xb8b5cc,
-	"gold": 0xf3b33d, "gold_deep": 0xb97a14, "blood": 0xe5484d, "moss": 0x6cc35a, "steel": 0x9fc0ea,
+	"ink": 0x2b1d12,       # 잉크: 모든 외곽선·글자
+	"parch": 0xf4e4bc,     # 양피지: 설명·쪽지·킬피드·무기 칸
+	"wood": 0x9a6236, "wood_hi": 0xb57a47, "wood_lo": 0x8a542b,  # 나무판 (위 밝게 → 아래 어둡게)
+	"gilt": 0xf2b44a, "gilt_hi": 0xf6c25a, "gilt_lo": 0xd9922e,  # 금칠: 주요 버튼 하나만
+	"marker": 0xffd84a,    # 형광펜: 강조·선택·알림·내 줄
+	"hp": 0x6cc35a, "blue": 0x3d6fd6, "red": 0xd8453b,
+	"cream": 0xfff8e6,     # 나무판 위 글자 (+ 잉크 외곽선)
+	"cream_dim": 0xffe9bf, # 나무판 위 작은 글자
+	"brown": 0x5a3410,     # 양피지 위 설명 글자
+	"faded": 0x7b5a3a,     # 양피지 위 흐린 글자
+	"dust": 0xc9a77c,      # 어두운 판 위 흐린 글자 (옛 mute 자리)
+	"sky": 0x9cc0f2,       # 어두운 곳에서 보이는 밝은 파랑 (석궁 장전 고리 등, 옛 steel 자리)
+}
+## UiKit 판·버튼 모양 (px는 1280×720 기준 = 시안 1920×1080 값 × 0.667)
+const UI_KIT := {
+	"wood": {"line": 3.0, "drop": 5.0, "radius": 7.0, "drop_a": 1.0},    # 시안 외곽선 4 · 그림자 8
+	"parch": {"line": 2.0, "drop": 4.0, "radius": 4.0, "drop_a": 0.9},   # 시안 3 · 6
+	"gilt": {"line": 3.0, "drop": 5.0, "radius": 8.0, "drop_a": 1.0},
+	"seam": 18.0, "seam_w": 2.0,          # 나무 판자 이음선 간격·굵기 (시안 25~29px마다 3px)
+	"seam_a": 0.38, "seam_gilt_a": 0.3,
+	"grain_every": 9.0, "grain_a": [0.08, 0.18], "knot_every": 170.0,  # 나뭇결 (인스턴스마다 seed 고정)
+	"shine_a": 0.22, "shine_h": 4.0,      # 위쪽 밝은 띠 (시안 inset 0 6px)
+	"parch_edge": 15.0, "parch_edge_a": 0.33,  # 양피지 가장자리 어둡게 (시안 inset 22~26px)
+	"nail_r": 4.7, "nail_in": 9.0,        # 쇠못 반지름·모서리에서 거리
+	"rope_w": 8.0, "rope_len": 46.0, "rope_x": [0.14, 0.86], "rope_band": [4.7, 3.3],  # 밧줄 (시안 12px 폭)
+	"rope_cols": [0xdcb878, 0x9c7438, 0x5a3e1a],  # 밧줄 밝은 줄·어두운 줄·테두리
+	"nail_cols": [0xe8e2d8, 0x77706a, 0x35302b],  # 쇠못 하이라이트·몸·테두리
+	"arrow_tip": 34.0,                    # 이정표 오른쪽 뾰족한 부분 길이
+	"tilt_max": 3.0,                      # 기울기 한도(도). 숫자는 안 기울인다
+	"text_outline": [3, 9], "text_outline_k": 0.22,  # 나무판 위 글자 외곽선 = 글자 크기 × k (3~9, 시안 5~14px)
+	"text_drop": 3,                       # 나무판 위 글자 아래 그림자
+	"hover_t": 0.12, "hover_shift": Vector2(0, -2), "hover_tilt": -1.0,  # 마우스 올림: 살짝 들리고 기울기
+	"sign_shift": Vector2(7, 0),          # 이정표는 오른쪽으로 밀림 (시안 translateX 10px rotate -1deg)
+	"press_sink": 3.0,                    # 누르면 그림자 쪽으로 꾹
+	"disabled_a": 0.55,
+	"ring_w": 5.0,                        # 고른 카드 형광펜 테 (시안 7px + 잉크 3px)
+	"band_h": 7.0,                        # 카드 위쪽 색 띠
+	# 판자벽 배경 (시안 .wall): 판자 폭 236px·이음새 6px, 가로 결 17px마다 3px, 가운데 밝게
+	"wall": {"plank": 157.0, "seam_w": 4.0, "seam_a": 0.55, "line_every": 11.0, "line_w": 2.0, "line_a": 0.05, "hi": 0x8a5630, "lo": 0x5a3218},
 }
 
 # ── 연출 (8단계: HTML impactFx·makeRagdoll·updateCamera·updateHUD) ──
@@ -498,6 +646,78 @@ const SFX_VOL := 1.0          # 효과음 전체 크기 (HTML은 따로 없음 =
 const HITSTOP_SCALE := 0.12   # 히트스톱 동안 시간이 이만큼 느리게 흐름
 # 내가 맞혔을 때 히트스톱 길이(초) — 처치 0.1, 닭 0.04, 헤드샷 0.055(AK 0.025), 무거운 무기 0.045, 그 외 0.02(AK 0)
 const HITSTOP := {"kill": 0.1, "chicken": 0.04, "head": 0.055, "head_ak": 0.025, "heavy": 0.045, "normal": 0.02, "ak": 0.0}
+
+# ── 결과 화면 승리·패배 연출 (사용자 요청 — HTML엔 없음. menu.gd _play_end_fx) ──
+## 결과 화면 효과음 (반복 없음, Sfx.play_stinger 전용 플레이어)
+const STINGER := {"victory": "res://audio/sfx_victory.ogg", "defeat": "res://audio/sfx_defeat.ogg"}
+const RESULT := {
+	"ffa_win_rank": 3,      # 개인전: 이 순위 안이면 승리 연출 (1~3등)
+	"bgm_out": 0.3,         # 결과 화면이 뜨면 BGM이 이만큼 동안 작아짐
+	"bgm_back": 1.5,        # 효과음이 끝나면 메뉴 곡이 이만큼 동안 커짐
+	"slowmo": 0.3, "slowmo_t": 0.6,   # 승리: 처음 0.6초(실제 시간) 동안 Engine.time_scale 0.3
+	"drop_at": 0.3,         # 제목 판이 떨어지기 시작
+	"drop_from": 520.0,     # 위에서 이만큼(px) 위에서 떨어짐
+	"drop_t": 0.55,         # 승리: 떨어져 통통 튀는 시간
+	"wobble": [6.0, -5.0, 3.5, -2.0, 0.0], "wobble_t": 0.11,  # 승리: 좌우 흔들림(도) — 한 번에 0.11초
+	"fall_t": 0.35,         # 패배: 툭 떨어지는 시간
+	"tilt_deg": 10.0, "tilt_t": 0.9,  # 패배: 못 하나가 빠져 기울어짐
+	"fx_at": 0.5,           # 효과음 + 햇살·색종이
+	"rain_at": 0.6,         # 패배: 먹구름·비
+	"rows_at": 1.4, "row_gap": 0.06, "row_t": 0.18,  # 점수판 줄이 위에서부터 하나씩
+	"btn_t": 0.25,          # 버튼 나타나는 시간
+	"gray_t": 0.35,         # 패배: 배경이 회색으로 바래는 시간
+	"burst": 90, "fall": 70, "fall_for": 3.0,  # 색종이: 터지는 수·떨어지는 수·떨어지는 시간
+	"rain": 220,            # 빗줄기 수
+	"rays": 14, "ray_spin": 0.25, "ray_alpha": 0.24,  # 햇살 줄 수·도는 속도(rad/s)·투명도
+	"confetti": [0xf3b33d, 0xfbf1dc, 0xe5484d, 0x6cc35a, 0x5d8fff, 0xff8fd0],  # 개인전 색종이
+	"memo": 0xffe27a, "memo_rot": -3.0,  # 노란 쪽지 색·기울기(도)
+}
+## 남은 화면 (일시정지·설정·나가기 안내·친구대전·대기실·알림): 큰 판 = 양피지 + 못 4, 제목 = 매달린 나무 간판
+const PAGE_UI := {
+	"board_pad": Vector4(28, 22, 28, 22), "board_gap": 16, "sub": 16,
+	"head": {"font": 40, "pad": Vector4(28, 2, 28, 8), "tilt": -1.5},
+	"exit_title": "도망 성공!",
+	"mini": {"w": 150.0, "pad": Vector4(10, 10, 10, 8), "emblem": 34.0, "font": 19, "sub": 12, "tilts": [-1.0, 0.8, -0.5, 1.2, -0.8]},
+	"toast": {"font": 19, "pad": Vector4(20, 15, 20, 8), "bottom": 48.0, "drop": 18.0, "wobble": [-4.0, 3.0, -1.5, 0.0], "wobble_t": 0.09},
+}
+## 결과 화면 배치 (시안 Result*.html, 1920 px × 0.667). 왼쪽 = 매달린 제목 판(또는 팀 깃발) + 쪽지 + 3D 캐릭터, 오른쪽 = 양피지 결과판
+const RESULT_UI := {
+	"bg_a": 0.45,                                  # 뒤 게임 화면 그늘 (다른 메뉴보다 옅게)
+	"sign": {"pos": Vector2(220, 27), "min": Vector2(440, 128), "pad": Vector4(44, 2, 44, 8), "font": 84, "font_long": 54,
+		"long_at": 6, "center_long": 380.0, "rope": 40.0, "lose_paint": 0x8c7660, "nail_in": Vector2(16, 14)},
+	"pennant": {"size": Vector2(320, 220), "kicker": 31, "title": 72, "dot": 20.0, "stripes": 8, "pad_top": 22.0},
+	"small_pennant": {"pos": Vector2(673, 20), "size": Vector2(113, 87), "font": 20},
+	"memo": {"font": 27, "pad": Vector4(22, 6, 22, 8), "rot_win": 2.0, "rot_lose": -2.0, "dot": 14.0, "overlap": 16.0},
+	"board": {"pos": Vector2(793, 80), "w": 427.0, "pad": Vector4(26, 22, 26, 18), "title": 33, "sub": 14, "head": 14,
+		"row": 20, "cls": 14, "col_w": [34.0, 0.0, 70.0, 46.0, 46.0], "me_win": 0xffd84a, "me_lose": 0xc9d7f7,
+		"sum_w": 78.0, "mvp_font": 19},
+	"btns": {"right": 1220.0, "top": 603.0, "gap": 14, "font": 22, "pad": Vector4(16, 10, 16, 10), "go_font": 36, "go_size": Vector2(193, 70)},
+	"stage": {"rect": Rect2(30, 150, 780, 570), "ppm": 118.0, "head": 2.35},
+	"podium": [{"n": 2, "x": 127.0, "w": 200.0, "top": 587.0}, {"n": 1, "x": 340.0, "w": 200.0, "top": 533.0}, {"n": 3, "x": 553.0, "w": 200.0, "top": 627.0}],
+	"podium_font": 60,
+	"platform": {"x": 47.0, "w": 760.0, "top": 662.0, "first": 125.0, "step": 140.0},
+	"lie": Vector2(420, 690),                      # 패배(개인전): 누워 있는 내 캐릭터 발 자리
+	"lose_note": Vector2(590, 505),                # 패배(개인전): "(넘어짐 N회)" 낙서 자리
+	"me_tag": {"font": 28, "pad": Vector4(10, 2, 10, 4), "tilt": -4.0},
+}
+## 결과 문구 — 하나를 골라 제목 아래 노란 쪽지에. {enemy} = 상대 팀 이름
+const RESULT_LINES := {
+	"ffa": {
+		1: {"title": "1등!", "lines": ["중세 최강 바보 등극", "왕관은 없지만 돌은 많다"]},
+		2: {"title": "2등!", "lines": ["아깝다! 은메달도 메달이다", "1등 뒤통수는 잘 봤다"]},
+		3: {"title": "3등!", "lines": ["시상대에는 올라갔다", "동메달! 엄마한테 자랑하자"]},
+	},
+	"ffa_lose": {"title": "%d등...", "lines": ["닭이 너보다 많이 잡았다", "넘어진 횟수는 1등", "봇한테 진 건 비밀로 해 줄게", "다음 판엔 돌을 던져 보자"]},
+	"ctrl_win": {"title": "승리!", "kicker": "%s", "lines": ["우물은 이제 우리 거다", "물 맛이 기가 막힌다"]},  # 깃발: 팀 이름(kicker) + 승리!
+	"ctrl_lose": {"title": "우물을 빼앗겼다...", "winner": "%s
+승리", "lines": ["목마르다. 물 한 모금만", "거점 근처라도 가 보자", "{enemy}이 우리 우물에서 세수 중"]},
+	"again_lose": "복수하러 간다",  # 패배하면 '한 판 더' 버튼 글자
+	"again_lose_ctrl": "우물 되찾기",  # 쟁탈전에서 지면
+	"lose_note": "(넘어짐 %d회)",       # 개인전 패배: 쓰러진 나 옆 낙서 (죽은 횟수)
+	"mvp_cap": "%s - 거점 지킴이 (우물 위 %s)",  # 쟁탈전 승리: 우리 팀에서 거점에 가장 오래 있던 사람
+	"mvp_kill": "%s - 처치왕 (%d킬)",            # 아무도 거점에 안 섰으면 처치가 가장 많은 사람
+	"lose_cap": "거점 위에 서 있던 시간: 나 %s",
+}
 # 내가 맞았을 때 화면 흔들림 — 기본 0.25(AK 0.08) + min(피해,80)/110, 닭 0.3, 성수 0.1. 저격총을 쏘면 0.5
 const SHAKE := {"base": 0.25, "ak": 0.08, "dmg_cap": 80.0, "dmg_div": 110.0, "chicken": 0.3, "holy": 0.1, "sniper_fire": 0.5,
 	"decay": 2.0, "amp": 0.03}
@@ -554,6 +774,10 @@ func _setup_font_fallbacks() -> void:
 	var f: FontFile = load("res://fonts/DoHyeon-Regular.ttf")
 	if f.fallbacks.is_empty():
 		f.fallbacks = [load("res://fonts/NotoSans-Bold-sub.ttf"), load("res://fonts/NotoSansSymbols2-sub.ttf")]
+	# 개구(UiKit.SCRIBBLE, 한마디·쪽지·팁)는 완성형 2350자 + 영문·숫자뿐 → 같은 Noto, 그래도 없는 한글은 도현으로
+	var g: FontFile = load("res://fonts/Gaegu-Bold-sub.woff2")
+	if g.fallbacks.is_empty():
+		g.fallbacks = [load("res://fonts/NotoSans-Bold-sub.ttf"), load("res://fonts/NotoSansSymbols2-sub.ttf"), f]
 
 
 func load_settings() -> void:
@@ -637,6 +861,41 @@ static func col(hex: int) -> Color:
 
 
 ## 그래픽 품질 바꾸기 (설정 화면) — 저장하고 gfx_changed로 알림
+## 병과 선택 화면 막대: 체력·걷기/달리기 속도·사거리(m)와 각 막대 비율 (모든 병과 중 가장 큰 값 = 1)
+func class_stats(k: String) -> Dictionary:
+	var all := {}
+	for c: String in CLASS_ORDER:
+		var C: Dictionary = CLASSES[c]
+		var walk: float = BASE_SPEED * float(C.speed)
+		all[c] = {"hp": int(C.get("hp", 100)), "walk": walk, "run": walk * SPRINT, "range": weapon_reach(C.weapon)}
+	var out: Dictionary = all[k].duplicate()
+	for key: String in ["hp", "walk", "range"]:
+		var mx := 0.0
+		for c: String in all:
+			mx = maxf(mx, float(all[c][key]))
+		out[key + "_k"] = float(out[key]) / mx
+	var vals := {}
+	for key: String in WEAPONS[CLASSES[k].weapon]:
+		var v: Variant = WEAPONS[CLASSES[k].weapon][key]
+		vals[key] = str(int(v)) if v is float and is_equal_approx(v, roundf(v)) else str(v)  # 4.0 → "4"
+	out.blurb = str(CLASS_PAGE.blurbs.get(k, "")).format(vals)
+	return out
+
+
+## 눈높이에서 정면(수평)으로 쐈을 때 땅에 닿는 거리 (m). range가 있으면 거기까지. 원뿔 무기(트럼펫)는 range
+func weapon_reach(w: String) -> float:
+	var W: Dictionary = WEAPONS[w]
+	var v: float = W.get("speed_max", W.get("speed", 0.0))
+	var lim: float = W.get("range", INF)
+	if v <= 0.0 or not W.has("grav"):
+		return lim
+	var g: float = W.grav
+	var lift: float = W.get("lift", 0.0)
+	var h: float = CLASS_PAGE.eye_h
+	var t := (lift + sqrt(lift * lift + 2.0 * g * h)) / g
+	return minf(v * t, lim)
+
+
 func set_gfx(q: String) -> void:
 	if not GFX.has(q):
 		return
@@ -661,6 +920,14 @@ func mat(hex: int) -> StandardMaterial3D:
 
 
 ## 봇이 무작위로 고를 수 있는 병과 ("wip" 병과는 뺌)
+## 손에 든 무기 배율 (mine = 내 캐릭터)
+static func held_scale(key: String, mine := false) -> float:
+	if mine and HELD_SCALE_SELF.has(key):
+		return float(HELD_SCALE_SELF[key])
+	var v: Variant = HELD_SCALE.get(key, 1.0)
+	return float(v) if not v is Dictionary else 1.0
+
+
 func bot_classes() -> Array:
 	return CLASS_ORDER.filter(func(k: String) -> bool: return not CLASSES[k].get("wip", false))
 

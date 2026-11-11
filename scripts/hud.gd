@@ -1,9 +1,11 @@
 class_name Hud
 extends CanvasLayer
-## 경기 중 화면 UI — HTML #hud (updateHUD).
-## 조준점·당기기 고리·맞힘 X, 위쪽 시간·1위, 오른쪽 위 킬피드, 왼쪽 아래 병과·체력, 오른쪽 아래 무기,
-## 가운데 아래 속도, 큰 문구(banner), 조준점 아래 문구(killPop), 데미지 숫자, 사망 화면, 점수판(Tab).
-## 저격총 스코프, 특수 아이템 안내 줄(저격총·말·AK), Q 안내, 피격 방향(붉은 호), 맞으면 붉은 테두리(vignette).
+## 경기 중 화면 UI — HTML #hud (updateHUD). 모양은 마을 게시판 시안 Hud.html (수치 GameData.HUD_UI).
+## 가운데 40%는 비움 (조준점·당기기 고리·맞힘 X·조준점 아래 쪽지만). 정보는 네 모서리 + 위 가운데:
+##   위 가운데: 개인전 = 밧줄에 매달린 나무 꼬리표(남은 시간) + 양피지(1위) / 쟁탈전 = ControlHud 점수판
+##   오른쪽 위 킬피드(양피지 줄 + 무기 아이콘), 왼쪽 아래 나(둥근 액자 + 나무판 체력), 오른쪽 아래 무기(양피지 칸)
+## 그 밖에 큰 문구(banner), 데미지 숫자, 사망 화면, 점수판(Tab), 저격총 스코프, 특수 아이템 안내 줄, Q 안내,
+## 피격 방향(붉은 호), 맞으면 붉은 테두리(vignette), 춤·황금 붕어빵 테두리.
 
 var player: PlayerController
 var combat: Combat
@@ -18,17 +20,18 @@ var mode: ControlMode = null:  # 쟁탈전이면 규칙 (위쪽 시간 대신 �
 		if _topbar:
 			_topbar.visible = v == null
 var _ctrl: ControlHud
-var _topbar: PanelContainer
+var _topbar: Control
 
 var _speed: RichTextLabel
-var _cls: Label
-var _hp_fill: Panel
-var _hp_fill_sb: StyleBoxFlat
+var _cls: Label          # 나무판의 병과 이름
+var _cls_note: Label     # 판 위 작은 쪽지: 투구 없음 · 성수에 젖어 느려짐 · → 다음 부활 X
+var _cls_note_box: Control
+var _hp: HpBar
 var _hp_num: Label
-var _hp_bar: Panel
-var _hp_bar_sb: StyleBoxFlat
+var _medal: Medal
 var _vitals_regen := false
 var _pop: Label
+var _pop_box: Control
 var _pop_t := 0.0
 var _death: PanelContainer
 var _death_by: RichTextLabel
@@ -40,11 +43,14 @@ var _hitmark: HitMark
 var _cross: Crosshair
 var _vm: ViewModel
 var _ring: ChargeRing
+var _w_icon: TextureRect
+var _w_icon_kind := ""
 var _w_name: Label
 var _w_state: Label
-var _breath: ProgressBar   # 음유시인 숨 게이지 (성수 칸 자리에 가로 막대)
+var _breath: ProgressBar   # 음유시인 숨 게이지 (무기 칸 상태 줄 아래 가로 막대)
 var _w_hint: Label
 var _info := {}        # sniper / horse / ak 안내 줄 (HTML #sniperInfo / #horseInfo / #akInfo)
+var _notes: VBoxContainer  # 위 가운데 점수판 바로 아래: 아이템 안내 줄 + 무적 막대
 var _scope: Scope
 var _vignette: ColorRect
 var _vig_mat: ShaderMaterial
@@ -66,14 +72,17 @@ var _banner_age := 99.0
 var _board: PanelContainer
 var _board_host: VBoxContainer
 var _board_tick := 0.0
+var _clock := 0.0
 
-const PARCH := Color("#fbf1dc")
-const BLOOD := Color("#e5484d")
-const GOLD := Color("#f3b33d")
-const MUTE := Color("#b8b5cc")
-const STEEL := Color("#9fc0ea")
-const MOSS := Color("#6cc35a")
-const SHADOW := Color(22 / 255.0, 26 / 255.0, 51 / 255.0, 0.9)
+## 마을 게시판 색 — GameData.UI와 같은 값 (const라 여기 한 번 더 적음, test_ui_kit가 같은지 확인)
+const PARCH := Color("#f4e4bc")   # UI.parch
+const BLOOD := Color("#d8453b")   # UI.red
+const GOLD := Color("#ffd84a")    # UI.marker (형광펜: 강조·알림)
+const MUTE := Color("#c9a77c")    # UI.dust
+const STEEL := Color("#9cc0f2")   # UI.sky
+const MOSS := Color("#6cc35a")    # UI.hp
+const INK := Color("#2b1d12")     # UI.ink
+const SHADOW := Color(INK, 0.9)
 ## 데미지 숫자 모양 (HTML .dn / .dn.head / .dn.dot / .dn.kill)
 const NUM_STYLE := {
 	"": {"size": 22, "color": PARCH},
@@ -110,12 +119,6 @@ func _ready() -> void:
 	_hitmark = HitMark.new()
 	_hitmark.set_anchors_preset(Control.PRESET_CENTER)
 	root.add_child(_hitmark)
-
-	# 속도 (HTML #speed: 가운데 아래 20px)
-	_speed = UiKit.rich(15, PARCH, root)
-	_speed.modulate.a = 0.8
-	_speed.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	UiKit.shadow(_speed, Color(0, 0, 0, 0.5), 1)
 
 	# 저격총 스코프 (HTML #scope: 가운데 원만 뚫린 검은 화면 + 십자선)
 	_scope = Scope.new()
@@ -165,25 +168,16 @@ func _ready() -> void:
 	_star.add_child(_star.vig)
 	_star.visible = false
 	root.add_child(_star)
-	# 특수 아이템 안내 줄 (위에서 70 / 94 / 118px)
-	for kv in [["sniper", 70, GOLD], ["horse", 94, Color("#ffb37a")], ["ak", 118, Color("#ff9a6a")]]:
-		var l := UiKit.label("", 15, kv[2], root)
-		l.anchor_left = 0.0
-		l.anchor_right = 1.0
-		l.offset_top = kv[1]
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		UiKit.shadow(l, Color(0, 0, 0, 0.6), 1, 2)
-		_info[kv[0]] = l
 
 	_build_topbar(root)
 	_build_feed(root)
 	_build_vitals(root)
 	_build_weapon(root)
-	_build_star_bar(root)
 	_ctrl = ControlHud.new()
 	_ctrl.hud = self
 	_ctrl.visible = false
 	root.add_child(_ctrl)
+	_build_notes(root)
 
 	# 큰 문구 (HTML #banner: 위에서 24%)
 	_banner = VBoxContainer.new()
@@ -195,22 +189,31 @@ func _ready() -> void:
 	root.add_child(_banner)
 	_banner_t = UiKit.label("", 52, GOLD, _banner)
 	_banner_t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner_t.add_theme_color_override("font_outline_color", INK)
+	_banner_t.add_theme_constant_override("outline_size", 9)
 	UiKit.shadow(_banner_t, UiKit.ink(0.85), 3)
 	_banner_s = UiKit.label("", 16, PARCH, _banner)
 	_banner_s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UiKit.shadow(_banner_s, Color(0, 0, 0, 0.8), 1, 2)
+	_banner_s.add_theme_color_override("font_outline_color", INK)
+	_banner_s.add_theme_constant_override("outline_size", 4)
 	_banner.modulate.a = 0.0
 
-	# 조준점 아래 문구 (HTML #killPop: 가운데 + 48px)
-	_pop = UiKit.label("", 22, GOLD, root)
-	_pop.set_anchors_preset(Control.PRESET_CENTER)
+	# 조준점 아래 작은 양피지 쪽지 (HTML #killPop: 가운데 + 48px)
+	var P: Dictionary = GameData.HUD_UI.pop
+	var pb := UiKit.Board.new("parch", P.pad)
+	pb.radius = 4
+	pb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(pb)
+	_pop_box = pb
+	_pop = UiKit.label("", int(P.font), INK, pb)
 	_pop.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UiKit.shadow(_pop, SHADOW, 2)
-	_pop.modulate.a = 0.0
+	_pop_box.modulate.a = 0.0
 
-	# 사망 화면 (HTML #death: 위에서 30%)
-	_death = PanelContainer.new()
-	_death.add_theme_stylebox_override("panel", UiKit.panel_box(Vector4(28, 16, 28, 16)))
+	# 사망 화면 (HTML #death: 위에서 30%) — 양피지 쪽지, 개구 "넘어졌다... 다시?"
+	var D: Dictionary = GameData.HUD_UI.death
+	var db := UiKit.Board.new("parch", D.pad)
+	db.nails = 2
+	_death = db
 	_death.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_death.anchor_top = 0.3
 	_death.anchor_bottom = 0.3
@@ -218,16 +221,19 @@ func _ready() -> void:
 	_death.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_death)
 	var dv := VBoxContainer.new()
-	dv.add_theme_constant_override("separation", 6)
+	dv.add_theme_constant_override("separation", 2)
 	_death.add_child(dv)
-	_death_by = UiKit.rich(30, PARCH, dv)
-	_death_sub = UiKit.label("", 14, MUTE, dv)
+	var dt := UiKit.scribble(str(D.title), int(D.font), INK, dv)
+	dt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_death_by = UiKit.rich(int(D.by), INK, dv)
+	_death_sub = UiKit.label("", int(D.sub), UiKit.c("faded"), dv)
 	_death_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_death.visible = false
 
-	# 점수판 (HTML #board: 가운데, Tab 누르는 동안)
-	_board = PanelContainer.new()
-	_board.add_theme_stylebox_override("panel", UiKit.panel_box(Vector4(20, 16, 20, 16)))
+	# 점수판 (HTML #board: 가운데, Tab 누르는 동안) — 나무판 (줄 글자가 밝은 색이라)
+	var sb := UiKit.Board.new("wood", Vector4(20, 16, 20, 16))
+	sb.nails = 4
+	_board = sb
 	_board.set_anchors_preset(Control.PRESET_CENTER)
 	_board.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_board.grow_vertical = Control.GROW_DIRECTION_BOTH
@@ -237,123 +243,198 @@ func _ready() -> void:
 	var bv := VBoxContainer.new()
 	bv.add_theme_constant_override("separation", 10)
 	_board.add_child(bv)
-	UiKit.label("점수판", 22, GOLD, bv)
+	UiKit.wood_text(UiKit.label("점수판", 24, PARCH, bv), 24)
 	_board_host = VBoxContainer.new()
 	bv.add_child(_board_host)
 	_board.visible = false
 
 
-## 위쪽 가운데: 남은 시간 + 1위 (HTML #topbar)
+## 위쪽 가운데 (개인전): 밧줄에 매달린 나무 꼬리표 = 남은 시간, 아래 양피지 = 1위 (HTML #topbar)
 func _build_topbar(root: Control) -> void:
-	var tb := PanelContainer.new()
+	var T: Dictionary = GameData.HUD_UI.top
+	var tb := VBoxContainer.new()
 	_topbar = tb
-	tb.add_theme_stylebox_override("panel", UiKit.panel_box(Vector4(16, 4, 16, 4)))
 	tb.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	tb.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	tb.offset_top = 14
+	tb.offset_top = float(T.top)
+	tb.add_theme_constant_override("separation", int(T.gap))
 	tb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(tb)
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 14)
-	tb.add_child(hb)
-	_timer = UiKit.label("4:00", 30, PARCH, hb)
-	_leader = UiKit.rich(13, MUTE, hb)
-	_leader.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var tag := UiKit.Board.new("wood", T.tag_pad)
+	tag.ropes = true
+	tag.rope_len = float(T.rope)
+	tag.radius = float(T.tag_r)
+	tag.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	tb.add_child(tag)
+	_timer = UiKit.label("4:00", int(T.timer_font), PARCH, tag)
+	UiKit.wood_text(_timer, int(T.timer_font))
+	_timer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var lp := UiKit.Board.new("parch", T.leader_pad)
+	lp.radius = 4
+	lp.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	tb.add_child(lp)
+	_leader = UiKit.rich(int(T.leader_font), INK, lp)
 
 
-## 오른쪽 위 킬피드 (HTML #feed)
+## 오른쪽 위 킬피드 (HTML #feed): 양피지 줄이 위에서 아래로
 func _build_feed(root: Control) -> void:
+	var E: float = GameData.HUD_UI.edge
 	_feed = VBoxContainer.new()
 	_feed.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_feed.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_feed.offset_top = 14
-	_feed.offset_right = -14
-	_feed.add_theme_constant_override("separation", 5)
+	_feed.offset_top = E
+	_feed.offset_right = -E
+	_feed.add_theme_constant_override("separation", int(GameData.HUD_UI.feed.sep))
 	_feed.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_feed)
 
 
-## 왼쪽 아래 병과·체력 (HTML #vitals)
+## 왼쪽 아래 나 (HTML #vitals): 둥근 나무 액자(병과 아이콘) + 나무판(병과 이름·체력 숫자·초록 막대)
 func _build_vitals(root: Control) -> void:
-	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UiKit.panel_box(Vector4(14, 10, 14, 10)))
-	panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	panel.offset_left = 16
-	panel.offset_bottom = -16
-	panel.custom_minimum_size.x = 230
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(panel)
+	var V: Dictionary = GameData.HUD_UI.vitals
+	var E: float = GameData.HUD_UI.edge
+	var md: float = V.medal
+	var pl: Vector2 = V.plank
+	var w := md - float(V.overlap) + pl.x
+	var box := Control.new()
+	box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	box.offset_left = E
+	box.offset_right = E + w
+	box.offset_top = -E - md
+	box.offset_bottom = -E
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(box)
+	var plank := UiKit.Board.new("wood", V.pad)
+	plank.radius = float(V.r)
+	plank.custom_minimum_size = pl
+	plank.position = Vector2(md - float(V.overlap), (md - pl.y) / 2.0)
+	plank.size = pl
+	box.add_child(plank)
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 6)
-	panel.add_child(vb)
-	_cls = UiKit.label("", 15, GOLD, vb)
-	_hp_bar = Panel.new()
-	_hp_bar.custom_minimum_size = Vector2(0, 22)
-	_hp_bar.clip_contents = true
-	_hp_bar_sb = UiKit.box(Color(0, 0, 0, 0.35), MOSS, 0, 3)
-	_hp_bar.add_theme_stylebox_override("panel", _hp_bar_sb)
-	_hp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vb.add_child(_hp_bar)
-	_hp_fill = Panel.new()
-	_hp_fill_sb = UiKit.box(MOSS, Color.TRANSPARENT, 0, 0)
-	_hp_fill.add_theme_stylebox_override("panel", _hp_fill_sb)
-	_hp_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hp_bar.add_child(_hp_fill)
-	_hp_num = UiKit.label("100", 17, PARCH, _hp_bar)
-	_hp_num.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-	_hp_num.offset_right = -8
-	_hp_num.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_hp_num.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_hp_num.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	UiKit.shadow(_hp_num, Color(0, 0, 0, 0.5), 1)
+	vb.add_theme_constant_override("separation", 3)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	plank.add_child(vb)
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(row)
+	_cls = UiKit.label("", int(V.name_font), PARCH, row)
+	UiKit.wood_text(_cls, int(V.name_font))
+	UiKit.trim_font(_cls, int(V.name_font), 0.18)
+	_cls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_cls.size_flags_vertical = Control.SIZE_SHRINK_END
+	_hp_num = UiKit.label("100", int(V.hp_font), PARCH, row)
+	UiKit.wood_text(_hp_num, int(V.hp_font))
+	UiKit.trim_font(_hp_num, int(V.hp_font), 0.2)
+	_hp = HpBar.new()
+	_hp.custom_minimum_size.y = float(V.bar_h)
+	vb.add_child(_hp)
+	_medal = Medal.new()
+	_medal.size = Vector2(md, md)
+	box.add_child(_medal)
+	# 판 위 작은 쪽지 (투구 없음 · 젖음 · 다음 부활 병과) — 있을 때만
+	var nb := UiKit.Board.new("parch", Vector4(10, 2, 10, 4))
+	nb.radius = 4
+	nb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	nb.position = Vector2(md - float(V.overlap) + 6, -26)
+	box.add_child(nb)
+	_cls_note_box = nb
+	_cls_note = UiKit.label("", int(V.note_font), INK, nb)
+	nb.visible = false
 
 
-## 오른쪽 아래 무기 이름·상태 (HTML #weapon)
+## 오른쪽 아래 무기 (HTML #weapon): 양피지 칸 = 무기 아이콘 + 이름(형광펜 밑줄) + 한 줄 상태. 아래 작은 "Esc 메뉴 · Tab 점수판"
 func _build_weapon(root: Control) -> void:
-	var wp := PanelContainer.new()
-	wp.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	wp.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	wp.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	wp.offset_right = -16
-	wp.offset_bottom = -16
-	wp.custom_minimum_size = Vector2(190, 0)
-	wp.add_theme_stylebox_override("panel", UiKit.panel_box(Vector4(16, 10, 16, 10)))
-	wp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(wp)
+	var W: Dictionary = GameData.HUD_UI.weapon
+	var K: Dictionary = GameData.HUD_UI.keys
+	var E: float = GameData.HUD_UI.edge
+	var col := VBoxContainer.new()
+	col.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	col.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	col.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	col.offset_right = -E
+	col.offset_bottom = -float(W.bottom)
+	col.add_theme_constant_override("separation", 4)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(col)
+	_w_hint = UiKit.label("", int(W.hint_font), GOLD, col)  # Q 안내 (특수 무기 있을 때)
+	UiKit.wood_text(_w_hint, int(W.hint_font), GOLD)
+	_w_hint.size_flags_horizontal = Control.SIZE_SHRINK_END
+	var wp := UiKit.Board.new("parch", W.pad)
+	wp.nails = 2
+	wp.radius = float(W.r)
+	wp.custom_minimum_size = W.size
+	wp.size_flags_horizontal = Control.SIZE_SHRINK_END
+	col.add_child(wp)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", int(W.gap))
+	hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wp.add_child(hb)
+	_w_icon = UiKit.weapon_icon("stone", float(W.icon))
+	hb.add_child(_w_icon)
 	var wvb := VBoxContainer.new()
-	wvb.add_theme_constant_override("separation", 2)
-	wp.add_child(wvb)
-	_w_name = UiKit.label("", 28, PARCH, wvb)
-	_w_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_w_state = UiKit.label("", 13, MUTE, wvb)
+	wvb.add_theme_constant_override("separation", 0)
+	wvb.alignment = BoxContainer.ALIGNMENT_CENTER
+	wvb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wvb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hb.add_child(wvb)
+	_w_name = UiKit.label("", int(W.name_font), INK, wvb)
+	UiKit.trim_font(_w_name, int(W.name_font), float(W.trim))
+	_w_name.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	UiKit.marker_under(_w_name)
+	_w_state = UiKit.label("", int(W.state_font), UiKit.c("brown"), wvb)
+	UiKit.trim_font(_w_state, int(W.state_font), float(W.trim))
 	_breath = ProgressBar.new()
 	_breath.show_percentage = false
-	_breath.custom_minimum_size = Vector2(0, 8)
+	_breath.custom_minimum_size = Vector2(0, float(W.breath_h))
 	_breath.max_value = float(GameData.WEAPONS.trumpet.breath_max)
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(1, 1, 1, 0.12)
-	bg.set_corner_radius_all(4)
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = Color("#9fd0ff")
-	fill.set_corner_radius_all(4)
-	_breath.add_theme_stylebox_override("background", bg)
-	_breath.add_theme_stylebox_override("fill", fill)
+	_breath.add_theme_stylebox_override("background", UiKit.box(Color("#e2c992"), INK, 2, 4))
+	_breath.add_theme_stylebox_override("fill", UiKit.box(Color("#9fd0ff"), INK, 2, 4))
 	_breath.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_breath.visible = false
 	wvb.add_child(_breath)
-	_w_hint = UiKit.label("", 14, GOLD, wvb)
-	_w_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_w_state.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	# 맨 아래 작은 글씨: 속도 · Esc 메뉴 · Tab 점수판
+	var keys := HBoxContainer.new()
+	keys.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	keys.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	keys.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	keys.offset_right = -E - 3
+	keys.offset_bottom = -float(K.bottom)
+	keys.add_theme_constant_override("separation", 10)
+	keys.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(keys)
+	_speed = UiKit.rich(int(K.font), PARCH, keys)  # 속도 (HTML #speed — 가운데 아래에서 모서리로 옮김)
+	_speed.add_theme_color_override("font_outline_color", INK)
+	_speed.add_theme_constant_override("outline_size", UiKit.outline_for(int(K.font)))
+	_speed.size_flags_vertical = Control.SIZE_SHRINK_END
+	var kl := UiKit.label(str(K.text), int(K.font), PARCH, keys)
+	UiKit.wood_text(kl, int(K.font))
+
+
+## 위 가운데 점수판 바로 아래: 특수 아이템 안내 줄 + 황금 붕어빵 무적 막대
+func _build_notes(root: Control) -> void:
+	_notes = VBoxContainer.new()
+	_notes.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_notes.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_notes.add_theme_constant_override("separation", 2)
+	_notes.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_notes)
+	for kv in [["sniper", GOLD], ["horse", Color("#ffb37a")], ["ak", Color("#ff9a6a")]]:
+		var l := UiKit.label("", 15, kv[1], _notes)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		l.add_theme_color_override("font_outline_color", INK)
+		l.add_theme_constant_override("outline_size", 4)
+		_info[kv[0]] = l
+	_build_star_bar(_notes)
 
 
 # ── 알림들 ───────────────────────────────────────────────────
-## 조준점 아래 금색 문구 — HTML popMsg / killPopShow (1초 동안 커졌다 줄고, 위로 살짝 뜨며 사라짐)
+## 조준점 아래 양피지 쪽지 — HTML popMsg / killPopShow (1초 동안 커졌다 줄고, 위로 살짝 뜨며 사라짐)
 func pop_msg(text: String) -> void:
 	_pop.text = text
-	_pop.reset_size()
+	_pop_box.reset_size()
 	_pop_t = 0.0
-	_pop.pivot_offset = _pop.size / 2
+	_pop_box.pivot_offset = _pop_box.size / 2
 
 
 ## 가운데 위 큰 문구 — HTML banner (2.8초)
@@ -363,25 +444,33 @@ func banner(t: String, s: String) -> void:
 	_banner_age = 0.0
 
 
-## HTML killfeed: 'a · 무기 · 헤드샷 · v', 내가 끼면 금색 테두리. 5줄, 5.5초
+## HTML killfeed: 양피지 줄 '공격자 [무기 아이콘] 피해자 [헤드샷]'. 이름은 팀 색(개인전은 잉크), 나는 "나" + 형광펜.
+## 내가 낀 줄은 형광펜 테두리. 5줄, 5.5초
 func killfeed(a: PlayerController, v: PlayerController, kind: String, head: bool) -> void:
+	var F: Dictionary = GameData.HUD_UI.feed
 	var me := (a != null and a.is_local) or v.is_local
-	var pc := PanelContainer.new()
-	var sb := UiKit.panel_box(Vector4(10, 5, 10, 5))
+	var pc := UiKit.Board.new("parch", F.pad)
+	pc.radius = float(F.r)
 	if me:
-		sb.border_color = GOLD
-		sb.bg_color = Color(80 / 255.0, 54 / 255.0, 12 / 255.0, 0.82)
-	pc.add_theme_stylebox_override("panel", sb)
+		pc.ring = GOLD
 	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pc.size_flags_horizontal = Control.SIZE_SHRINK_END
 	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 7)
+	hb.add_theme_constant_override("separation", int(F.gap))
+	hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pc.add_child(hb)
-	UiKit.label(a.ent_name if a else "?", 13, _name_col(a), hb)
-	UiKit.label(GameData.WEAPONS[kind].name, 13, GOLD, hb)
-	if head:
-		UiKit.label("헤드샷", 12, BLOOD, hb).size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	UiKit.label(v.ent_name, 13, _name_col(v), hb)
+	_feed_name(a, hb)
+	var ic := UiKit.weapon_icon(kind, float(F.icon))
+	ic.tooltip_text = str(GameData.WEAPONS[kind].name) if GameData.WEAPONS.has(kind) else kind
+	hb.add_child(ic)
+	_feed_name(v, hb)
+	if head:  # 빨간 작은 꼬리표 (글자라 살짝만 기울임)
+		var hp := PanelContainer.new()
+		hp.add_theme_stylebox_override("panel", UiKit.box(GameData.col(F.head_col), Color.TRANSPARENT, 0, 4, Vector4(5, 0, 5, 1)))
+		hp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		UiKit.label("헤드샷", int(F.head_font), Color.WHITE, hp)
+		hb.add_child(UiKit.tilted(hp, float(F.head_tilt)))
+		hp.get_parent().size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_feed.add_child(pc)
 	_feed.move_child(pc, 0)
 	_feed_items.push_front({"n": pc, "t": 0.0})
@@ -389,54 +478,52 @@ func killfeed(a: PlayerController, v: PlayerController, kind: String, head: bool
 		(_feed_items.pop_back().n as Node).queue_free()
 
 
-## 킬피드 이름 색: 쟁탈전이면 팀 색
+func _feed_name(e: PlayerController, parent: Node) -> void:
+	var F: Dictionary = GameData.HUD_UI.feed
+	var l := UiKit.label((str(F.me) if e.is_local else e.ent_name) if e else "?", int(F.font), _name_col(e), parent)
+	UiKit.trim_font(l, int(F.font), float(F.trim))
+	if e and e.is_local:
+		UiKit.marker_under(l)
+
+
+## 양피지 위 이름 색: 쟁탈전이면 팀 색(진하게), 아니면 잉크
 static func _name_col(e: PlayerController) -> Color:
 	if e and e.team != "":
-		return Color(str(GameData.MODES.control.teams[e.team].ui))
-	return PARCH
+		return Color(str(GameData.MODES.control.teams[e.team].ink))
+	return INK
 
 
 ## 내가 죽었을 때 — HTML showDeath
 func show_death(a: PlayerController, kind: String, head: bool) -> void:
-	_death_by.text = "[center]%s에게 당했다[/center]" % UiKit.gold(UiKit.esc(a.ent_name if a else "누군가"))
+	var red := str(GameData.MODES.control.teams.red.ink)
+	_death_by.text = "[center][color=%s]%s[/color]에게 당했다[/center]" % [red, UiKit.esc(a.ent_name if a else "누군가")]
 	_death_text = GameData.WEAPONS[kind].name + (" · 헤드샷" if head else "")
 	_death_sub.text = _death_text + " · 잠시 후 부활"
 	_death.visible = true
 
 
-## 새 경기·메뉴로 갈 때 남은 알림을 치운다 (HTML clearMatchObjects의 nums·feed 부분)
 ## 황금 붕어빵 무적 남은 시간 (화면 위 가운데, 아이템 안내 줄 아래)
-func _build_star_bar(root: Control) -> void:
+func _build_star_bar(parent: Control) -> void:
 	_star_box = VBoxContainer.new()
-	_star_box.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_star_box.offset_top = 146
-	_star_box.offset_left = -120
-	_star_box.offset_right = 120
-	_star_box.add_theme_constant_override("separation", 4)
+	_star_box.add_theme_constant_override("separation", 3)
+	_star_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_star_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(_star_box)
+	parent.add_child(_star_box)
 	_star_lbl = UiKit.label("", 20, GOLD, _star_box)
 	_star_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UiKit.shadow(_star_lbl, Color(0, 0, 0, 0.7), 1, 2)
+	UiKit.wood_text(_star_lbl, 20, GOLD)
 	_star_bar = ProgressBar.new()
 	_star_bar.show_percentage = false
-	_star_bar.custom_minimum_size = Vector2(240, 10)
+	_star_bar.custom_minimum_size = Vector2(240, 12)
 	_star_bar.max_value = float(GameData.ITEM.golden_fish.dur)
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0, 0, 0, 0.45)
-	bg.set_corner_radius_all(5)
-	bg.border_color = Color(GOLD, 0.8)
-	bg.set_border_width_all(1)
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = GOLD
-	fill.set_corner_radius_all(5)
-	_star_bar.add_theme_stylebox_override("background", bg)
-	_star_bar.add_theme_stylebox_override("fill", fill)
+	_star_bar.add_theme_stylebox_override("background", UiKit.box(Color(INK, 0.55), INK, 2, 6))
+	_star_bar.add_theme_stylebox_override("fill", UiKit.box(GOLD, INK, 2, 6))
 	_star_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_star_box.add_child(_star_bar)
 	_star_box.visible = false
 
 
+## 새 경기·메뉴로 갈 때 남은 알림을 치운다 (HTML clearMatchObjects의 nums·feed 부분)
 func clear() -> void:
 	for n in _nums:
 		(n.l as Node).queue_free()
@@ -446,7 +533,7 @@ func clear() -> void:
 	_feed_items.clear()
 	_death.visible = false
 	_pop_t = 99.0
-	_pop.modulate.a = 0.0
+	_pop_box.modulate.a = 0.0
 	_banner_age = 99.0
 	_banner.modulate.a = 0.0
 	show_board = false
@@ -489,6 +576,11 @@ func hitmark(is_kill: bool) -> void:
 	_hitmark.pop(is_kill)
 
 
+## 양피지 위 강조 (형광펜 바탕)
+static func _hl(s: String) -> String:
+	return "[bgcolor=#ffd84a]%s[/bgcolor]" % s
+
+
 func _update_nums(dt: float) -> void:
 	var cam: Camera3D = player.cam if player else null
 	for i in range(_nums.size() - 1, -1, -1):
@@ -518,6 +610,7 @@ func _process(dt: float) -> void:
 	if not player or not visible:
 		return
 	var e := player
+	_clock += dt
 	_update_nums(dt)
 	var HU: Dictionary = GameData.HURT
 	_hurt = maxf(0.0, _hurt - dt * float(HU.decay))
@@ -545,35 +638,37 @@ func _process(dt: float) -> void:
 	if rows.size() > 0:
 		var top: PlayerController = rows[0]
 		if top == e:
-			_leader.text = "%s 나 %d킬 · 목표 %d" % [UiKit.gold("1위", 15), e.kills, GameData.KILL_LIMIT]
+			_leader.text = "%s 나 %d킬 · 목표 %d" % [_hl("1위"), e.kills, GameData.KILL_LIMIT]
 		else:
-			_leader.text = "1위 %s %s · 나 %s · %d위" % [UiKit.esc(top.ent_name), UiKit.gold(str(top.kills), 15), UiKit.gold(str(e.kills), 15), rows.find(e) + 1]
-	# 병과·체력
-	var t := GameData.CLASSES[e.cls].name as String
+			_leader.text = "1위 %s %s킬 · 나 %d킬 · %d위" % [UiKit.esc(top.ent_name), _hl(str(top.kills)), e.kills, rows.find(e) + 1]
+	# 병과·체력 (이름은 나무판, 상태는 판 위 작은 쪽지)
+	_cls.text = GameData.CLASSES[e.cls].name
+	var notes := PackedStringArray()
 	if e.alive and not e.helmet:
-		t += " · 투구 없음"
+		notes.append("투구 없음")
 	if e.alive and e.slow_t > 0:
-		t += " · 성수에 젖어 느려짐"
+		notes.append("성수에 젖어 느려짐")
+	var note := " · ".join(notes)
 	if e.next_cls != "" and e.next_cls != e.cls:
-		t += " → 다음 부활 %s" % GameData.CLASSES[e.next_cls].name
-	_cls.text = t
+		note += (" " if note != "" else "") + "→ 다음 부활 %s" % GameData.CLASSES[e.next_cls].name
+	if note != _cls_note.text:
+		_cls_note.text = note
+		_cls_note_box.visible = note != ""
+		_cls_note_box.reset_size()
+	_medal.cls = e.cls
+	var V: Dictionary = GameData.HUD_UI.vitals
 	var mh := GameData.class_hp(e.cls)
 	var hp := maxi(0, ceili(e.hp))
 	var hpp := float(hp) / mh
-	_hp_fill.size = Vector2(_hp_bar.size.x * hpp, _hp_bar.size.y)
-	_hp_fill_sb.bg_color = MOSS if hpp > 0.5 else (GOLD if hpp > 0.25 else BLOOD)
+	var hc := MOSS if hpp > 0.5 else GOLD
+	if hpp <= float(V.low):  # 낮으면 빨갛게 깜빡
+		hc = BLOOD.lerp(GameData.col(V.blink_col), 0.5 + 0.5 * sin(_clock * TAU * float(V.blink_hz)))
+	_hp.set_state(hpp, hc, e.alive and e.no_hit_t >= GameData.REGEN_DELAY and e.hp < mh)  # 재생 중엔 둘레가 초록으로 빛남
+	_vitals_regen = _hp.glow
 	_hp_num.text = str(hp)
-	var regen := e.alive and e.no_hit_t >= GameData.REGEN_DELAY and e.hp < mh
-	if regen != _vitals_regen:  # 재생 중엔 체력 막대 둘레가 초록으로 빛남
-		_vitals_regen = regen
-		_hp_bar_sb.set_border_width_all(2 if regen else 0)
-		_hp_bar_sb.shadow_color = Color(108 / 255.0, 195 / 255.0, 90 / 255.0, 0.65) if regen else Color.TRANSPARENT
-		_hp_bar_sb.shadow_size = 12 if regen else 0
 	# 속도·조준점
 	var hs := Vector2(e.velocity.x, e.velocity.z).length()
-	_speed.text = "%.1f[font_size=11][color=#fbf1dcb3] m/s[/color][/font_size]" % hs
-	_speed.reset_size()
-	_speed.position = Vector2((_speed.get_parent_area_size().x - _speed.size.x) / 2, _speed.get_parent_area_size().y - 20 - _speed.size.y)
+	_speed.text = "%.1f[font_size=11] m/s[/font_size]" % hs
 	var gap := 6 + minf(hs, 18) * 0.7 + (0.0 if e.grounded else 6.0) + (4.0 if e.wep == "stone" else 0.0)
 	if e.wep == "ak":
 		gap += (-3.0 if e.aim_held else 6.0) + e.bloom * 260
@@ -588,6 +683,9 @@ func _process(dt: float) -> void:
 	elif _death.visible:
 		_death_sub.text = "%s · %d초 뒤 부활" % [_death_text, maxi(1, ceili(e.respawn))]
 	_death.position.x = (_death.get_parent_area_size().x - _death.size.x) / 2
+	# 아이템 안내 줄은 위 가운데 점수판 바로 아래
+	var top_end: float = (_ctrl.top_h() if mode else _topbar.position.y + _topbar.size.y)
+	_notes.offset_top = top_end + float(GameData.HUD_UI.notes_gap)
 	# 점수판
 	_board.visible = show_board
 	if show_board:
@@ -615,16 +713,16 @@ func _update_anims(dt: float) -> void:
 	_pop_t += dt
 	var pt: float = GameData.POP_T
 	var k := _pop_t / pt
-	var area := _pop.get_parent_area_size()
-	var y := area.y / 2 + 48
+	var area := _pop_box.get_parent_area_size()
+	var y := area.y / 2 + float(GameData.HUD_UI.pop.y)
 	if k < 1.0:  # 0~12%: 1.7배에서 줄며 나타남, 75~100%: 12px 떠오르며 사라짐
-		_pop.modulate.a = k / 0.12 if k < 0.12 else (1.0 if k < 0.75 else 1.0 - (k - 0.75) / 0.25)
-		_pop.scale = Vector2.ONE * (lerpf(1.7, 1.0, k / 0.12) if k < 0.12 else 1.0)
+		_pop_box.modulate.a = k / 0.12 if k < 0.12 else (1.0 if k < 0.75 else 1.0 - (k - 0.75) / 0.25)
+		_pop_box.scale = Vector2.ONE * (lerpf(1.7, 1.0, k / 0.12) if k < 0.12 else 1.0)
 		if k > 0.75:
 			y -= 12 * (k - 0.75) / 0.25
 	else:
-		_pop.modulate.a = 0.0
-	_pop.position = Vector2((area.x - _pop.size.x) / 2, y)
+		_pop_box.modulate.a = 0.0
+	_pop_box.position = Vector2((area.x - _pop_box.size.x) / 2, y)
 	for i in range(_feed_items.size() - 1, -1, -1):
 		var f := _feed_items[i]
 		f.t += dt
@@ -639,7 +737,11 @@ func _update_anims(dt: float) -> void:
 func _update_weapon() -> void:
 	var e := player
 	_w_name.text = GameData.WEAPONS[e.wep].name
-	_w_name.add_theme_color_override("font_color", GOLD if e.wep == "sniper" or e.wep == "ak" else PARCH)
+	_w_name.add_theme_color_override("font_color", Color(str(GameData.MODES.control.teams.red.ink)) if e.wep == "sniper" or e.wep == "ak" else INK)
+	if e.wep != _w_icon_kind:
+		_w_icon_kind = e.wep
+		_w_icon.texture = UiKit.weapon_tex(e.wep, float(GameData.HUD_UI.weapon.icon))
+		_w_icon.custom_minimum_size = UiKit.weapon_icon(e.wep, float(GameData.HUD_UI.weapon.icon)).custom_minimum_size
 	var st := ""
 	var ring := -1.0
 	var ring_col := GOLD
@@ -791,7 +893,7 @@ class DmgDir extends Control:
 		var ry: float = D.h
 		var th: float = D.thick
 		var cy: float = -float(D.r) + ry  # 반달 아래쪽 가운데
-		var blood := GameData.col(GameData.UI.blood)
+		var blood := GameData.col(GameData.UI.red)
 		for it: Dictionary in items:
 			var k: float = it.t / float(D.life)
 			var a := 1.0 if k < float(D.hold) else maxf(0.0, 1.0 - (k - float(D.hold)) / (1.0 - float(D.hold)))
@@ -853,9 +955,11 @@ class ChargeRing extends Control:
 	func _draw() -> void:
 		if _v < 0:
 			return
-		draw_arc(Vector2.ZERO, 24, 0, TAU, 48, Color(22 / 255.0, 26 / 255.0, 51 / 255.0, 0.35), 3.5, true)
-		if _v > 0.001:
-			draw_arc(Vector2.ZERO, 24, -PI / 2, -PI / 2 + TAU * minf(_v, 1.0), 48, _c, 3.5, true)
+		draw_arc(Vector2.ZERO, 24, 0, TAU, 48, Color(Hud.INK, 0.3), 3.5, true)
+		if _v > 0.001:  # 금색 호 (시안 #ring) — 잉크 테를 먼저 깔아 밝은 땅에서도 보이게
+			var a1 := -PI / 2 + TAU * minf(_v, 1.0)
+			draw_arc(Vector2.ZERO, 24, -PI / 2, a1, 48, Color(Hud.INK, 0.75), 6.0, true)
+			draw_arc(Vector2.ZERO, 24, -PI / 2, a1, 48, _c, 3.5, true)
 
 
 ## 맞히면 조준점에 잠깐 뜨는 X (처치면 빨간색) — HTML #hitmark
@@ -900,7 +1004,7 @@ class Crosshair extends Control:
 
 	func _draw() -> void:
 		var c := Hud.PARCH
-		var sh := Color(22 / 255.0, 26 / 255.0, 51 / 255.0, 0.7)
+		var sh := Color(Hud.INK, 0.7)
 		for r: Rect2 in [Rect2(-1, -_gap - 9, 2, 9), Rect2(-1, _gap, 2, 9), Rect2(-_gap - 9, -1, 9, 2), Rect2(_gap, -1, 9, 2)]:
 			draw_rect(r.grow(1), sh)
 			draw_rect(r, c)
@@ -1002,3 +1106,69 @@ class StarEdge extends Control:
 			draw_colored_polygon(PackedVector2Array([Vector2(0, -r), Vector2(q, -q), Vector2(r, 0), Vector2(q, q),
 				Vector2(0, r), Vector2(-q, q), Vector2(-r, 0), Vector2(-q, -q)]), c)  # 네 갈래 별
 		draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## 왼쪽 아래 체력 막대 (시안: 어두운 홈 + 초록 채움, 둘 다 잉크 테두리, 채움 아래쪽 그늘). 재생 중엔 둘레가 초록으로 빛남
+class HpBar extends Control:
+	var k := 1.0
+	var col := Hud.MOSS
+	var glow := false
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func set_state(v: float, c: Color, g: bool) -> void:
+		v = clampf(v, 0.0, 1.0)
+		if is_equal_approx(v, k) and c.is_equal_approx(col) and g == glow:
+			return
+		k = v
+		col = c
+		glow = g
+		queue_redraw()
+
+	func _draw() -> void:
+		var h := size.y
+		var r := int(h / 2)
+		if glow:
+			for i in 3:
+				var g := UiKit.box(Color.TRANSPARENT, Color(Hud.MOSS, 0.28 - i * 0.08), 2, r + 3 + i * 2)
+				draw_style_box(g, Rect2(Vector2.ONE * -(3 + i * 2), size + Vector2.ONE * (6 + i * 4)))
+		draw_style_box(UiKit.box(GameData.col(GameData.HUD_UI.vitals.bar_bg), Hud.INK, 2, r), Rect2(Vector2.ZERO, size))
+		if k > 0.0:
+			var w := maxf(h, size.x * k)
+			draw_style_box(UiKit.box(col, Hud.INK, 2, r), Rect2(0, 0, w, h))
+			draw_rect(Rect2(r, h - 6, maxf(0.0, w - 2 * r), 4), Color(0, 0, 0, 0.2))
+
+
+## 왼쪽 아래 둥근 나무 액자 + 병과 아이콘 (병과 색 동그라미)
+class Medal extends Control:
+	var cls := "":
+		set(v):
+			if v != cls:
+				cls = v
+				queue_redraw()
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var V: Dictionary = GameData.HUD_UI.vitals
+		var c := size / 2
+		var R := size.x / 2
+		var ri: float = float(V.medal_in) / 2.0
+		draw_circle(c + Vector2(0, 4), R, Hud.INK, true, -1, true)            # 아래 그림자
+		draw_circle(c, R, Hud.INK, true, -1, true)                            # 잉크 테
+		draw_circle(c, R - 2.7, UiKit.c("wood_lo"), true, -1, true)           # 나무 (위 밝게)
+		draw_circle(c - Vector2(0, 2), R - 4.5, UiKit.c("wood"), true, -1, true)
+		draw_circle(c - Vector2(0, R * 0.35), R * 0.55, Color(UiKit.c("wood_hi"), 0.55), true, -1, true)
+		for i in 3:  # 나뭇결 (가로 띠)
+			var y := c.y - R * 0.6 + i * R * 0.6
+			var hw := sqrt(maxf(0.0, (R - 5) * (R - 5) - pow(y - c.y, 2)))
+			draw_line(Vector2(c.x - hw, y), Vector2(c.x + hw, y), Color(0.24, 0.12, 0.04, 0.3), 2.0)
+		if cls == "":
+			return
+		draw_circle(c, ri + 2, Hud.INK, true, -1, true)
+		draw_circle(c, ri, GameData.col(GameData.CLASS_EMBLEM[cls]), true, -1, true)
+		var tex := UiKit.icon(cls)
+		var s := ri * 1.3
+		draw_texture_rect(tex, Rect2(c - Vector2(s, s) / 2, Vector2(s, s)), false)

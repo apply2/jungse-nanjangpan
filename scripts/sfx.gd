@@ -46,6 +46,8 @@ const RECIPES := {
 	"fanfare": [["t", 523, 0.11, "sawtooth", 0.16, 0, 0.0], ["t", 659, 0.11, "sawtooth", 0.16, 0, 0.11],
 		["t", 784, 0.34, "sawtooth", 0.2, 0, 0.22], ["n", 0.12, 0.08, 1800, "bandpass", 0.0]],  # 빠바밤: 3음 상승
 	"gasp": [["n", 0.32, 0.12, 1200, "bandpass", 0.0], ["n", 0.28, 0.08, 900, "bandpass", 0.42]],  # 헐떡임
+	# 병과 선택 '합격' 도장 쾅 (나무 책상에 찍는 둔탁한 소리 + 종이 탁)
+	"stamp": [["n", 0.07, 0.42, 620, "lowpass", 0.0], ["t", 120, 0.13, "sine", 0.4, -60, 0.0], ["n", 0.03, 0.16, 2600, "bandpass", 0.01]],
 	# 쟁탈전 알림 뿔나팔 (거점 열림·점령·연장전·라운드 끝)
 	"horn": [["t", 220, 0.5, "sawtooth", 0.14, 0, 0.0], ["t", 330, 0.5, "sawtooth", 0.1, 0, 0.0], ["t", 294, 0.7, "sawtooth", 0.14, 0, 0.42], ["t", 440, 0.7, "sawtooth", 0.1, 0, 0.42]],
 }
@@ -55,6 +57,10 @@ var playing := false         # 경기 중일 때만 위치 있는 소리가 난�
 var listener: Node3D = null  # 거리 기준 (살아 있으면 내 캐릭터, 죽었으면 카메라)
 var listener_cam: Node3D = null
 var played: Array[String] = []  # 자동 테스트용 — 마지막에 낸 소리 이름들 (헤드리스에서도 쌓임)
+
+signal stinger_done(sound: String)  # 결과 화면 효과음이 끝까지 나왔을 때
+var last_stinger := ""      # 마지막 결과 효과음 이름 (헤드리스에서도 남음)
+var _stinger: AudioStreamPlayer = null
 
 var _cache := {}
 var _pending: Array = []
@@ -93,6 +99,34 @@ func vol_at(pos: Vector3) -> float:
 	elif listener_cam:
 		from = listener_cam.global_position
 	return 1.0 / (1.0 + pos.distance_to(from) / 9.0)
+
+
+## 결과 화면 효과음 (GameData.STINGER, 반복 없음). 전용 플레이어 하나 — Sfx.playing과 상관없이 나고 일시정지 중에도 돈다.
+## 헤드리스에선 아무것도 안 한다 (테스트용으로 이름만 last_stinger에 남김). 다 끝나면 stinger_done.
+func play_stinger(sound: String) -> void:
+	last_stinger = sound
+	if not enabled:
+		return
+	if not GameData.STINGER.has(sound):
+		push_warning("결과 효과음 없음: " + sound)
+		return
+	if _stinger == null:
+		_stinger = AudioStreamPlayer.new()
+		_stinger.bus = "SFX"
+		_stinger.process_mode = Node.PROCESS_MODE_ALWAYS
+		_stinger.finished.connect(func() -> void: stinger_done.emit(last_stinger))
+		add_child(_stinger)
+	var s: AudioStream = load(GameData.STINGER[sound])
+	if "loop" in s:
+		s.set("loop", false)
+	_stinger.stream = s
+	_stinger.volume_db = linear_to_db(GameData.SFX_VOL)
+	_stinger.play()
+
+
+func stop_stinger() -> void:
+	if _stinger and _stinger.playing:
+		_stinger.stop()
 
 
 ## 소리 내기. pos가 있으면 거리에 따라 작아지고, 경기 중이 아니면 안 난다.

@@ -31,6 +31,7 @@ var zones: Array[Dictionary] = []  # 성수 웅덩이 {owner, pos, r, life, tick
 var aim_mk: MeshInstance3D         # 성수 착지 지점 표시 (내 화면)
 var ragdolls: Array = []           # 쓰러진 몸 (Ragdoll)
 var hit_stop := 0.0                # 남은 히트스톱 (실제 시간, 초)
+var _hs_on := false                 # 히트스톱이 Engine.time_scale을 늦춰 둔 상태
 var clock := 0.0                   # 경기 물리 시간 (춤 누적 기록에 씀)
 
 const SPINS := ["stone", "holy", "chicken"]  # 날아가며 빙글빙글 도는 투사체 (나머지는 진행 방향을 봄)
@@ -126,7 +127,13 @@ func _physics_process(dt: float) -> void:
 func _tick_hit_stop(delta: float) -> void:
 	if hit_stop > 0:
 		hit_stop -= delta / maxf(Engine.time_scale, 0.01)
-	Engine.time_scale = GameData.HITSTOP_SCALE if hit_stop > 0 else 1.0
+		if hit_stop > 0:
+			Engine.time_scale = GameData.HITSTOP_SCALE
+			_hs_on = true
+			return
+	if _hs_on:  # 히트스톱이 건 것만 되돌림 (결과 화면 느린 화면을 덮어쓰지 않게)
+		_hs_on = false
+		Engine.time_scale = 1.0
 
 
 func add_hit_stop(t: float) -> void:
@@ -136,6 +143,7 @@ func add_hit_stop(t: float) -> void:
 
 func stop_hit_stop() -> void:
 	hit_stop = 0.0
+	_hs_on = false
 	Engine.time_scale = 1.0
 
 

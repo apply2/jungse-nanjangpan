@@ -404,6 +404,7 @@ func mount(e: PlayerController, hd: Dictionary = {}) -> void:
 	e.sliding = false
 	e.fall_t = 0.0
 	var h := WeaponModels.make_horse(true)
+	held_lance(h)
 	add_child(h.g)
 	(h.g as Node3D).global_position = e.global_position
 	(h.g as Node3D).rotation.y = e.yaw + PI
@@ -414,6 +415,28 @@ func mount(e: PlayerController, hd: Dictionary = {}) -> void:
 		combat.toast.emit("돌격! 창끝으로 들이받으세요")
 	else:
 		banner.emit("%s이(가) 말에 올라탔다!" % e.ent_name, "창에 찔리면 멀리 날아가요 · 피하세요")
+
+
+## 탄 사람 말의 마상창을 3인칭에서 잘 보이게 굵게 (GameData.HELD_SCALE.lance — 보기만, 길이·판정 그대로).
+## 창끝 뾰족한 부분은 tip배, 끝점은 그대로 둔다. 맵에 서 있는 말(진열)은 안 바꿈
+static func held_lance(h: Dictionary) -> void:
+	var ln: Node3D = h.get("lance")
+	if ln == null:
+		return
+	var L: Dictionary = GameData.HELD_SCALE.lance
+	var th := float(L.thick)
+	var ln_k := float(L.len)
+	var tip_k := float(L.tip)
+	ln.scale = Vector3(th, th, ln_k)
+	var tip: MeshInstance3D = null  # 창끝 = 가장 앞(+Z)에 있는 조각
+	for c in ln.get_children():
+		if c is MeshInstance3D and (tip == null or (c as Node3D).position.z > tip.position.z):
+			tip = c
+	if tip:
+		var s := tip.scale  # 원뿔: x·z = 굵기, y = 길이 (+Z로 눕혀 둠)
+		var end := tip.position.z + s.y * 0.5
+		tip.scale = Vector3(s.x * tip_k / th, s.y * tip_k / ln_k, s.z * tip_k / th)
+		tip.position.z = end - tip.scale.y * 0.5
 
 
 func dismount(e: PlayerController) -> void:
@@ -495,6 +518,7 @@ func update_horses(dt: float) -> void:
 			if e.alive and e.mounted > 0:
 				if e.horse.is_empty():
 					var h := WeaponModels.make_horse(true)
+					held_lance(h)
 					add_child(h.g)
 					e.horse = h
 				var g: Node3D = e.horse.g

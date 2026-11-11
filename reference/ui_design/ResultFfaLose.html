@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>개인전 패배</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&amp;family=Gaegu:wght@700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2b1d12;text-decoration:none}a:hover{color:#2b1d12}
+.wood{background-color:#7d6a5a;background-image:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 26px,rgba(30,20,10,.38) 26px 29px),linear-gradient(180deg,#8e7a68,#6c5a4b)}
+.parch{background-color:#e9e0cc;background-image:radial-gradient(ellipse at 18% 12%,rgba(255,255,255,.5),rgba(255,255,255,0) 50%),radial-gradient(ellipse at 92% 96%,rgba(100,80,50,.25),rgba(0,0,0,0) 55%)}
+.ink{box-shadow:inset 0 0 0 4px #2b1d12,0 8px 0 #2b1d12}
+.inkp{box-shadow:inset 0 0 0 3px #2b1d12,inset 0 0 22px rgba(90,70,40,.3),0 6px 0 rgba(43,29,18,.9)}
+.nail{position:absolute;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8e2d8,#77706a 55%,#35302b);box-shadow:0 2px 0 rgba(0,0,0,.45)}
+.rope{position:absolute;width:12px;border-radius:6px;background:repeating-linear-gradient(-35deg,#c8b48c 0 7px,#8a7550 7px 12px);box-shadow:inset 0 0 0 2px #4a3a22}
+.out{color:#eef0f2;-webkit-text-stroke:8px #2b1d12;paint-order:stroke fill}
+.btn{display:flex;align-items:center;justify-content:center;border-radius:12px}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1080px; position: relative; overflow: hidden; font-family: 'Do Hyeon', sans-serif; color: #2b1d12; background: #7f8a93">
+  <img src="img/menu_bg.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(3px) grayscale(.85) brightness(.7)">
+  <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(40,50,60,.45), rgba(40,50,60,.15))"></div>
+
+  <!-- 비뚤게 매달린 간판 (못 하나 빠짐) -->
+  <div class="rope" style="left: 470px; top: -10px; height: 70px"></div>
+  <div class="rope" style="left: 860px; top: -10px; height: 160px; transform: rotate(-4deg); transform-origin: top"></div>
+  <div class="wood ink" style="position: absolute; left: 330px; top: 52px; width: 640px; height: 190px; border-radius: 18px; transform: rotate(11deg); transform-origin: 150px 20px; display: flex; align-items: center; justify-content: center">
+    <span class="nail" style="left: 134px; top: 14px"></span>
+    <h1 class="out" style="margin: 0; font-size: 126px; line-height: 1; font-weight: 400; -webkit-text-stroke-width: 14px; text-shadow: 0 8px 0 #2b1d12">6등...</h1>
+  </div>
+  <div class="parch inkp" style="position: absolute; left: 360px; top: 300px; transform: rotate(-3deg); padding: 10px 30px 14px; border-radius: 6px">
+    <span style="font-family: 'Gaegu', cursive; font-size: 52px; line-height: 1">닭이 너보다 많이 잡았다.</span>
+  </div>
+
+  <!-- 쓰러진 나 + 먹구름 -->
+  <div style="position: absolute; left: 290px; top: 470px; width: 760px; height: 560px">
+    <div style="position: absolute; left: 150px; top: 0; width: 420px; height: 150px">
+      <div style="position: absolute; left: 30px; top: 40px; width: 160px; height: 100px; border-radius: 50%; background: #5d6670; box-shadow: inset 0 0 0 4px #2b1d12"></div>
+      <div style="position: absolute; left: 130px; top: 0; width: 180px; height: 140px; border-radius: 50%; background: #66707a; box-shadow: inset 0 0 0 4px #2b1d12"></div>
+      <div style="position: absolute; left: 250px; top: 40px; width: 150px; height: 100px; border-radius: 50%; background: #5d6670; box-shadow: inset 0 0 0 4px #2b1d12"></div>
+      <div style="position: absolute; left: 60px; top: 80px; width: 320px; height: 60px; border-radius: 30px; background: #66707a"></div>
+    </div>
+    <sc-for list="{{rain}}" as="d" hint-placeholder-count="16">
+      <div style="position: absolute; left: {{d.x}}; top: {{d.y}}; width: 7px; height: 30px; border-radius: 4px; background: #9fd0f0; box-shadow: 0 0 0 2px #2b1d12; transform: rotate(12deg)"></div>
+    </sc-for>
+    <img src="img/archer_base_q34.png" alt="쓰러진 궁수 (나)" style="position: absolute; left: 240px; top: 170px; height: 460px; transform: rotate(-84deg); transform-origin: 50% 85%; filter: grayscale(.35) drop-shadow(0 10px 6px rgba(0,0,0,.35))">
+    <div style="position: absolute; left: 160px; bottom: 30px; width: 460px; height: 40px; border-radius: 50%; background: rgba(20,25,30,.35)"></div>
+    <div style="position: absolute; left: 600px; top: 280px; font-family: 'Gaegu', cursive; font-size: 44px; color: #eef0f2; transform: rotate(-8deg)">(넘어짐 37회)</div>
+  </div>
+
+  <!-- 점수표 -->
+  <div class="parch inkp" style="position: absolute; right: 90px; top: 120px; width: 640px; border-radius: 8px; padding: 36px 40px 30px; box-sizing: border-box">
+    <span class="nail" style="left: 16px; top: 16px"></span>
+    <span class="nail" style="right: 16px; top: 16px"></span>
+    <h2 style="margin: 0 0 16px; font-size: 48px; font-weight: 400; text-align: center">개인전 결과</h2>
+    <div style="display: grid; grid-template-columns: 60px 1fr 100px 80px 80px; gap: 10px 12px; font-size: 24px; color: #6b5a48">
+      <span>순위</span><span>이름</span><span>병과</span><span style="text-align: right">처치</span><span style="text-align: right">죽음</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px">
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+        <div style="display: grid; grid-template-columns: 60px 1fr 100px 80px 80px; gap: 12px; font-size: 32px; align-items: center; padding: 6px 10px; border-radius: 6px; background: {{r.bg}}; box-shadow: {{r.ring}}">
+          <span>{{r.rank}}</span><span>{{r.name}}</span><span style="font-size: 26px; color: #5a4a3a">{{r.cls}}</span><span style="text-align: right">{{r.k}}</span><span style="text-align: right">{{r.d}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <nav aria-label="다음" style="position: absolute; right: 90px; bottom: 70px; display: flex; gap: 22px; align-items: center">
+    <a href="Main.dc.html" class="btn parch" style="height: 84px; padding: 0 30px; font-size: 36px; box-shadow: inset 0 0 0 3px #2b1d12, 0 6px 0 #2b1d12">메인 메뉴</a>
+    <a href="ClassSelect.dc.html" class="btn parch" style="height: 84px; padding: 0 30px; font-size: 36px; box-shadow: inset 0 0 0 3px #2b1d12, 0 6px 0 #2b1d12">병과 다시 고르기</a>
+    <a href="ResultFfaLose.dc.html" class="btn" style="position: relative; height: 110px; padding: 0 50px; font-size: 52px; background: linear-gradient(180deg,#f6c25a,#d9922e); box-shadow: inset 0 0 0 5px #2b1d12, inset 0 6px 0 5px rgba(255,240,200,.35), 0 9px 0 #2b1d12; transform: rotate(1deg)"><span class="nail" style="left: 12px; top: 12px"></span><span class="nail" style="right: 12px; top: 12px"></span>복수하러 간다</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const names = [
+      ['술 취한 용병', '야만인', 15, 5], ['늪지 마녀', '음유시인', 12, 7], ['방앗간 한스', '석궁병', 10, 6],
+      ['감자 농부', '성직자', 8, 8], ['졸린 경비병', '궁수', 6, 9], ['나', '궁수', 2, 14], ['허풍쟁이 기사', '야만인', 1, 13],
+    ];
+    const rows = names.map((n, i) => ({
+      rank: String(i + 1), name: n[0], cls: n[1], k: String(n[2]), d: String(n[3]),
+      bg: n[0] === '나' ? '#c9d3dc' : 'rgba(0,0,0,0)',
+      ring: n[0] === '나' ? 'inset 0 0 0 3px #2b1d12' : 'none',
+    }));
+    const rain = [];
+    for (let i = 0; i < 16; i++) {
+      rain.push({ x: (200 + ((i * 53) % 330)) + 'px', y: (150 + ((i * 71) % 220)) + 'px' });
+    }
+    return { rows, rain };
+  }
+}
+</script>
+</body>
+</html>

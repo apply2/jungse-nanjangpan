@@ -459,6 +459,7 @@ func _build_weapons(K: Dictionary) -> void:
 		if key == "trumpet":  # 트럼펫은 손이 아니라 입에 붙인다 (고개를 들면 같이 들림)
 			var w := _group(Vector3(0, -0.15, 0.27), head)
 			WeaponModels.make_trumpet(w, _mat)
+			w.scale = Vector3.ONE * GameData.held_scale(key)  # 마우스피스(원점)는 입에 그대로, 나팔 쪽으로 커짐
 			weapons[key] = w
 			continue
 		var w := _group(Vector3.ZERO, hand_r)
@@ -482,7 +483,14 @@ func _build_weapons(K: Dictionary) -> void:
 				c.g.scale = Vector3.ONE * 0.75
 				c.g.position = Vector3(0, 0.05, 0.08)
 				w.add_child(c.g)
+		w.scale = Vector3.ONE * GameData.held_scale(key)  # 3인칭에서 잘 보이게 (원점 = 손잡이라 손에서 안 떨어짐)
 		weapons[key] = w
+
+
+## 내 캐릭터: HELD_SCALE_SELF가 있는 무기만 배율을 바꿈 (어깨 너머 화면에서 조준점을 가리지 않게)
+func set_mine(mine: bool) -> void:
+	for key: String in weapons:
+		(weapons[key] as Node3D).scale = Vector3.ONE * GameData.held_scale(key, mine)
 
 
 func _make_arm(sx: float, K: Dictionary) -> Node3D:
