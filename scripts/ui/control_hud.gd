@@ -17,6 +17,8 @@ var _status_mk: ColorRect
 var _cls_row: HBoxContainer
 var _cls_btns := {}
 var _font: Font
+var _top_sig: Array = []  # 점수판을 마지막으로 그렸을 때의 값 — 바뀔 때만 다시 그린다 (최적화)
+var _hot := -1            # 상태 쪽지 글자색 (0 잉크 / 1 빨강) — 바뀔 때만 테마를 건드린다
 
 
 func _ready() -> void:
@@ -106,12 +108,19 @@ func _process(_dt: float) -> void:
 	if _status.text != st:
 		_status.text = st
 		_note.reset_size()  # 짧은 문구(연장전!)로 바뀌면 쪽지도 줄임
-	var hot := mode.contested or mode.overtime
-	_status.add_theme_color_override("font_color", Color(str(GameData.MODES.control.teams.red.ink)) if hot else Hud.INK)
+	var hot := int(mode.contested or mode.overtime)
+	if hot != _hot:
+		_hot = hot
+		_status.add_theme_color_override("font_color", Color(str(GameData.MODES.control.teams.red.ink)) if hot == 1 else Hud.INK)
 	_status_mk.visible = st != ""
 	_note.visible = st != ""
 	_top.mode = mode
-	_top.queue_redraw()
+	# 방패·메달·막대는 값이 바뀔 때만 다시 그린다 (매 프레임 다시 그리던 게 쟁탈전 스크립트 시간의 절반이었다)
+	var sig := [mode.get_instance_id(), mode.phase, mode.holder, mode.cap_team, mode.cap_prog,
+		mode.pct.blue, mode.pct.red, mode.wins.blue, mode.wins.red]
+	if sig != _top_sig:
+		_top_sig = sig
+		_top.queue_redraw()
 	var e := hud.player
 	_cls_row.visible = e != null and not e.alive and not e.spectating and mode.phase != "over"
 	if _cls_row.visible:

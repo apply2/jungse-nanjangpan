@@ -52,11 +52,14 @@ var _helm_mats := {}
 var _in_helm := false
 var _fl := false
 
-var _sph := SphereMesh.new()
-var _cyl := CylinderMesh.new()
-var _cone := CylinderMesh.new()
-var _box := BoxMesh.new()
-var _skirt := CylinderMesh.new()  # HTML skirtGeo (위 0.36, 아래 0.5, 높이 0.55)
+# 기본 도형은 모든 모델이 같이 쓴다 (최적화 — 부활할 때마다 새로 만들지 않고, 합칠 때 정점 배열도 한 번만 읽는다)
+static var _sph: SphereMesh
+static var _cyl: CylinderMesh
+static var _cone: CylinderMesh
+static var _box: BoxMesh
+static var _skirt: CylinderMesh  # HTML skirtGeo (위 0.36, 아래 0.5, 높이 0.55)
+static var _tonsure: TorusMesh   # 성직자 머리 고리
+static var _mitre: CylinderMesh  # 성직자 주교 모자
 
 const STEEL := 0xaab3bd
 const STEEL_D := 0x7d858f
@@ -65,28 +68,47 @@ const STEEL_D := 0x7d858f
 func _init(class_key := "archer", team_key := "") -> void:
 	cls = class_key
 	team = team_key
-	_sph.radius = 1.0
-	_sph.height = 2.0
-	_sph.radial_segments = 16
-	_sph.rings = 10
-	_cyl.top_radius = 1.0
-	_cyl.bottom_radius = 1.0
-	_cyl.height = 1.0
-	_cyl.radial_segments = 12
-	_cone.top_radius = 0.0
-	_cone.bottom_radius = 1.0
-	_cone.height = 1.0
-	_cone.radial_segments = 12
-	_box.size = Vector3.ONE
-	_skirt.top_radius = 0.36
-	_skirt.bottom_radius = 0.5
-	_skirt.height = 0.55
-	_skirt.radial_segments = 18
+	if _sph == null:
+		_make_shapes()
 	_build()
 	_merge(self)
 	if GameData.CLASSES[cls].weapon == "trumpet" and Sfx.enabled:
 		voice = TrumpetVoice.new()
 		add_child(voice)
+
+
+static func _make_shapes() -> void:
+	_sph = SphereMesh.new()
+	_sph.radius = 1.0
+	_sph.height = 2.0
+	_sph.radial_segments = 16
+	_sph.rings = 10
+	_cyl = CylinderMesh.new()
+	_cyl.top_radius = 1.0
+	_cyl.bottom_radius = 1.0
+	_cyl.height = 1.0
+	_cyl.radial_segments = 12
+	_cone = CylinderMesh.new()
+	_cone.top_radius = 0.0
+	_cone.bottom_radius = 1.0
+	_cone.height = 1.0
+	_cone.radial_segments = 12
+	_box = BoxMesh.new()
+	_box.size = Vector3.ONE
+	_skirt = CylinderMesh.new()
+	_skirt.top_radius = 0.36
+	_skirt.bottom_radius = 0.5
+	_skirt.height = 0.55
+	_skirt.radial_segments = 18
+	_tonsure = TorusMesh.new()
+	_tonsure.inner_radius = 0.27 - 0.075
+	_tonsure.outer_radius = 0.27 + 0.075
+	_tonsure.rings = 22
+	_tonsure.ring_segments = 8
+	_mitre = CylinderMesh.new()
+	_mitre.top_radius = 0.12
+	_mitre.bottom_radius = 0.24
+	_mitre.height = 0.46
 
 
 ## 최적화(10단계): 같은 관절에 붙은 움직이지 않는 조각들을 메시 하나로 합친다 (캐릭터 하나 70~100번 → 20번 안팎).
@@ -129,7 +151,7 @@ func _merge_node(n: Node3D, skip: Dictionary) -> void:
 		for mi: MeshInstance3D in list:
 			items.append([mi.mesh, (mi.material_override as StandardMaterial3D).albedo_color, mi.transform])
 		var out := MeshInstance3D.new()
-		out.mesh = Meshes.merge(items)
+		out.mesh = Meshes.merge(items, true)
 		out.material_override = _vc_mat(in_helm)
 		out.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		n.add_child(out)
@@ -434,12 +456,7 @@ func _build_head_extras(mouth: MeshInstance3D, tongue: MeshInstance3D) -> void:
 			if tongue:
 				tongue.position = Vector3(0.02, -0.15, 0.345)
 		"cleric":  # 정수리만 벗겨진 수도사 머리 + 발그레한 볼
-			var tm := TorusMesh.new()
-			tm.inner_radius = 0.27 - 0.075
-			tm.outer_radius = 0.27 + 0.075
-			tm.rings = 22
-			tm.ring_segments = 8
-			_part(tm, 0x7a4a2c, Vector3(0, 0.07, 0), Vector3.ONE, head)
+			_part(_tonsure, 0x7a4a2c, Vector3(0, 0.07, 0), Vector3.ONE, head)
 			for sx in [1, -1]:
 				_part(_sph, 0xf09a9a, Vector3(sx * 0.18, -0.09, 0.23), Vector3(0.06, 0.04, 0.02), head)
 		"crossbow":  # 사슬 목가리개
@@ -541,11 +558,7 @@ func _build_helm() -> void:
 			_part(_sph, GameData.C.gold, Vector3(-0.17, 0.3, -0.1), Vector3(0.06, 0.06, 0.04), helm)  # 깃털 꽂은 금 브로치
 			_part(_sph, T.gem, Vector3(-0.17, 0.3, -0.06), Vector3(0.035, 0.035, 0.025), helm)
 		"cleric":  # 주교 모자
-			var mt := CylinderMesh.new()
-			mt.top_radius = 0.12
-			mt.bottom_radius = 0.24
-			mt.height = 0.46
-			_part(mt, 0xf4efe2, Vector3(0, 0.43, 0), Vector3.ONE, helm)
+			_part(_mitre, 0xf4efe2, Vector3(0, 0.43, 0), Vector3.ONE, helm)
 			_part(_cyl, GameData.C.gold, Vector3(0, 0.22, 0), Vector3(0.245, 0.05, 0.245), helm)
 			var ms := _part(_box, GameData.C.gold, Vector3(0, 0.43, 0.19), Vector3(0.045, 0.44, 0.02), helm)
 			ms.rotation.x = -0.25
