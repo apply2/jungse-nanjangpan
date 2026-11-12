@@ -5,6 +5,7 @@ extends RefCounted
 ## 한 번 만든 메시는 캐시해서 같이 쓴다.
 
 static var _cache := {}
+static var _arr_cache := {}  # 메시 → 면별 정점 배열 (merge가 같은 도형을 그래픽 카드에서 다시 읽어 오지 않게)
 
 
 ## 반지름 1 정십이면체 — HTML DodecahedronGeometry(1,0). 면마다 법선이 따로라 각진 돌멩이처럼 보인다.
@@ -238,7 +239,9 @@ static func box() -> BoxMesh:
 
 ## 최적화(10단계): 여러 조각을 정점 색이 든 메시 하나로 합친다 → 그리기 호출 한 번.
 ## items = [[Mesh, Color(sRGB), Transform3D], …]. 짝이 되는 재질은 vertex_color_mat().
-static func merge(items: Array) -> ArrayMesh:
+## keep_src = true면 조각 메시의 정점 배열을 기억해 둔다 — 계속 같이 쓰는 도형(캐릭터 몸 조각)에만 쓸 것.
+## surface_get_arrays는 그래픽 카드에서 버퍼를 읽어 와서 느리다 (캐릭터 하나에 100번 → 부활할 때마다 버벅임).
+static func merge(items: Array, keep_src := false) -> ArrayMesh:
 	var verts := PackedVector3Array()
 	var norms := PackedVector3Array()
 	var cols := PackedColorArray()
@@ -248,8 +251,13 @@ static func merge(items: Array) -> ArrayMesh:
 		var col: Color = it[1]
 		var xf: Transform3D = it[2]
 		var nxf := Transform3D(xf.basis.inverse().transposed(), Vector3.ZERO)  # 늘인 조각의 법선
-		for si in m.get_surface_count():
-			var arr := m.surface_get_arrays(si)
+		var src: Array = _arr_cache.get(m, [])
+		if src.is_empty():
+			for si in m.get_surface_count():
+				src.append(m.surface_get_arrays(si))
+			if keep_src:
+				_arr_cache[m] = src
+		for arr: Array in src:
 			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 			var base := verts.size()
 			verts.append_array(xf * v)
