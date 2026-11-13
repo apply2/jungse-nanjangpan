@@ -119,8 +119,9 @@ var xb_last := 1.0       # 석궁 장전 모션 진행도 (지난 프레임) —
 var xb_wind: int = GameData.WEAPONS.crossbow.notches  # 감은 칸 수 (WEAPONS.crossbow.notches면 장전 완료). 친구대전으로 보냄
 var xb_show := 1.0       # 장전 모션 진행도 0~1 (xb_wind/notches를 show_rate로 따라감)
 var xb_heard: int = GameData.WEAPONS.crossbow.notches  # 끼릭 소리를 낸 칸 수 (친구 것도 칸이 늘면 소리)
-var wind_req := 0        # 이번에 굴린 휠 (최대 1칸 남겨 둠 — 한 번에 휙 돌린 건 버림)
-var wind_gap := 0.0      # 다음 칸을 받을 때까지
+var wind_req := 0        # 이번 프레임에 받은 휠 칸 수 (Combat이 가져감)
+var wind_t := 0.0        # '감는 중' 남은 시간 (마지막 칸 뒤 reload_window초) — 이동 속도 ×reload_speed
+var _wind_ms := -100000  # 마지막으로 받은 휠 칸 시각 (실제 ms) — notch_gap 안에 온 휠은 버림
 # 반동 스프링 (HTML rec/recV = 3인칭 몸, vRec/vRecV = 1인칭 화면·손 — 내 캐릭터만 씀)
 var rec := 0.0
 var rec_v := 0.0
@@ -214,7 +215,7 @@ func spawn_at(p: Vector3) -> void:
 	xb_show = 1.0
 	xb_last = 1.0
 	wind_req = 0
-	wind_gap = 0.0
+	wind_t = 0.0
 	rec = 0.0
 	rec_v = 0.0
 	v_rec = 0.0
@@ -338,7 +339,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("cancel_draw"):
 		cancel_req = true
 	elif event.is_action_pressed("wind") and wep == "crossbow" and alive:  # 석궁일 때만 휠 = 장전
-		wind_req = 1
+		var now := Time.get_ticks_msec()  # 실제 시간으로 간격을 잼 (프레임과 상관없이)
+		if now - _wind_ms >= int(float(GameData.WEAPONS.crossbow.notch_gap) * 1000.0):
+			_wind_ms = now
+			wind_req += 1
 	elif event.is_action_pressed("toggle_view"):
 		GameData.third_person = not GameData.third_person
 		GameData.save_settings()
@@ -373,8 +377,8 @@ func _physics_process(dt: float) -> void:
 		swap_req = true
 	if inp.get("cancel", false):
 		cancel_req = true
-	if inp.get("wind", false):  # 봇·테스트의 휠 한 칸
-		wind_req = 1
+	if inp.get("wind", false):  # 봇·테스트의 휠 한 칸 (봇은 bot_ai가 속도를 정함)
+		wind_req += 1
 	aim_held = inp.get("aim", false)
 	var wish: Vector3
 	if inp.has("wish"):  # 봇 (HTML botUpdate: 달리기는 봇이 정함)
@@ -399,7 +403,7 @@ func max_speed() -> float:
 		var spr := GameData.SPRINT if sprinting else 1.0
 		var wm: float = GameData.WEAPONS[wep].get("speed_mul", 1.0)  # 저격총 0.9, AK 0.95
 		sp = GameData.BASE_SPEED * GameData.CLASSES[cls].speed * wm * spr
-		if wep == "crossbow" and xb_wind < int(GameData.WEAPONS.crossbow.notches):  # 석궁 재장전 중 (사용자 요청)
+		if wep == "crossbow" and wind_t > 0 and xb_wind < int(GameData.WEAPONS.crossbow.notches):  # 석궁 휠로 감는 중 (사용자 요청)
 			sp *= float(GameData.WEAPONS.crossbow.reload_speed)
 	if slow_t > 0:
 		sp *= GameData.WEAPONS.holy.slow

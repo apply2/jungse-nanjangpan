@@ -111,7 +111,7 @@ func _run() -> void:
 		check("중력 2 (거의 직선), 피해 75", pr.grav == 2.0 and pr.dmg == 75.0, "grav=%.0f dmg=%.0f" % [pr.grav, pr.dmg])
 	check("쏘면 0칸부터 (휠 장전 25칸)", p.xb_wind == 0 and X.notches == 25, "wind=%d" % p.xb_wind)
 	var walk: float = G.BASE_SPEED * float(G.CLASSES.crossbow.speed)
-	check("재장전 중엔 이동 속도 ×0.9", near(p.max_speed(), walk * 0.9, 0.01), "max=%.2f" % p.max_speed())
+	check("쏘기만 하고 안 감으면 안 느려짐", near(p.max_speed(), walk, 0.01), "max=%.2f" % p.max_speed())
 	var NX := int(X.notches)
 	check("쏘면 큰 반동 (몸 10, 화면 11 — 한 프레임 감쇠 뒤)", p.rec_v > 7.0 and p.v_rec_v > 7.0, "rec_v=%.2f v_rec_v=%.2f" % [p.rec_v, p.v_rec_v])
 
@@ -126,25 +126,36 @@ func _run() -> void:
 	await spin(6)
 	check("휠 6칸 → 6/25", p.xb_wind == 6, "wind=%d" % p.xb_wind)
 	check("칸마다 끼릭 소리", S.played.count("xbow_click") == 6, str(S.played))
+	check("감는 중(마지막 칸 뒤 0.3초 안)엔 이동 속도 ×0.75", near(p.max_speed(), walk * float(X.reload_speed), 0.01) and X.reload_speed == 0.75,
+		"max=%.2f" % p.max_speed())
+	await wait(int(float(X.reload_window) * 60) + 2)
+	check("휠을 멈추고 0.3초 지나면 감속 풀림 (6칸은 그대로)", near(p.max_speed(), walk, 0.01) and p.xb_wind == 6, "max=%.2f" % p.max_speed())
 	await wait(120)
 	await hold(20)
 	check("멈춰도 6칸 그대로, 아직 못 쏨", p.xb_wind == 6 and new_shots.is_empty(), "wind=%d" % p.xb_wind)
-	# 한 번에 휙 돌리면 (매 프레임 휠) 칸 사이 간격만큼만 감김
-	var burst: Dictionary = IDLE.duplicate()
-	burst["wind"] = true
-	p.scripted_input = burst
-	await wait(5)
-	p.scripted_input = IDLE
-	await wait(10)
-	check("한 번에 휙 돌려도 2칸까지만 (1칸 + 남겨 둔 1칸)", p.xb_wind == 8, "wind=%d" % p.xb_wind)
+	# 프리스핀·터치패드: notch_gap(0.04초, 실제 시간) 안에 들어온 휠은 버림
+	for i in 5:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_WHEEL_DOWN if i % 2 else MOUSE_BUTTON_WHEEL_UP
+		ev.pressed = true
+		p._unhandled_input(ev)
+	await wait(2)
+	check("0.04초 안에 휠 5번 → 한 칸만 (위·아래 다 인정)", p.xb_wind == 7, "wind=%d" % p.xb_wind)
+	OS.delay_msec(int(float(X.notch_gap) * 1000.0) + 10)
+	var ev2 := InputEventMouseButton.new()
+	ev2.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	ev2.pressed = true
+	p._unhandled_input(ev2)
+	await wait(2)
+	check("간격이 지나면 다시 한 칸", p.xb_wind == 8, "wind=%d" % p.xb_wind)
 	await spin(NX - 8)
 	check("남은 칸 다 감으면 장전 완료 (걸쇠·볼트 소리)", p.xb_wind == NX and S.played.has("xbow_latch") and S.played.has("seat"), str(S.played))
 	await spin(2)
 	check("다 감았으면 휠 무시", p.xb_wind == NX, "wind=%d" % p.xb_wind)
-	check("장전되면 이동 속도 원래대로", near(p.max_speed(), walk, 0.01), "max=%.2f" % p.max_speed())
+	check("다 감으면 바로 감속 풀림", near(p.max_speed(), walk, 0.01) and p.wind_t == 0.0, "max=%.2f" % p.max_speed())
 	await hold(2)
 	check("장전되면 쏨", new_shots.size() == 1 and p.xb_wind == 0, "n=%d" % new_shots.size())
-	# 누르고 감으면 다 감는 대로 쏨 (가장 빨라도 25칸 × notch_gap)
+	# 누르고 감으면 다 감는 대로 쏨
 	var fw: Dictionary = FIRE.duplicate()
 	fw["wind"] = true
 	await wait(20)
@@ -152,7 +163,7 @@ func _run() -> void:
 	var prev: Array = C.projectiles.duplicate()
 	var shot_at := -1
 	p.scripted_input = fw
-	for i in int(NX * X.notch_gap * 60) + 40:
+	for i in NX + 10:
 		await physics_frame
 		for pr in C.projectiles:
 			if not prev.has(pr):
@@ -161,7 +172,7 @@ func _run() -> void:
 					shot_at = i
 		prev = C.projectiles.duplicate()
 	p.scripted_input = IDLE
-	check("누르고 휠을 계속 굴리면 다 감는 대로 한 발", new_shots.size() == 1 and shot_at >= int((NX - 1) * X.notch_gap * 60), "n=%d at=%d" % [new_shots.size(), shot_at])
+	check("누르고 휠을 계속 굴리면 다 감는 대로 한 발", new_shots.size() == 1 and shot_at >= NX - 1, "n=%d at=%d" % [new_shots.size(), shot_at])
 	await wait(30)
 
 	# ── 몸에 맞으면 75, 볼트가 꽂힘, 크게 밀림, 봇은 0.5초 경직 ──

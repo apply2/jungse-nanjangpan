@@ -668,18 +668,21 @@ func _bow_update(e: PlayerController, held: bool, dt: float) -> void:
 		e.reset_charge()
 
 
-## 석궁 휠 장전 (사용자 요청): 휠 한 칸(wind_req) = 한 칸 감기. notch_gap보다 빨리 온 칸은 한 칸만 남겨 두고 버린다.
-## 다 감았으면 휠 무시, 쏜 직후(cd)도 안 먹음
+## 석궁 휠 장전 (사용자 요청): 휠 한 칸(wind_req) = 한 칸 감기. notch_gap 안에 온 휠은 player.gd가 이미 버렸다.
+## 다 감았으면 휠 무시, 쏜 직후(cd)도 안 먹음. 칸을 감으면 reload_window초 동안 '감는 중'(이동 ×reload_speed), 다 감으면 바로 풀림
 func _xbow_wind(e: PlayerController, dt: float) -> void:
 	var X: Dictionary = GameData.WEAPONS.crossbow
-	e.wind_gap = maxf(0.0, e.wind_gap - dt)
-	if e.xb_wind >= int(X.notches) or e.cd > 0:
+	var n := int(X.notches)
+	e.wind_t = maxf(0.0, e.wind_t - dt)
+	if e.xb_wind >= n or e.cd > 0:
 		e.wind_req = 0
+		if e.xb_wind >= n:
+			e.wind_t = 0.0
 		return
-	if e.wind_req > 0 and e.wind_gap <= 0:
+	if e.wind_req > 0:
+		e.xb_wind = mini(n, e.xb_wind + e.wind_req)
 		e.wind_req = 0
-		e.xb_wind += 1
-		e.wind_gap = float(X.notch_gap)
+		e.wind_t = 0.0 if e.xb_wind >= n else float(X.reload_window)
 
 
 ## 석궁 장전 모션·소리 (나·봇·친구 다): 칸이 늘면 끼릭, 모션 진행도 xb_show가 감은 만큼 따라가고
