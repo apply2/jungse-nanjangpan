@@ -237,7 +237,7 @@ func _run() -> void:
 		await wait(9)
 	await wait(30)
 	var cnt := func(n: String) -> int: return S.played.count(n)
-	check("석궁 3인칭 휠 장전 소리: 끼릭 10 · latch 1 · seat 1", S.played.has("xbow") and cnt.call("xbow_click") == 10 and cnt.call("xbow_latch") == 1 and cnt.call("seat") == 1, str(S.played))
+	check("석궁 3인칭 휠 장전 소리: 칸마다 끼릭 · latch 1 · seat 1", S.played.has("xbow") and cnt.call("xbow_click") == int(G.WEAPONS.crossbow.notches) and cnt.call("xbow_latch") == 1 and cnt.call("seat") == 1, str(S.played))
 	G.third_person = tp0
 	# 봇 석궁 장전도 들림
 	put(dm, HERE + Vector3(6, 0, 0), "crossbow")
@@ -253,7 +253,7 @@ func _run() -> void:
 		dm.scripted_input = IDLE
 		await wait(9)
 	await wait(30)
-	check("봇 석궁 장전 소리도 남", cnt.call("xbow_click") == 10 and cnt.call("xbow_latch") == 1, str(S.played))
+	check("봇 석궁 장전 소리도 남", cnt.call("xbow_click") == int(G.WEAPONS.crossbow.notches) and cnt.call("xbow_latch") == 1, str(S.played))
 	# 성수: 던지면 holy_throw, 깨지면 glass
 	put(p, HERE, "cleric", 0.0)
 	p.pitch = -0.5

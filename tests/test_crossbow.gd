@@ -1,5 +1,5 @@
 extends SceneTree
-## 석궁 자동 테스트 — HTML fire('crossbow') / damage와 같은 결과인지 + 휠 장전(사용자 요청: 휠 10칸을 굴려야 다시 쏨) 확인.
+## 석궁 자동 테스트 — HTML fire('crossbow') / damage와 같은 결과인지 + 휠 장전(사용자 요청: 휠 25칸을 굴려야 다시 쏨) 확인.
 ## 실행: godot --headless --fixed-fps 60 --path . -s tests/test_crossbow.gd
 ## 통과하면 "ALL PASS"와 종료 코드 0, 실패하면 FAIL 줄과 종료 코드 1.
 
@@ -109,7 +109,8 @@ func _run() -> void:
 		var pr: Dictionary = new_shots[0]
 		check("속도 100", near((pr.vel as Vector3).length(), 100.0, 0.5), "v=%.1f" % (pr.vel as Vector3).length())
 		check("중력 2 (거의 직선), 피해 75", pr.grav == 2.0 and pr.dmg == 75.0, "grav=%.0f dmg=%.0f" % [pr.grav, pr.dmg])
-	check("쏘면 0칸부터 (휠 장전)", p.xb_wind == 0 and X.notches == 10, "wind=%d" % p.xb_wind)
+	check("쏘면 0칸부터 (휠 장전 25칸)", p.xb_wind == 0 and X.notches == 25, "wind=%d" % p.xb_wind)
+	var NX := int(X.notches)
 	check("쏘면 큰 반동 (몸 10, 화면 11 — 한 프레임 감쇠 뒤)", p.rec_v > 7.0 and p.v_rec_v > 7.0, "rec_v=%.2f v_rec_v=%.2f" % [p.rec_v, p.v_rec_v])
 
 	# ── 자동 장전 없음: 5초 기다려도 못 쏨 ──
@@ -121,7 +122,7 @@ func _run() -> void:
 	var S: Node = root.get_node("Sfx")
 	S.played.clear()
 	await spin(6)
-	check("휠 6칸 → 6/10", p.xb_wind == 6, "wind=%d" % p.xb_wind)
+	check("휠 6칸 → 6/25", p.xb_wind == 6, "wind=%d" % p.xb_wind)
 	check("칸마다 끼릭 소리", S.played.count("xbow_click") == 6, str(S.played))
 	await wait(120)
 	await hold(20)
@@ -134,13 +135,13 @@ func _run() -> void:
 	p.scripted_input = IDLE
 	await wait(10)
 	check("한 번에 휙 돌려도 2칸까지만 (1칸 + 남겨 둔 1칸)", p.xb_wind == 8, "wind=%d" % p.xb_wind)
+	await spin(NX - 8)
+	check("남은 칸 다 감으면 장전 완료 (걸쇠·볼트 소리)", p.xb_wind == NX and S.played.has("xbow_latch") and S.played.has("seat"), str(S.played))
 	await spin(2)
-	check("남은 3칸 감으면 장전 완료 (걸쇠·볼트 소리)", p.xb_wind == 10 and S.played.has("xbow_latch") and S.played.has("seat"), str(S.played))
-	await spin(2)
-	check("다 감았으면 휠 무시", p.xb_wind == 10, "wind=%d" % p.xb_wind)
+	check("다 감았으면 휠 무시", p.xb_wind == NX, "wind=%d" % p.xb_wind)
 	await hold(2)
 	check("장전되면 쏨", new_shots.size() == 1 and p.xb_wind == 0, "n=%d" % new_shots.size())
-	# 누르고 감으면 다 감는 대로 쏨 (가장 빨라도 10칸 × notch_gap)
+	# 누르고 감으면 다 감는 대로 쏨 (가장 빨라도 25칸 × notch_gap)
 	var fw: Dictionary = FIRE.duplicate()
 	fw["wind"] = true
 	await wait(20)
@@ -148,7 +149,7 @@ func _run() -> void:
 	var prev: Array = C.projectiles.duplicate()
 	var shot_at := -1
 	p.scripted_input = fw
-	for i in 150:
+	for i in int(NX * X.notch_gap * 60) + 40:
 		await physics_frame
 		for pr in C.projectiles:
 			if not prev.has(pr):
@@ -157,7 +158,7 @@ func _run() -> void:
 					shot_at = i
 		prev = C.projectiles.duplicate()
 	p.scripted_input = IDLE
-	check("누르고 휠을 계속 굴리면 다 감는 대로 한 발", new_shots.size() == 1 and shot_at >= int(9 * X.notch_gap * 60), "n=%d at=%d" % [new_shots.size(), shot_at])
+	check("누르고 휠을 계속 굴리면 다 감는 대로 한 발", new_shots.size() == 1 and shot_at >= int((NX - 1) * X.notch_gap * 60), "n=%d at=%d" % [new_shots.size(), shot_at])
 	await wait(30)
 
 	# ── 몸에 맞으면 75, 볼트가 꽂힘, 크게 밀림, 봇은 0.5초 경직 ──

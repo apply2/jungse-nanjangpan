@@ -154,10 +154,11 @@ const WEAPONS := {
 		"sway_start": 1.0, "sway_k": 0.05, "sway_max": 0.11, "slip_t": 3.0, "slip_yaw": 0.6, "slip_pitch": [-0.35, 0.55]},
 	# 사용자 요청 휠 장전 (예전: 쏜 뒤 4초 자동 장전): 쏜 뒤 마우스 휠을 notches칸 굴려야 다시 쏜다.
 	#   휠 위·아래 다 됨, 중간에 멈춰도 진행도 유지, 장전돼 있으면 휠 무시, 부활하면 장전된 채 (예전에도 부활하면 바로 쏠 수 있었음)
-	#   notch_gap: 한 칸으로 치는 최소 간격 — 휠을 한 번에 휙 돌려 한꺼번에 감지 못하게. 가장 빨라도 10칸 = 1.5초
+	#   notches: 사용자 요청으로 10→25칸
+	#   notch_gap: 한 칸으로 치는 최소 간격 — 휠을 한 번에 휙 돌려 한꺼번에 감지 못하게. 가장 빨라도 25칸 = 3.75초
 	#   show_rate: 장전 모션이 진행도를 따라가는 속도 (초당) / cd: 쏜 직후 휠도 안 먹는 시간
 	#   grav 6→2 (사용자 요청: 거의 직선, 85m에서 0.7m 떨어짐)
-	"crossbow": {"name": "석궁", "dmg": 75, "notches": 10, "notch_gap": 0.15, "show_rate": 3.0, "cd": 0.25,
+	"crossbow": {"name": "석궁", "dmg": 75, "notches": 25, "notch_gap": 0.15, "show_rate": 3.0, "cd": 0.25,
 		"speed": 100, "grav": 2, "kb": 11, "up": 5, "radius": 0.05},
 	"sniper": {"name": "대물 저격총", "ammo": 5, "kb": 0, "speed_mul": 0.9},
 	"ak": {"name": "AK-47", "dmg": 23, "min_dmg": 18, "fall0": 30, "fall1": 80, "range": 120, "rate": 0.12, "mag": 25,
@@ -241,7 +242,7 @@ const TRUMPET_SND := {"base_hz": 523.25, "melody": [0, 4, 7, 4, 0, 7, 12], "note
 # ── 봇 난이도 ────────────────────────────────────────────────
 const DIFF := {
 	"easy": {"name": "쉬움", "react": [1.0, 1.5], "err": 1.5, "sniper_err": 0.09, "head": 0.0, "lead": [0.0, 0.4], "fire": 0.5, "turn": 2.4,
-		"xbow_wind": 3.5,  # 봇 석궁 휠 감기 (초당 칸 수 — 10칸에 2.9초 / 2.2초 / 1.8초)
+		"xbow_wind": 3.5,  # 봇 석궁 휠 감기 (초당 칸 수 — 25칸에 7.1초 / 5.6초 / 4.5초)
 		"color": 0x6cc35a, "skulls": "●○○", "desc": "봇이 늦게 반응하고 자주 빗나가요. 넘어지는 데 적응하기 좋아요."},
 	"normal": {"name": "보통", "react": [0.7, 1.1], "err": 1.0, "sniper_err": 0.06, "head": 0.03, "lead": [0.1, 0.6], "fire": 0.65, "turn": 3.2,
 		"xbow_wind": 4.5,
