@@ -399,6 +399,8 @@ func max_speed() -> float:
 		var spr := GameData.SPRINT if sprinting else 1.0
 		var wm: float = GameData.WEAPONS[wep].get("speed_mul", 1.0)  # 저격총 0.9, AK 0.95
 		sp = GameData.BASE_SPEED * GameData.CLASSES[cls].speed * wm * spr
+		if wep == "crossbow" and xb_wind < int(GameData.WEAPONS.crossbow.notches):  # 석궁 재장전 중 (사용자 요청)
+			sp *= float(GameData.WEAPONS.crossbow.reload_speed)
 	if slow_t > 0:
 		sp *= GameData.WEAPONS.holy.slow
 	if has_chicken:

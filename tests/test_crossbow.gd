@@ -110,6 +110,8 @@ func _run() -> void:
 		check("속도 100", near((pr.vel as Vector3).length(), 100.0, 0.5), "v=%.1f" % (pr.vel as Vector3).length())
 		check("중력 2 (거의 직선), 피해 75", pr.grav == 2.0 and pr.dmg == 75.0, "grav=%.0f dmg=%.0f" % [pr.grav, pr.dmg])
 	check("쏘면 0칸부터 (휠 장전 25칸)", p.xb_wind == 0 and X.notches == 25, "wind=%d" % p.xb_wind)
+	var walk: float = G.BASE_SPEED * float(G.CLASSES.crossbow.speed)
+	check("재장전 중엔 이동 속도 ×0.9", near(p.max_speed(), walk * 0.9, 0.01), "max=%.2f" % p.max_speed())
 	var NX := int(X.notches)
 	check("쏘면 큰 반동 (몸 10, 화면 11 — 한 프레임 감쇠 뒤)", p.rec_v > 7.0 and p.v_rec_v > 7.0, "rec_v=%.2f v_rec_v=%.2f" % [p.rec_v, p.v_rec_v])
 
@@ -139,6 +141,7 @@ func _run() -> void:
 	check("남은 칸 다 감으면 장전 완료 (걸쇠·볼트 소리)", p.xb_wind == NX and S.played.has("xbow_latch") and S.played.has("seat"), str(S.played))
 	await spin(2)
 	check("다 감았으면 휠 무시", p.xb_wind == NX, "wind=%d" % p.xb_wind)
+	check("장전되면 이동 속도 원래대로", near(p.max_speed(), walk, 0.01), "max=%.2f" % p.max_speed())
 	await hold(2)
 	check("장전되면 쏨", new_shots.size() == 1 and p.xb_wind == 0, "n=%d" % new_shots.size())
 	# 누르고 감으면 다 감는 대로 쏨 (가장 빨라도 25칸 × notch_gap)

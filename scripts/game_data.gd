@@ -158,7 +158,8 @@ const WEAPONS := {
 	#   notch_gap: 한 칸으로 치는 최소 간격 — 휠을 한 번에 휙 돌려 한꺼번에 감지 못하게. 가장 빨라도 25칸 = 3.75초
 	#   show_rate: 장전 모션이 진행도를 따라가는 속도 (초당) / cd: 쏜 직후 휠도 안 먹는 시간
 	#   grav 6→2 (사용자 요청: 거의 직선, 85m에서 0.7m 떨어짐)
-	"crossbow": {"name": "석궁", "dmg": 75, "notches": 25, "notch_gap": 0.15, "show_rate": 3.0, "cd": 0.25,
+	#   reload_speed: 다 안 감긴 석궁을 들고 있으면 이동 속도 배율 (사용자 요청 — 10% 느려짐)
+	"crossbow": {"name": "석궁", "dmg": 75, "reload_speed": 0.9, "notches": 25, "notch_gap": 0.15, "show_rate": 3.0, "cd": 0.25,
 		"speed": 100, "grav": 2, "kb": 11, "up": 5, "radius": 0.05},
 	"sniper": {"name": "대물 저격총", "ammo": 5, "kb": 0, "speed_mul": 0.9},
 	"ak": {"name": "AK-47", "dmg": 23, "min_dmg": 18, "fall0": 30, "fall1": 80, "range": 120, "rate": 0.12, "mag": 25,
