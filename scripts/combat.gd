@@ -64,6 +64,15 @@ func _ready() -> void:
 	add_child(aim_mk)
 
 
+## 시작할 때 셰이더를 미리 데울 재질들 — 경기 중에 처음 나오는 효과용 (Main이 ShaderWarm에 넘긴다)
+func warm_mats() -> Array:
+	var a: Array = [WeaponModels.glass_mat()]
+	a.append_array(fx.keep_mats)
+	a.append_array(bard_fx.keep_mats)
+	a.append_array(star_fx.keep_mats)
+	return a
+
+
 func register(e: PlayerController) -> void:
 	if not ents.has(e):
 		ents.append(e)

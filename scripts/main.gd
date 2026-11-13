@@ -7,6 +7,7 @@ extends Node3D
 ## 친구대전 쟁탈전은 빈자리를 방장 컴퓨터의 봇으로 채운다 (mp_pick_bots). 봇 id는 음수 (bot_by_id).
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
+const ShaderWarm := preload("res://scripts/fx/shader_warm.gd")
 
 @onready var world: WorldBuilder = $World
 @onready var combat: Combat = $Combat
@@ -23,6 +24,7 @@ var state := "menu"
 var sun: DirectionalLight3D
 var _lobby_t := 0.0
 var _was_locked := false  # 웹: 지난 프레임에 마우스가 잠겨 있었나
+var _warmed_ctrl := false  # 쟁탈전 맵 셰이더를 미리 데웠나
 var time_left: float = GameData.MATCH_TIME
 
 
@@ -71,6 +73,7 @@ func _ready() -> void:
 	_spawn_bots()
 	_setup_net()
 	go_menu("main")
+	ShaderWarm.run(self, [world, combat, player], combat.warm_mats())  # 메뉴가 뜨는 동안 셰이더를 미리 컴파일
 
 
 ## 친구대전 (LAN) 연결 — HTML mpConnect / leaveMP / handlePeers
@@ -330,6 +333,9 @@ func _use_world(w: WorldBuilder) -> void:
 	if not w.is_inside_tree():
 		add_child(w)
 		move_child(w, 0)
+		if w != world_ffa and not _warmed_ctrl:  # 쟁탈전 맵을 처음 쓸 때: 거점 표시·문 막 같은 이 맵만의 재질
+			_warmed_ctrl = true
+			ShaderWarm.run(self, [w])
 	world = w
 	combat.world = w
 

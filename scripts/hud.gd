@@ -72,6 +72,9 @@ var _board: PanelContainer
 var _board_host: VBoxContainer
 var _board_tick := 0.0
 var _clock := 0.0
+var _timer_low := -1   # 시계 글자색 (0 양피지 / 1 빨강) — 바뀔 때만 테마를 건드린다
+var _w_red := -1       # 무기 이름 글자색 (0 잉크 / 1 빨강)
+var _warm := 3         # 처음 보이는 몇 프레임: 붉은 테두리·피격 방향을 투명하게 한 번 그려 셰이더를 미리 컴파일 (처음 맞을 때 화면이 멈추지 않게)
 
 ## 마을 게시판 색 — GameData.UI와 같은 값 (const라 여기 한 번 더 적음, test_ui_kit가 같은지 확인)
 const PARCH := Color("#f4e4bc")   # UI.parch
@@ -604,7 +607,11 @@ func _process(dt: float) -> void:
 	_hurt = maxf(0.0, _hurt - dt * float(HU.decay))
 	var vig := minf(float(HU.max), _hurt + (float(HU.low_add) if e.alive and e.hp < float(HU.low_hp) else 0.0))
 	_vig_mat.set_shader_parameter("alpha", vig)
-	_vignette.visible = vig > 0.001
+	_vignette.visible = vig > 0.001 or _warm > 0
+	if _warm > 0:
+		_warm -= 1
+		_dirs.warm = _warm > 0
+		_dirs.queue_redraw()
 	_dirs.tick(dt)
 	_dance.tick(dt, e.alive and e.dance_t > 0)
 	var starred := e.alive and e.star_t > 0
@@ -621,7 +628,10 @@ func _process(dt: float) -> void:
 	# 시간·1위
 	var tl := maxi(0, ceili(time_left))
 	_timer.text = "%d:%02d" % [tl / 60, tl % 60]
-	_timer.add_theme_color_override("font_color", BLOOD if tl <= GameData.TIMER_LOW else PARCH)
+	var low := int(tl <= GameData.TIMER_LOW)
+	if low != _timer_low:
+		_timer_low = low
+		_timer.add_theme_color_override("font_color", BLOOD if low == 1 else PARCH)
 	var rows := combat.score_rows() if combat else ([] as Array[PlayerController])
 	if rows.size() > 0:
 		var top: PlayerController = rows[0]
@@ -725,7 +735,10 @@ func _update_anims(dt: float) -> void:
 func _update_weapon() -> void:
 	var e := player
 	_w_name.text = GameData.WEAPONS[e.wep].name
-	_w_name.add_theme_color_override("font_color", Color(str(GameData.MODES.control.teams.red.ink)) if e.wep == "sniper" or e.wep == "ak" else INK)
+	var red := int(e.wep == "sniper" or e.wep == "ak")
+	if red != _w_red:
+		_w_red = red
+		_w_name.add_theme_color_override("font_color", Color(str(GameData.MODES.control.teams.red.ink)) if red == 1 else INK)
 	if e.wep != _w_icon_kind:
 		_w_icon_kind = e.wep
 		_w_icon.texture = UiKit.weapon_tex(e.wep, float(GameData.HUD_UI.weapon.icon))
@@ -859,6 +872,7 @@ void fragment() {
 ## 피격 방향 — 조준점에서 185px 위에 붉은 호 (위가 두꺼운 반달). 1초 동안 60%까지 진하다가 사라짐. 최대 4개
 class DmgDir extends Control:
 	var items: Array = []  # [{ang, t}]
+	var warm := false      # true면 투명한 호를 하나 그린다 (셰이더 미리 컴파일용 — Hud._process)
 
 	func add(ang: float) -> void:
 		items.append({"ang": ang, "t": 0.0})
@@ -889,6 +903,9 @@ class DmgDir extends Control:
 			for g in 3:  # 번지는 빛 (drop-shadow 6px)
 				_arc(rx + 3 + g * 2, ry + 3 + g * 2, th + 4 + g * 2, cy, Color(blood, a * 0.12))
 			_arc(rx, ry, th, cy, Color(blood, a))
+		if warm:
+			draw_set_transform(size / 2)
+			_arc(rx, ry, th, cy, Color(blood, 0.0))
 		draw_set_transform(Vector2.ZERO)
 
 	## 위쪽 반 타원 테두리 — 꼭대기에서 두께 th, 양 끝으로 갈수록 얇아짐 (CSS border-top + 둥근 모서리)

@@ -17,6 +17,8 @@ var _parts: Array[Dictionary] = []   # {p, v, life, max, size, col, rot, spin, u
 var _st := {}                        # 캐릭터 → {model, geos, mat, spark, trail}
 var _lights: Array[OmniLight3D] = []
 var _clock := 0.0
+## 몸 번쩍임 재질 하나를 늘 붙들어 둔다 — 무적이 끝날 때마다 셰이더가 지워져 다음에 다시 컴파일되지 않게, 시작할 때 미리 데우게 (ShaderWarm)
+var keep_mats: Array[Material] = [_overlay_mat()]
 
 static var _star_mesh: ArrayMesh
 
@@ -63,6 +65,15 @@ static func spark_mat() -> StandardMaterial3D:
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	m.billboard_keep_scale = true
+	m.disable_fog = true
+	return m
+
+
+## 몸에 덮어씌우는 번쩍임 재질 (캐릭터마다 하나)
+static func _overlay_mat() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED  # 빛 상관없이 밝게 = 발광
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.disable_fog = true
 	return m
 
@@ -127,11 +138,7 @@ func _update_ent(e: PlayerController, dt: float) -> void:
 	var F: Dictionary = GameData.STAR_FX
 	var s: Dictionary = _st.get(e, {})
 	if s.is_empty():
-		var m := StandardMaterial3D.new()
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED  # 빛 상관없이 밝게 = 발광
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.disable_fog = true
-		s = {"model": null, "geos": [], "mat": m, "spark": 0.0, "trail": 0.0}
+		s = {"model": null, "geos": [], "mat": _overlay_mat(), "spark": 0.0, "trail": 0.0}
 		_st[e] = s
 	if s.model != e.model:  # 병과가 바뀌어 몸을 새로 만들었으면 조각 목록도 다시
 		_unflash(e)
