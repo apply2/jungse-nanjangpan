@@ -395,6 +395,9 @@ func _start_control() -> void:
 		e.deaths = 0
 		e.cap_time = 0.0
 		e.alive = false
+	if mode:
+		mode.queue_free()
+		mode = null
 	mode = ControlMode.new()
 	mode.name = "ControlMode"
 	add_child(mode)
