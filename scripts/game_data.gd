@@ -119,7 +119,7 @@ const CLASSES := {
 	"barbarian": {"name": "야만인", "weapon": "stone", "speed": 1.372, "hp": 90,
 		"color": 0xf28a1e, "leg": 0xf2c7a0, "arm": 0xf2c7a0, "foot": 0xe9b48e, "pips": [5, 1, 1, 5],
 		"desc": "가장 빠르다. 바짝 붙어서 돌멩이를 퍼붓는 돌격형."},
-	"archer": {"name": "궁수", "weapon": "bow", "speed": 1.0, "hp": 100,
+	"archer": {"name": "궁수", "weapon": "bow", "speed": 1.0556, "hp": 100,  # 걷기 5.7 m/s (사용자 요청으로 5.4→5.7 버프)
 		"color": 0xb8322a, "leg": 0x8b939c, "arm": 0x7d858f, "foot": 0x5b6068, "pips": [3, 3, 3, 3],
 		"desc": "당길수록 세지는 활로 중거리를 견제한다."},
 	"crossbow": {"name": "석궁병", "weapon": "crossbow", "speed": 0.85, "hp": 110,
@@ -442,9 +442,9 @@ const ITEM := {
 	"chicken_grab_r": 1.2, "chicken_flee_r": 4.5, "chicken_walk": 1.2, "chicken_run": 5.0,
 	"chicken_no_pick": 1.2, # 던진 닭은 이만큼 지나야 다시 잡힘
 	"chicken_speed": 1.05,  # 들고 있으면 이동 속도 배율
-	# 황금 붕어빵 (사용자 요청 — HTML에 없음): 먹으면 dur초 무적. 맵에 하나만, 누가 무적이면 안 나옴
+	# 황금 붕어빵 (사용자 요청 — HTML에 없음): 먹으면 dur초 무적 (사용자 요청으로 5→8초). 맵에 하나만, 누가 무적이면 안 나옴
 	"golden_fish": {
-		"dur": 5.0, "spawn_min": 15.0, "spawn_max": 25.0, "chance": 0.4, "life": 40.0,
+		"dur": 8.0, "spawn_min": 15.0, "spawn_max": 25.0, "chance": 0.4, "life": 40.0,
 		"first": [15.0, 25.0],  # 경기 시작 뒤 첫 판정
 		"apart": 12.0,          # 다른 특수 아이템과 이만큼 떨어진 SNIPER_SPOTS에
 		"pick_r": 1.6,          # 닿으면 바로 먹음
@@ -479,7 +479,7 @@ const MAIN_MENU := {
 		"활을 끝까지 당긴 채\n3초 버티면 손이 미끄러진다.",
 		"석궁은 머리에 맞히면\n한 방.",
 		"남이 던진 성수 웅덩이에선\n느려진다.",
-		"황금 붕어빵을 먹으면\n5초 무적.",
+		"황금 붕어빵을 먹으면\n8초 무적.",
 		"Tab을 누르면 점수판.",
 	],
 	"shade_w": 573.0, "shade_a": 0.42,      # 왼쪽 어둡게 (시안 860px, 잉크 .42 → 0)
@@ -646,6 +646,13 @@ const MUSIC := {
 const VOL_DEFAULT := {"master": 0.8, "music": 0.7, "sfx": 0.8}  # 설정 화면 기본값
 const VOL_BUS := {"master": "Master", "music": "Music", "sfx": "SFX"}  # default_bus_layout.tres
 const SFX_VOL := 1.0          # 효과음 전체 크기 (HTML은 따로 없음 = 1)
+# 효과음 (사용자가 만든 파일, audio/sfx/)
+const PITCH_JITTER := 0.04                      # 파일 소리 음높이 흔들기 ±
+const SFX_NO_JITTER := ["fanfare", "horn"]
+const SFX_GAIN := {"thud": 0.6}                 # 소리별 크기 배율 (기본 1.0) — 크기 조절은 여기서
+const SFX_PITCH := {"thud": 1.15}               # 소리별 음높이 배율
+const XBOW_RELOAD_SND := {"pull0": 0.18, "pull": 0.44, "latch": 0.63, "seat": 0.86}  # 석궁 장전 진행도에서 소리 나는 순간
+const GALLOP := {"min_speed": 2.0, "pitch_min": 0.85, "pitch_max": 1.2, "speed_ref": HORSE_SPEED}  # 말 속도 → 다그닥 음높이
 const HITSTOP_SCALE := 0.12   # 히트스톱 동안 시간이 이만큼 느리게 흐름
 # 내가 맞혔을 때 히트스톱 길이(초) — 처치 0.1, 닭 0.04, 헤드샷 0.055(AK 0.025), 무거운 무기 0.045, 그 외 0.02(AK 0)
 const HITSTOP := {"kill": 0.1, "chicken": 0.04, "head": 0.055, "head_ak": 0.025, "heavy": 0.045, "normal": 0.02, "ak": 0.0}

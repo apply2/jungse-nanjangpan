@@ -1,55 +1,63 @@
 extends Node
-## 효과음 — HTML의 WebAudio 합성(tone·noise)을 그대로 PCM으로 구워서 튼다 (오토로드 Sfx).
-## 소리 파일 없이 발진기(사인·사각·톱니·삼각)와 필터 건 잡음으로 만든다.
-## 처음엔 한 프레임에 하나씩 미리 구워두고, 아직 안 구운 걸 부르면 그 자리에서 굽는다.
-## 위치가 있는 소리는 경기 중일 때만 나고 거리에 따라 작아진다 (HTML vol(): 1/(1+거리/9)).
-## 헤드리스(자동 테스트)에선 아무것도 안 한다.
+## 효과음 (오토로드 Sfx). 소리는 두 가지:
+##   FILES   — 사용자가 만든 소리 파일 (audio/sfx/, 앞뒤 무음 자르고 크기 맞춤). 여러 개면 무작위(같은 걸 연달아 안 고름),
+##             칠 때마다 음높이를 ±GameData.PITCH_JITTER 흔든다 (SFX_NO_JITTER는 안 흔듦, SFX_PITCH가 있으면 곱함).
+##   RECIPES — HTML의 WebAudio 합성(tone·noise)을 PCM으로 구운 소리. FILES에 없는 이름만.
+## 처음엔 한 프레임에 하나씩 미리 굽고·불러 두고, 아직 안 된 걸 부르면 그 자리에서 굽거나 load()한다.
+## 크기 = vol_at(위치) × GameData.SFX_GAIN[이름] × SFX_VOL. 위치가 있는 소리는 경기 중일 때만 나고 거리에 따라 작아진다 (HTML vol(): 1/(1+거리/9)).
+## play()는 번호를 돌려주고 stop(번호)로 끌 수 있다 (활 당기기). 플레이어 32개 중 쉬는 것부터, 다 바쁘면 가장 오래된 것.
+## 반복 소리(말 다그닥): loop(owner, 이름, 위치, 음높이)를 매 물리 프레임 부른다. 안 부르면 저절로 꺼진다.
+## 헤드리스(자동 테스트)에선 소리를 안 내고 played에 이름만 쌓는다.
 
 const RATE := 22050
+const DIR := "res://audio/sfx/"
 
-## 소리 이름 → 층 목록. 층마다 시작 지연(초, HTML setTimeout)이 있다.
+## 소리 이름 → 파일 목록 (여러 개면 무작위)
+const FILES := {
+	"throw": [DIR + "stone_whoosh.ogg"],
+	"bow": [DIR + "stone_whoosh.ogg"],  # 사용자 요청: 화살 날아가는 소리 = 돌 날아가는 소리
+	"bow_draw": [DIR + "bow_draw.ogg"],
+	"thunk": [DIR + "arrow_thunk.ogg"],
+	"xbow": [DIR + "xbow.ogg"],
+	"xbow_crank": [DIR + "xbow_crank.ogg"],
+	"xbow_latch": [DIR + "xbow_latch.ogg"],
+	"holy_throw": [DIR + "holy_throw.ogg"],
+	"glass": [DIR + "glass_0.ogg", DIR + "glass_1.ogg"],
+	"ak": [DIR + "ak.ogg"],
+	"sniper": [DIR + "sniper.ogg"],
+	"thud_heavy": [DIR + "body_hit.ogg"],
+	"thud": [DIR + "body_hit.ogg"],  # 작게·높게 (SFX_GAIN·SFX_PITCH)
+	"clang": [DIR + "clang.ogg"],
+	"squeak": [DIR + "squeak.ogg"],
+	"fanfare": [DIR + "fanfare.ogg"],
+	"gasp": [DIR + "gasp.ogg"],
+	"cluck": [DIR + "cluck.ogg"],
+	"horn": [DIR + "horn.ogg"],
+	"nyam": [DIR + "nyam.ogg"],
+	"neigh": [DIR + "neigh.ogg"],
+	"gallop": [DIR + "gallop_loop.ogg"],  # 반복 (loop)
+}
+
+## 합성 소리: 이름 → 층 목록. 층마다 시작 지연(초, HTML setTimeout)이 있다.
 ##   ["t", 주파수, 길이, 파형, 크기, 주파수변화, 지연]  — HTML tone(f,dur,type,vol,slide)
 ##   ["n", 길이, 크기, 필터주파수, 필터종류, 지연]       — HTML noise(dur,vol,freq,type)
 const RECIPES := {
-	"throw": [["n", 0.12, 0.18, 1400, "bandpass", 0.0]],
-	"bow": [["t", 260, 0.14, "triangle", 0.2, -140, 0.0], ["n", 0.07, 0.12, 3200, "highpass", 0.0], ["t", 110, 0.22, "triangle", 0.15, -40, 0.0]],
-	"xbow": [["t", 150, 0.1, "square", 0.12, -70, 0.0], ["n", 0.14, 0.25, 1900, "lowpass", 0.0], ["t", 68, 0.2, "sine", 0.38, -28, 0.0], ["n", 0.05, 0.22, 900, "bandpass", 0.0]],
-	"sniper": [["n", 0.7, 0.8, 800, "lowpass", 0.0], ["t", 55, 0.5, "sine", 0.6, -25, 0.0]],
-	"ak": [["n", 0.08, 0.4, 2600, "lowpass", 0.0], ["t", 130, 0.06, "square", 0.1, -70, 0.0], ["n", 0.16, 0.16, 520, "lowpass", 0.0]],
-	"thunk": [["n", 0.09, 0.2, 650, "lowpass", 0.0]],
 	"trip": [["t", 520, 0.32, "triangle", 0.22, -380, 0.0], ["n", 0.12, 0.3, 600, "lowpass", 0.0]],
-	"glass": [["n", 0.25, 0.35, 4200, "highpass", 0.0], ["t", 1800, 0.12, "triangle", 0.12, 600, 0.0], ["t", 2600, 0.1, "sine", 0.08, -400, 0.0]],
 	"sizzle": [["n", 0.14, 0.1, 2800, "highpass", 0.0]],
-	"thud": [["n", 0.11, 0.32, 850, "lowpass", 0.0], ["t", 165, 0.11, "sine", 0.25, -70, 0.0]],
-	"thud_heavy": [["n", 0.2, 0.5, 520, "lowpass", 0.0], ["t", 105, 0.2, "sine", 0.4, -70, 0.0]],
 	"hit": [["t", 900, 0.06, "square", 0.07, 0, 0.0]],
 	"head": [["t", 1300, 0.08, "square", 0.08, 0, 0.0], ["t", 650, 0.08, "triangle", 0.08, 0, 0.0]],
 	"kill": [["t", 660, 0.08, "square", 0.09, 0, 0.0], ["t", 990, 0.14, "square", 0.09, 0, 0.07]],
 	"hurt": [["t", 170, 0.16, "sawtooth", 0.12, -70, 0.0]],
 	"pickup": [["t", 520, 0.1, "triangle", 0.16, 0, 0.0], ["t", 780, 0.16, "triangle", 0.16, 0, 0.09]],
-	"nyam": [["n", 0.05, 0.28, 1700, "bandpass", 0.0], ["t", 320, 0.07, "square", 0.08, -140, 0.0], ["n", 0.05, 0.22, 1300, "bandpass", 0.1], ["t", 270, 0.09, "square", 0.07, -110, 0.1]],  # 황금 붕어빵 냠!
 	"chime": [["t", 1568, 0.3, "sine", 0.12, 0, 0.0], ["t", 2093, 0.3, "sine", 0.1, 0, 0.07], ["t", 2637, 0.5, "sine", 0.09, 0, 0.14]],  # 반짝 차임
 	"bell": [["t", 784, 0.9, "sine", 0.18, 0, 0.0], ["t", 1046, 1.1, "sine", 0.14, 0, 0.16]],
 	"slide": [["n", 0.32, 0.09, 900, "bandpass", 0.0]],
-	"reload": [["n", 0.06, 0.14, 2600, "bandpass", 0.0], ["t", 1200, 0.05, "square", 0.05, -500, 0.0]],
-	"ratchet": [["n", 0.035, 0.1, 3400, "bandpass", 0.0], ["t", 760, 0.03, "square", 0.035, -200, 0.0]],
-	"strain": [["t", 150, 0.22, "sawtooth", 0.05, 40, 0.0], ["n", 0.2, 0.05, 500, "lowpass", 0.0]],
-	"seat": [["n", 0.07, 0.16, 1300, "bandpass", 0.0]],
-	"clang": [["t", 1450, 0.25, "square", 0.08, -300, 0.0], ["t", 2150, 0.3, "triangle", 0.08, -500, 0.0], ["n", 0.08, 0.2, 3000, "highpass", 0.0]],
-	"cluck": [["t", 720, 0.07, "square", 0.06, 220, 0.0], ["t", 540, 0.1, "square", 0.05, -160, 0.085]],
+	"reload": [["n", 0.06, 0.14, 2600, "bandpass", 0.0], ["t", 1200, 0.05, "square", 0.05, -500, 0.0]],  # 성수 한 병 참
+	"seat": [["n", 0.07, 0.16, 1300, "bandpass", 0.0]],  # 석궁 볼트 끼우기
 	"slip": [["t", 300, 0.25, "sawtooth", 0.08, -180, 0.0]],
-	"neigh": [["t", 620, 0.18, "sawtooth", 0.1, 300, 0.0], ["t", 900, 0.35, "sawtooth", 0.09, -450, 0.15], ["t", 500, 0.2, "sawtooth", 0.06, -200, 0.48]],
-	"hoof": [["n", 0.05, 0.22, 420, "lowpass", 0.0], ["n", 0.04, 0.16, 520, "lowpass", 0.07]],
 	"jump": [["n", 0.05, 0.03, 500, "lowpass", 0.0]],
-	# 음유시인 (4.5단계). 연주 멜로디는 TrumpetVoice가 실시간으로 만든다
-	"squeak": [["t", 1500, 0.08, "sawtooth", 0.12, 1100, 0.0], ["t", 2700, 0.14, "square", 0.07, -1500, 0.07]],  # 삑사리: 높게 삑 하고 꺾임
-	"fanfare": [["t", 523, 0.11, "sawtooth", 0.16, 0, 0.0], ["t", 659, 0.11, "sawtooth", 0.16, 0, 0.11],
-		["t", 784, 0.34, "sawtooth", 0.2, 0, 0.22], ["n", 0.12, 0.08, 1800, "bandpass", 0.0]],  # 빠바밤: 3음 상승
-	"gasp": [["n", 0.32, 0.12, 1200, "bandpass", 0.0], ["n", 0.28, 0.08, 900, "bandpass", 0.42]],  # 헐떡임
 	# 병과 선택 '합격' 도장 쾅 (나무 책상에 찍는 둔탁한 소리 + 종이 탁)
 	"stamp": [["n", 0.07, 0.42, 620, "lowpass", 0.0], ["t", 120, 0.13, "sine", 0.4, -60, 0.0], ["n", 0.03, 0.16, 2600, "bandpass", 0.01]],
-	# 쟁탈전 알림 뿔나팔 (거점 열림·점령·연장전·라운드 끝)
-	"horn": [["t", 220, 0.5, "sawtooth", 0.14, 0, 0.0], ["t", 330, 0.5, "sawtooth", 0.1, 0, 0.0], ["t", 294, 0.7, "sawtooth", 0.14, 0, 0.42], ["t", 440, 0.7, "sawtooth", 0.1, 0, 0.42]],
 }
 
 var enabled := true          # 헤드리스면 꺼짐
@@ -62,17 +70,18 @@ signal stinger_done(sound: String)  # 결과 화면 효과음이 끝까지 나�
 var last_stinger := ""      # 마지막 결과 효과음 이름 (헤드리스에서도 남음)
 var _stinger: AudioStreamPlayer = null
 
-var _cache := {}
-var _pending: Array = []
+var _cache := {}            # 합성 이름 또는 파일 경로 → AudioStream
+var _pending: Array = []    # 미리 굽거나 불러 둘 것
 var _pool: Array[AudioStreamPlayer] = []
-var _next := 0
+var _sid := 0               # play()가 돌려주는 번호
+var _last_pick := {}        # 이름 → 지난번에 고른 파일 번호
+var _loops := {}            # owner 인스턴스 id → {p, sound, frame}
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	enabled = DisplayServer.get_name() != "headless"
 	if not enabled:
-		set_process(false)
 		return
 	for i in 32:
 		var p := AudioStreamPlayer.new()
@@ -80,13 +89,20 @@ func _ready() -> void:
 		add_child(p)
 		_pool.append(p)
 	_pending = RECIPES.keys()
+	for paths: Array in FILES.values():
+		for path: String in paths:
+			if not _pending.has(path):
+				_pending.append(path)
 
 
-func _process(_dt: float) -> void:  # 한 프레임에 하나씩 미리 굽기
-	if _pending.is_empty():
-		set_process(false)
-		return
-	_stream(_pending.pop_back())
+func _process(_dt: float) -> void:
+	if not _pending.is_empty():  # 한 프레임에 하나씩 미리 굽기·불러오기
+		var k: String = _pending.pop_back()
+		if k.begins_with("res://"):
+			_file(k)
+		else:
+			_stream(k)
+	_update_loops()
 
 
 ## pos에서 난 소리가 들리는 크기 (경기 중이 아니면 0) — HTML vol(): 1/(1+거리/9)
@@ -130,22 +146,151 @@ func stop_stinger() -> void:
 
 
 ## 소리 내기. pos가 있으면 거리에 따라 작아지고, 경기 중이 아니면 안 난다.
-func play(sound: String, pos: Variant = null) -> void:
+## 돌려주는 값 = 이 소리 번호 (stop()에 씀, 안 났으면 0)
+func play(sound: String, pos: Variant = null) -> int:
 	var v := 1.0
 	if pos != null:
 		if not playing:
-			return
+			return 0
 		v = vol_at(pos)
 	played.append(sound)
 	if played.size() > 64:
 		played.pop_front()
-	if not enabled or v * GameData.SFX_VOL < 0.01:
-		return
-	var p := _pool[_next]
-	_next = (_next + 1) % _pool.size()
-	p.stream = _stream(sound)
-	p.volume_db = linear_to_db(v * GameData.SFX_VOL)
+	var vol := v * float(GameData.SFX_GAIN.get(sound, 1.0)) * GameData.SFX_VOL
+	if not enabled or vol < 0.01:
+		return 0
+	var p := _free_player()
+	if FILES.has(sound):
+		p.stream = _file(_pick(sound))
+		p.pitch_scale = _pitch(sound)
+	else:
+		p.stream = _stream(sound)
+		p.pitch_scale = 1.0
+	p.volume_db = linear_to_db(vol)
 	p.play()
+	_sid += 1
+	p.set_meta("sid", _sid)
+	return _sid
+
+
+## play()가 돌려준 번호의 소리가 아직 나고 있으면 끈다 (그 플레이어가 다른 소리를 내고 있으면 안 건드림)
+func stop(sid: int) -> void:
+	if sid <= 0:
+		return
+	for p in _pool:
+		if int(p.get_meta("sid", 0)) == sid:
+			if p.playing:
+				p.stop()
+			p.set_meta("sid", 0)
+			return
+
+
+## 반복 소리 (말 다그닥). 매 물리 프레임 부른다 — 처음이면 owner 전용 플레이어를 만들어 틀고, 있으면 크기·음높이만 갱신.
+## 이번 프레임에 안 불린 반복 소리는 다음 _process에서 저절로 꺼진다.
+func loop(owner: Object, sound: String, pos: Vector3, pitch: float = 1.0) -> void:
+	if not playing:
+		return
+	var key := owner.get_instance_id()
+	var L: Dictionary = _loops.get(key, {})
+	if L.is_empty() or L.sound != sound:
+		if not L.is_empty():
+			loop_stop(owner)
+		played.append(sound)  # 시작할 때 한 번만
+		if played.size() > 64:
+			played.pop_front()
+		L = {"p": null, "sound": sound}
+		if enabled:
+			var p := AudioStreamPlayer.new()
+			p.bus = "SFX"
+			var s: AudioStream = _file(_pick(sound))
+			if "loop" in s:
+				s.set("loop", true)
+			p.stream = s
+			add_child(p)
+			L.p = p
+		_loops[key] = L
+	L.frame = Engine.get_physics_frames()
+	var p: AudioStreamPlayer = L.p
+	if p:
+		var vol := vol_at(pos) * float(GameData.SFX_GAIN.get(sound, 1.0)) * GameData.SFX_VOL
+		p.volume_db = linear_to_db(maxf(vol, 0.0001))
+		p.pitch_scale = maxf(0.01, pitch * float(GameData.SFX_PITCH.get(sound, 1.0)))
+		if not p.playing:
+			p.play()
+
+
+## owner의 반복 소리를 끄고 지운다
+func loop_stop(owner: Object) -> void:
+	var key := owner.get_instance_id()
+	if not _loops.has(key):
+		return
+	var p: AudioStreamPlayer = _loops[key].p
+	if p:
+		p.stop()
+		p.queue_free()
+	_loops.erase(key)
+
+
+## 반복 소리 정리: 경기 중이 아니면 다 끄고, 일시정지면 멈췄다 이어서, 이번 물리 프레임에 안 불린 건 끈다
+func _update_loops() -> void:
+	if _loops.is_empty():
+		return
+	var now := Engine.get_physics_frames()
+	var paused := get_tree().paused
+	for key: int in _loops.keys():
+		var L: Dictionary = _loops[key]
+		var p: AudioStreamPlayer = L.p
+		if not playing or (not paused and now - int(L.frame) > 2):
+			if p:
+				p.stop()
+				p.queue_free()
+			_loops.erase(key)
+			continue
+		if paused:
+			L.frame = now  # 일시정지 동안엔 안 불려도 그대로 둠
+		if p:
+			p.stream_paused = paused
+
+
+## 쉬는 플레이어부터, 다 바쁘면 가장 오래된 것
+func _free_player() -> AudioStreamPlayer:
+	var best: AudioStreamPlayer = _pool[0]
+	var best_sid := 1 << 62
+	for p in _pool:
+		if not p.playing:
+			return p
+		var s := int(p.get_meta("sid", 0))
+		if s < best_sid:
+			best_sid = s
+			best = p
+	return best
+
+
+## 파일 고르기 — 여러 개면 무작위, 지난번과 같은 건 연달아 안 고름
+func _pick(sound: String) -> String:
+	var list: Array = FILES[sound]
+	if list.size() == 1:
+		return list[0]
+	var last: int = _last_pick.get(sound, -1)
+	var i := randi() % list.size()
+	if i == last:
+		i = (i + 1 + randi() % (list.size() - 1)) % list.size()
+	_last_pick[sound] = i
+	return list[i]
+
+
+## 파일 소리 음높이: SFX_PITCH × (1 ± PITCH_JITTER). 음악(SFX_NO_JITTER)은 안 흔듦
+func _pitch(sound: String) -> float:
+	var k := float(GameData.SFX_PITCH.get(sound, 1.0))
+	if not GameData.SFX_NO_JITTER.has(sound):
+		k *= 1.0 + randf_range(-GameData.PITCH_JITTER, GameData.PITCH_JITTER)
+	return k
+
+
+func _file(path: String) -> AudioStream:
+	if not _cache.has(path):
+		_cache[path] = load(path)
+	return _cache[path]
 
 
 func _stream(sound: String) -> AudioStreamWAV:

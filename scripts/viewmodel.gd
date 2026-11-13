@@ -15,7 +15,7 @@ var _star_on := false
 var _vm := {}        # 무기 키 → 노드
 var _stone_rock: Node3D
 var _bow := {}       # s1, s2, arrow, hand, tz, ty
-var _xb := {}        # xs1, xs2, bolt, ptz, ptx, ph, last
+var _xb := {}        # xs1, xs2, bolt, ptz, ptx, ph
 var _holy_fl: Node3D # 손에 든 성수병
 var _ak_fl: MeshInstance3D  # AK 총구 불꽃
 var _ak_ads := 0.0          # AK 정조준 정도 0~1
@@ -133,7 +133,7 @@ func _build() -> void:
 	hw.add_child(flh)
 	WeaponModels.make_holy(flh)
 	_holy_fl = flh
-	_xb = {"xs1": xs1, "xs2": xs2, "bolt": bolt, "ptz": -0.16 - 0.26 * cos(0.95), "ptx": 0.26 * sin(0.95), "ph": ph, "last": 1.0}
+	_xb = {"xs1": xs1, "xs2": xs2, "bolt": bolt, "ptz": -0.16 - 0.26 * cos(0.95), "ptx": 0.26 * sin(0.95), "ph": ph}
 	# 트럼펫 (4.5단계): 입에 댄 금관이 앞으로 뻗고, 나팔 끝이 오른쪽 아래에 보인다
 	var tw := _group("trumpet", TR_POS)
 	tw.rotation = Vector3(-0.05, -0.1, 0)
@@ -398,17 +398,4 @@ func _update_crossbow(e: PlayerController) -> void:
 		ph.position = bolt.position + Vector3(0, -0.01, 0.46)
 	else:
 		ph.visible = false
-	# 소리: 끙차(세 번) · 톱니 딸깍(9번) · 걸쇠 철컥(0.63) · 볼트 착(0.86). 지난 프레임과 이번 사이에 지나간 순간에 낸다
-	var L: float = u.last
-	var cross := func(th: float) -> bool: return L < th and pr >= th
-	for k in 3:
-		if cross.call(0.18 + 0.44 * k / 3.0 + 0.005):
-			Sfx.play("strain")
-	for k in range(1, 10):
-		if cross.call(0.18 + 0.44 * k / 9.0):
-			Sfx.play("ratchet")
-	if cross.call(0.63):
-		Sfx.play("reload")
-	if cross.call(0.86):
-		Sfx.play("seat")
-	u.last = pr
+	# 장전 소리는 Combat._xbow_reload_sfx (3인칭·봇도 들리게)

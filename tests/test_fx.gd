@@ -78,10 +78,17 @@ func _run() -> void:
 	C.items.ak_timer = 9999.0
 	C.items.horse_timer = 9999.0
 
-	# ── 효과음 합성 ──
-	var w = S.render(S.RECIPES.sniper)
-	var n_exp := int((0.7 + 0.02) * S.RATE) + 1
-	check("저격총 소리 길이 0.72초", absi(w.data.size() / 2 - n_exp) <= 1, "samples=%d" % (w.data.size() / 2))
+	# ── 효과음: 파일·합성 ──
+	var missing := []
+	for key in S.FILES:
+		for path in S.FILES[key]:
+			if not ResourceLoader.exists(path):
+				missing.append(path)
+	check("FILES에 적은 소리 파일이 다 있음", missing.is_empty(), str(missing))
+	var both: Array = S.RECIPES.keys().filter(func(key): return S.FILES.has(key))
+	check("RECIPES와 FILES 이름이 안 겹침", both.is_empty(), str(both))
+	check("안 쓰는 합성 소리는 지움", not (S.RECIPES.has("hoof") or S.RECIPES.has("strain") or S.RECIPES.has("ratchet")), "")
+	var w = S.render(S.RECIPES.trip)
 	var peak := 0
 	for i in range(0, w.data.size(), 2):
 		peak = maxi(peak, absi(w.data.decode_s16(i)))
@@ -186,6 +193,62 @@ func _run() -> void:
 	await wait(2)
 	p.scripted_input = IDLE
 	check("저격총 쏘면 흔들림 0.5 + 소리", p.shake > 0.4 and S.played.has("sniper"), "shake=%.2f" % p.shake)
+
+	# ── 무기 소리가 나는 곳 ──
+	# 활: 누르면 당기는 소리, 놓으면 휙 (돌 던지는 소리와 같은 파일) + 당기는 소리 끔
+	put(p, HERE, "archer", 0.0)
+	await wait(5)
+	S.played.clear()
+	p.scripted_input = FIRE
+	await wait(30)
+	check("활 당기면 bow_draw", S.played.has("bow_draw") and p.charging, str(S.played))
+	p.scripted_input = IDLE
+	await wait(2)
+	check("놓으면 bow + 당기는 소리 끔", S.played.has("bow") and p.snd_bow == 0 and not p.charging, str(S.played))
+	check("활 쏘는 소리 = 돌 던지는 소리 (사용자 요청)", S.FILES.bow == S.FILES.throw, "")
+	# 석궁 3인칭 장전: 끊어 당기기 3번 · 걸쇠 · 볼트
+	var tp0: bool = G.third_person
+	G.third_person = true
+	put(p, HERE, "crossbow", 0.0)
+	await wait(5)
+	S.played.clear()
+	p.scripted_input = FIRE
+	await wait(2)
+	p.scripted_input = IDLE
+	await wait(int(G.WEAPONS.crossbow.cd * 60) + 10)
+	var cnt := func(n: String) -> int: return S.played.count(n)
+	check("석궁 3인칭 장전 소리: crank 3 · latch 1 · seat 1", S.played.has("xbow") and cnt.call("xbow_crank") == 3 and cnt.call("xbow_latch") == 1 and cnt.call("seat") == 1, str(S.played))
+	G.third_person = tp0
+	# 봇 석궁 장전도 들림
+	put(dm, HERE + Vector3(6, 0, 0), "crossbow")
+	await wait(3)
+	S.played.clear()
+	dm.scripted_input = FIRE
+	await wait(2)
+	dm.scripted_input = IDLE
+	await wait(int(G.WEAPONS.crossbow.cd * 60) + 10)
+	check("봇 석궁 장전 소리도 남", cnt.call("xbow_crank") == 3 and cnt.call("xbow_latch") == 1, str(S.played))
+	# 성수: 던지면 holy_throw, 깨지면 glass
+	put(p, HERE, "cleric", 0.0)
+	p.pitch = -0.5
+	await wait(5)
+	S.played.clear()
+	p.scripted_input = FIRE
+	await wait(2)
+	p.scripted_input = IDLE
+	await wait(90)
+	check("성수 던지면 holy_throw, 깨지면 glass", S.played.has("holy_throw") and S.played.has("glass") and not S.played.has("throw"), str(S.played))
+	# 말: 달리면 gallop (반복 소리 한 번만 쌓임), hoof는 없음
+	put(p, HERE, "archer", -PI / 2)
+	await wait(3)
+	S.played.clear()
+	C.items.mount(p)
+	p.scripted_input = {"f": 1.0, "r": 0.0, "jump": false, "crouch": false, "sprint": false}
+	await wait(40)
+	check("말 달리면 gallop (한 번만 쌓임), hoof 없음", S.played.count("gallop") == 1 and not S.played.has("hoof"), str(S.played))
+	p.scripted_input = IDLE
+	C.items.dismount(p)
+	check("내리면 반복 소리 지움", S._loops.is_empty(), "n=%d" % S._loops.size())
 
 	# ── 내가 죽으면 래그돌을 따라가는 카메라 ──
 	put(p, HERE, "archer", 0.0)

@@ -110,6 +110,8 @@ var hold_t := 0.0        # 끝까지 당긴 채 버틴 시간
 var sway_y := 0.0        # 후들거림으로 더한 yaw·pitch (다음 프레임에 빼고 새로 더함)
 var sway_p := 0.0
 var sw_t := 0.0
+var snd_bow := 0         # 활 당기는 소리 번호 (Sfx.play → 놓으면 Sfx.stop)
+var xb_last := 1.0       # 석궁 장전 진행도 (지난 프레임) — 장전 소리 순간을 지났는지 보려고
 # 반동 스프링 (HTML rec/recV = 3인칭 몸, vRec/vRecV = 1인칭 화면·손 — 내 캐릭터만 씀)
 var rec := 0.0
 var rec_v := 0.0
@@ -259,6 +261,8 @@ func die(dir: Vector3) -> void:
 ## 활 당기던 것 풀기 (쏘거나, 넘어지거나, 죽거나, 부활할 때)
 func reset_charge() -> void:
 	charging = false
+	Sfx.stop(snd_bow)
+	snd_bow = 0
 	charge = 0.0
 	hold_t = 0.0
 	sway_y = 0.0

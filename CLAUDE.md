@@ -65,7 +65,7 @@ tests/test_items.gd    닭 잡기·던지기·넘어짐, 저격총 줍기·즉�
 scripts/trumpet.gd     음유시인 트럼펫 (4.5단계, class_name Trumpet). 원뿔 판정(in_cone·reaches), 숨·삑사리·헐떡임(update), 팡파레(try_fanfare), 듣는 쪽 피해·춤(update_victims·_dance_tick)
 scripts/fx/bard_fx.gd  트럼펫 공격 이펙트 (Combat 아래 BardFx 노드, 보기만 함). 날아가는 음표·음파 고리·틱 음표·춤 게이지·춤(조명·색종이)·면역·팡파레·삑사리·숨 참. 음표·색종이는 MultiMesh 풀
 scripts/fx/star_fx.gd  황금 붕어빵 무적 반짝임 (Combat 아래 StarFx 노드, 보기만 함). 몸 금색↔흰색 덮어씌우기·별 반짝이·금가루 꼬리(MultiMesh)·금빛(가까운 2명)
-tests/test_fish.gd     황금 붕어빵: 등장 자리·먹기·5초 무적·막는 것·몸박치기·반짝임·HUD·뷰모델·무적 BGM·봇·친구대전 비트 자동 테스트
+tests/test_fish.gd     황금 붕어빵: 등장 자리·먹기·8초 무적·막는 것·몸박치기·반짝임·HUD·뷰모델·무적 BGM·봇·친구대전 비트 자동 테스트
 tests/test_bard_fx.gd  트럼펫 이펙트: 풀 상한(한 명 24·전체 120)·원뿔 안 퍼짐·벽 튕김·1인칭 비켜 감·고리 주기·게이지 1→3·춤 조명·면역·팡파레·삑사리·숨 참·정리 자동 테스트
 scripts/trumpet_voice.gd  연주 멜로디 (AudioStreamGenerator, 톱니파+비브라토+로우패스). 음유시인 모델마다 하나
 tests/test_bard.gd     원뿔 안/밖·벽 차단·피해 주기·누적 0.75초 춤·1.5초 창·3초 면역·넘어짐 우선·숨 소진·삑사리·팡파레·봇 오차·베레모·볼·숨 막대 자동 테스트
@@ -76,9 +76,10 @@ scripts/ui/result_stage.gd 결과 화면 왼쪽 3D 무대 (직교 카메라 — 
 scripts/ui/menu_crowd.gd  메인 메뉴 오른쪽 병과 무리 (SubViewport·투명 배경·자기 World3D에 DerpModel 4개, 가짜 플레이어 Pose로 animate). 메인이 안 보이면 렌더·애니메이션 끔
 scripts/ui/settings_panel.gd + scenes/ui/settings_panel.tscn  설정 본문 (감도·시점·볼륨 3개·조작키). 메인 메뉴 설정·일시정지 설정이 같이 씀
 default_bus_layout.tres  오디오 버스 Master ─ Music · SFX
-audio/                 BGM ogg 두 개 (루프 음원)
+audio/                 BGM ogg (루프 음원) + 결과 화면 효과음
+audio/sfx/             사용자가 만든 효과음 21개 (앞뒤 무음 자르고 크기 맞춤 — 다시 가공하지 말 것, 크기는 GameData.SFX_GAIN으로만). 아래 "효과음"
 tests/test_music.gd    병과 → 곡·크로스페이드·같은 그룹 이어서·메뉴 곡·버스·루프·설정 저장/불러오기·볼륨 dB·음소거·설정 패널 자동 테스트
-scripts/sfx.gd         효과음 (오토로드 Sfx, HTML sfx). WebAudio tone·noise 합성을 PCM으로 구워 AudioStreamPlayer 32개로 튼다. 소리 파일 없음
+scripts/sfx.gd         효과음 (오토로드 Sfx). FILES(audio/sfx/ 파일, 무작위·음높이 흔들기) + RECIPES(HTML WebAudio 합성을 PCM으로 구움). 플레이어 32개(쉬는 것부터), play()→번호·stop(번호), 반복 소리 loop()·loop_stop(). 결과 화면 stinger
 scripts/net.gd         친구대전 (Main 아래 Net 노드, HTML MP). ENet 방 만들기·코드로 찾기(UDP 방송)·IP로 들어가기, 상태 30Hz, 사건(f·sn·ak·ln·h·k), 방장 경기 시간·아이템·줍기 허락
 tests/test_net.gd      친구대전: Main 둘을 한 프로세스에 띄워 방·대기실·시작·위치·투사체·저격총·처치 수·줍기 허락·끝·나가기 자동 테스트
 tests/test_net_control.gd 친구대전 쟁탈전: 모드·팀 나누기·팀 바꾸기·빈자리 봇·봇 따라가기·봇↔친구 피해·처치 수·거점 열림·점령·라운드·경기 끝·대기실 복귀·개인전 다시 자동 테스트
@@ -114,7 +115,7 @@ AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 
 - 킬피드·사망 화면·20킬 종료는 `Combat.killed` 신호를 Main이 받아 처리한다. 처치·알림 문구(HTML popMsg/killPop)는 `hud.pop_msg`.
 1번(야만인)으로 좌클릭하면 돌멩이를 던진다 (누르고 있으면 0.4초마다 연사).
 2번(궁수)은 좌클릭을 누르고 있으면 활을 당기고 놓으면 쏜다. 3번(석궁병)은 좌클릭하면 바로 쏘고 4초 장전한다(누르고 있으면 장전 끝나는 대로 다시 쏨). 우클릭은 조준(카메라가 다가오고 확대).
-- 석궁 장전 모션: 1인칭은 세우기 → 시위 세 번 끊어 당기기 → 걸쇠 → 볼트 끼우기 → 조준 자세, 3인칭은 석궁을 내리고 왼팔로 당긴다. 장전 소리(끙차·톱니·걸쇠·볼트)는 뷰모델이 낸다.
+- 석궁 장전 모션: 1인칭은 세우기 → 시위 세 번 끊어 당기기 → 걸쇠 → 볼트 끼우기 → 조준 자세, 3인칭은 석궁을 내리고 왼팔로 당긴다. 장전 소리(시위 3번·걸쇠·볼트)는 Combat이 낸다 (3인칭·봇도 들림).
 - 화살은 사람에 맞으면 머리·몸에 꽂히고, 벽·땅에 맞으면 10초 꽂혀 있다.
 - 반동: 3인칭은 팔·상체가 튕기고(`rec`), 1인칭은 화면·손이 튕긴다(`v_rec`, 조준은 그대로).
 - 오른쪽 아래 무기 칸에 상태 문구, 조준점 둘레에 당기기 고리가 뜬다 (HTML `#weapon`, `#ring`).
@@ -139,7 +140,7 @@ AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 
   - 죽으면 `Combat.kill`이 모델을 래그돌로 바꾸고(`v.ragdoll`) 모델은 지운다. 부활할 때 `set_class`가 새로 만든다. 죽음 카메라는 래그돌 골반을 따라간다.
   - 히트스톱은 `Engine.time_scale = 0.12`로 한다. 남은 시간은 실제 시간으로 줄이고, 경기 시계도 실제 시간대로 간다. 일시정지·메뉴로 가면 바로 푼다.
   - 내가 맞으면 화면 흔들림(`player.shake`), 붉은 테두리(`hud.on_hurt`), 때린 쪽 붉은 호(`hud.dmg_dir`) — Combat의 `hurt`·`dmg_dir` 신호.
-  - 효과음: `Sfx.play(이름, 위치)`. 위치가 있으면 경기 중에만 나고 거리에 따라 작아진다. 헤드리스에선 소리 없이 `Sfx.played`에 이름만 쌓인다 (테스트용).
+  - 효과음: `Sfx.play(이름, 위치)`. 위치가 있으면 경기 중에만 나고 거리에 따라 작아진다. 헤드리스에선 소리 없이 `Sfx.played`에 이름만 쌓인다 (테스트용). 자세한 건 아래 "효과음".
   - 병과 의상은 HTML makeModel 그대로 (`derp_model.gd`의 `_build_outfit`·`_build_robe`·`_build_head_extras`).
 
 **HTML과 다른 점 (의도한 것)**
@@ -209,7 +210,7 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
 | 병과 | 무기 | 속도 배율 | 체력 | 특징 |
 |---|---|---|---|---|
 | 야만인 | 돌멩이 | 1.372 (달리기 10.0 m/s) | 90 (사용자 요청으로 100→90) | 짐승 해골 투구 |
-| 궁수 | 활 | 1.0 | 100 | 빨간 갑옷 |
+| 궁수 | 활 | 1.0556 (걷기 5.7 m/s, 사용자 요청으로 5.4→5.7) | 100 | 빨간 갑옷 |
 | 석궁병 | 석궁 | 0.85 | 110 | 파란 갑옷 |
 | 성직자 | 성수 | 1.0 | 100 | 체력 재생 2배 (초당 20) |
 | 음유시인 (4.5단계) | 트럼펫 | 1.05 | 95 | 적을 춤추게 만드는 방해형. 깃털 베레모 (투구와 같은 규칙으로 날아감) |
@@ -255,8 +256,8 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
   - 잡고 있으면 속도 ×1.05.
 - **황금 붕어빵** (특수, 사용자 요청 — HTML에 없음): 수치는 `GameData.ITEM.golden_fish`·`WEAPONS.star`·`STAR_FX`·`BGM.star`.
   - 등장: 15~25초마다 40% 확률. 맵에 하나만, 누가 무적이면 안 나옴, 40초 뒤 사라짐. SNIPER_SPOTS 중 다른 특수 아이템과 12m 이상 떨어진 곳.
-    금색 빛기둥 + 바닥 고리, 배너 "황금 붕어빵이 나타났다!" / "먹으면 5초 동안 무적". 친구대전은 저격총처럼 방장이 만들고 먹기를 허락 ("gf").
-  - 닿으면 바로 먹고 **5초 무적** (들고 다니지 않음, 또 먹으면 5초로 다시). "냠!" + 차임, "황금 붕어빵! 5초 무적". 봇·친구가 먹으면 배너 + 그 자리에서 작게 차임.
+    금색 빛기둥 + 바닥 고리, 배너 "황금 붕어빵이 나타났다!" / "먹으면 8초 동안 무적". 친구대전은 저격총처럼 방장이 만들고 먹기를 허락 ("gf").
+  - 닿으면 바로 먹고 **8초 무적** (사용자 요청으로 5→8초. 들고 다니지 않음, 또 먹으면 8초로 다시). "냠!" + 차임, "황금 붕어빵! 8초 무적". 봇·친구가 먹으면 배너 + 그 자리에서 작게 차임.
   - 무적이 막는 것: 모든 피해·넉백(`damage()` 맨 앞), 닭·말 몸통에 넘어짐, 성수 둔화, 음유시인 춤. 내가 급회전·착지로 넘어지는 건 그대로.
   - 몸박치기: 무적 중에 적과 몸이 닿으면 피해 20 + 큰 넉백 (`WEAPONS.star`, 같은 적은 0.5초에 한 번). 친구에겐 "st" 사건 → 친구 쪽이 판정.
   - 연출 (`scripts/fx/star_fx.gd`): 몸 전체 금색↔흰색 번쩍(초당 8번, `material_overlay` — 캐릭터마다 따로 만든 재질이라 공유 재질은 안 건드림),
@@ -427,6 +428,40 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
   - `linear_to_db`로 버스에 바로 적용하고, 0%면 그 버스를 음소거 (`GameData.apply_volumes`).
 - **설정 파일**: `user://settings.cfg` (`GameData.settings_path`). `[game]`에 병과·난이도·감도·시점·닉네임, `[audio]`에 master·music·sfx.
   - 테스트는 `settings_path`를 다른 파일로 바꿔서 내 설정을 안 건드린다.
+
+## 효과음 (사용자가 만든 파일 — `audio/sfx/`, `scripts/sfx.gd`)
+
+- `Sfx.FILES`(이름 → 파일 목록)에 있으면 파일, 없으면 `RECIPES` 합성. 둘에 같은 이름이 있으면 안 됨 (`test_fx`가 확인).
+- 파일 소리 연결:
+
+| 소리 이름 | 파일 | 언제 |
+|---|---|---|
+| `throw` | `stone_whoosh.ogg` | 돌멩이 던지기 |
+| `bow` | `stone_whoosh.ogg` | 활 쏘기 — **활 쏘기 소리 = 돌 던지기 소리 (사용자 요청)** |
+| `bow_draw` | `bow_draw.ogg` | 활 당기기 시작 (2.95초, 놓거나 쏘면 `reset_charge`가 `Sfx.stop(snd_bow)`) |
+| `thunk` | `arrow_thunk.ogg` | 화살·볼트·돌이 벽·땅에 맞음 |
+| `xbow` | `xbow.ogg` | 석궁 쏘기 |
+| `xbow_crank` | `xbow_crank.ogg` | 석궁 장전 — 시위 끊어 당기기 (3번, 톱니 소리 포함) |
+| `xbow_latch` | `xbow_latch.ogg` | 석궁 장전 — 걸쇠 |
+| `holy_throw` | `holy_throw.ogg` | 성수 던지기 |
+| `glass` | `glass_0.ogg`, `glass_1.ogg` | 성수병 깨짐 (무작위, 같은 걸 연달아 안 고름) |
+| `ak` · `sniper` | `ak.ogg` · `sniper.ogg` | AK 한 발 · 저격총 |
+| `thud_heavy` · `thud` | `body_hit.ogg` | 세게 맞음 · 맞음 (같은 파일을 작게 0.6·높게 1.15) |
+| `clang` | `clang.ogg` | 투구 날아감 |
+| `squeak` · `fanfare` · `gasp` | 같은 이름 .ogg | 트럼펫 삑사리 · 팡파레 · 헐떡임 |
+| `cluck` · `horn` · `nyam` · `neigh` | 같은 이름 .ogg | 닭 · 쟁탈전 뿔나팔 · 황금 붕어빵 · 말 울음 |
+| `gallop` | `gallop_loop.ogg` | 말 달리는 동안 계속 (반복 소리) |
+
+- 합성 그대로: `trip`·`hit`·`head`·`kill`·`hurt`·`pickup`·`chime`·`bell`·`slide`·`slip`·`jump`·`sizzle`·`reload`(성수 한 병 참)·`seat`(볼트 끼우기)·`stamp`. 결과 화면 `play_stinger`는 따로.
+- **크기·음높이 조절**은 `game_data.gd`만: `SFX_GAIN`(소리별 크기 배율, 기본 1) · `SFX_PITCH`(소리별 음높이 배율). 크기 = `vol_at(위치)` × `SFX_GAIN` × `SFX_VOL`.
+  파일 소리는 칠 때마다 음높이 ±`PITCH_JITTER`(0.04), 음악인 `SFX_NO_JITTER`(fanfare·horn)는 안 흔듦.
+- `play()`는 번호를 돌려줌 (안 났으면 0). `stop(번호)`는 그 소리가 아직 그 플레이어에서 나고 있을 때만 끈다. 플레이어는 쉬는 것부터, 다 바쁘면 가장 오래된 것.
+- **반복 소리** `Sfx.loop(owner, 이름, 위치, 음높이)`: 매 물리 프레임 부른다 (owner마다 전용 플레이어, 크기·음높이만 갱신). 안 부르면 다음 `_process`에서 저절로 꺼짐,
+  `loop_stop(owner)`로 바로 끔, 일시정지면 멈췄다 이어서, `Sfx.playing`이 false면 전부 끔. 헤드리스는 시작할 때 `played`에 한 번만.
+  말: `Items.gallop_sfx` — 속도 > `GALLOP.min_speed`일 때, 음높이 = 속도/`HORSE_SPEED`로 `pitch_min`~`pitch_max`. 내 말·봇 말·친구 말 모두, `dismount`에서 끔.
+- **석궁 장전 소리**: `Combat._xbow_reload_sfx` (weapon_update에서 석궁이면). 진행도 `WeaponModels.xbow_progress(cd)`가 지난 프레임(`xb_last`)과 이번 사이에 지나간 순간에만:
+  `XBOW_RELOAD_SND` pull0 + pull×k/3 + 0.005 (k=0,1,2) → `xbow_crank`, latch(0.63) → `xbow_latch`, seat(0.86) → `seat`. 3인칭·봇도 들림.
+  친구 석궁은 `remote_fire`가 `cd`를 채우고 Combat이 줄여서 장전 소리·3인칭 장전 모션이 나온다.
 
 ## 멀티플레이 (9단계 — 구현됨, 같은 와이파이만)
 

@@ -116,6 +116,9 @@ func _physics_process(dt: float) -> void:
 			if e.swap_req:
 				toggle_special(e)
 			weapon_update(e, e.fire_held, dt)
+		elif e.alive and e.wep == "crossbow" and e.cd > 0:  # 친구 석궁: 쏜 사건부터 장전 시간을 재서 장전 소리를 냄
+			e.cd = maxf(0.0, e.cd - dt)
+			_xbow_reload_sfx(e)
 		e.swap_req = false
 	Trumpet.update_victims(self, dt)  # 트럼펫 소리를 들은 쪽: 피해·춤 (4.5단계)
 	update_projectiles(dt)
@@ -518,6 +521,8 @@ func _hurt_me(v: PlayerController, a: PlayerController, shake: float) -> void:
 func weapon_update(e: PlayerController, held: bool, dt: float) -> void:
 	e.cd = maxf(0.0, e.cd - dt)
 	e.swap_t = maxf(0.0, e.swap_t - dt)
+	if e.wep == "crossbow":
+		_xbow_reload_sfx(e)
 	if e.bloom > 0:  # AK 퍼짐: 쏘는 중엔 천천히, 떼면 빨리 줄어듦
 		e.bloom = maxf(0.0, e.bloom - dt * (0.04 if e.trig_prev else 0.15))
 	# 성직자는 성수가 3초마다 하나씩 다시 찬다 (다른 무기를 들고 있어도)
@@ -594,6 +599,8 @@ func _bow_update(e: PlayerController, held: bool, dt: float) -> void:
 	var B: Dictionary = GameData.WEAPONS.bow
 	var full: float = B.full
 	if held and e.cd <= 0:
+		if not e.charging:  # 당기기 시작: 끼익 (놓거나 쏘면 reset_charge가 끔)
+			e.snd_bow = Sfx.play("bow_draw", e.global_position)
 		e.charging = true
 		e.charge = minf(full, e.charge + dt)
 		if e.charge >= full:
@@ -622,6 +629,26 @@ func _bow_update(e: PlayerController, held: bool, dt: float) -> void:
 		if e.charge >= float(B.min_charge):
 			fire(e, "bow", e.charge / full)
 		e.reset_charge()
+
+
+## 석궁 장전 소리 (3인칭·봇도 들림): 시위 끊어 당기기 3번 · 걸쇠 · 볼트 끼우기.
+## 지난 프레임 진행도(xb_last)와 이번 사이에 지나간 순간에만 낸다 — 순간은 GameData.XBOW_RELOAD_SND
+func _xbow_reload_sfx(e: PlayerController) -> void:
+	var X: Dictionary = GameData.XBOW_RELOAD_SND
+	var pr := WeaponModels.xbow_progress(e.cd)
+	var last := e.xb_last
+	e.xb_last = pr
+	if pr <= last:
+		return
+	var pos := e.global_position
+	for k in 3:
+		var th := float(X.pull0) + float(X.pull) * k / 3.0 + 0.005
+		if last < th and pr >= th:
+			Sfx.play("xbow_crank", pos)
+	if last < float(X.latch) and pr >= float(X.latch):
+		Sfx.play("xbow_latch", pos)
+	if last < float(X.seat) and pr >= float(X.seat):
+		Sfx.play("seat", pos)
 
 
 ## 3인칭: 화면 가운데(카메라 정면)가 가리키는 지점 — HTML tpAim
@@ -739,7 +766,7 @@ func fire(e: PlayerController, kind: String, t := 0.0) -> void:
 			WeaponModels.make_holy(hg)
 			hg.scale = Vector3.ONE * float(GameData.HOLY.size)
 			mesh = hg
-			Sfx.play("throw", e.global_position)
+			Sfx.play("holy_throw", e.global_position)
 		"chicken":  # 닭을 던짐 → 다시 원래 무기
 			speed = W.speed
 			dmg = W.dmg
@@ -1026,7 +1053,7 @@ func kill(v: PlayerController, a: PlayerController, kind: String, head: bool, di
 	v.respawn = mode.respawn_time() if mode else GameData.RESPAWN
 	if v.star_t > 0:
 		end_star(v)
-	v.charging = false
+	v.reset_charge()  # 당기던 활 소리도 끔
 	if a and a != v and not a.is_remote:  # 친구대전에선 죽인 사람(의 컴퓨터)이 처치 사건을 받고 스스로 센다
 		a.kills += 1
 	if mp() and not v.is_remote:
@@ -1091,12 +1118,14 @@ func remote_fire(e: PlayerController, kind: String, pos: Vector3, vel: Vector3, 
 			dmg = W.dmg
 			Sfx.play("xbow", pos)
 			e.rec_v += 10
+			e.cd = W.cd
+			e.xb_last = 0.0
 		"holy":
 			var hg := Node3D.new()
 			WeaponModels.make_holy(hg)
 			hg.scale = Vector3.ONE * float(GameData.HOLY.size)
 			mesh = hg
-			Sfx.play("throw", pos)
+			Sfx.play("holy_throw", pos)
 		_:
 			return
 	e.fire_anim = 1.0

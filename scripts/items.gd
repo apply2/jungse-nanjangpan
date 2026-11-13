@@ -439,7 +439,17 @@ static func held_lance(h: Dictionary) -> void:
 		tip.position.z = end - tip.scale.y * 0.5
 
 
+## 말 다그닥 (반복 소리): 달리는 동안 매 프레임. 느리면 안 불러서 저절로 꺼진다. 음높이는 속도에 따라
+func gallop_sfx(e: PlayerController, sp: float) -> void:
+	var G: Dictionary = GameData.GALLOP
+	if sp <= float(G.min_speed):
+		return
+	var k := clampf(sp / float(G.speed_ref), 0.0, 1.0)
+	Sfx.loop(e, "gallop", e.global_position, lerpf(float(G.pitch_min), float(G.pitch_max), k))
+
+
 func dismount(e: PlayerController) -> void:
+	Sfx.loop_stop(e)
 	if not e.horse.is_empty():
 		runaways.append({"h": e.horse, "dir": Vector3(-sin(e.yaw), 0, -cos(e.yaw)), "life": GameData.ITEM.runaway})
 		e.horse = {}
@@ -525,6 +535,7 @@ func update_horses(dt: float) -> void:
 				g.global_position = e.global_position
 				g.rotation.y = e.yaw + PI
 				WeaponModels.anim_horse(e.horse, Vector2(e.velocity.x, e.velocity.z).length(), dt)
+				gallop_sfx(e, Vector2(e.velocity.x, e.velocity.z).length())
 			elif not e.horse.is_empty():
 				dismount(e)
 			continue
@@ -539,10 +550,7 @@ func update_horses(dt: float) -> void:
 		hg.global_position = e.global_position
 		hg.rotation.y = e.yaw + PI
 		WeaponModels.anim_horse(e.horse, sp, dt)
-		e.horse.hoof_t = float(e.horse.get("hoof_t", 0.0)) - dt * (sp / 4)
-		if sp > 2 and e.horse.hoof_t <= 0:  # 다그닥
-			e.horse.hoof_t = 0.28
-			Sfx.play("hoof", e.global_position)
+		gallop_sfx(e, sp)
 		if e.dance_t <= 0:  # 춤추는 동안엔 창도 안 찌름
 			lance_check(e)
 		if e.mounted <= 0:
