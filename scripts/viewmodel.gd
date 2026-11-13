@@ -357,7 +357,7 @@ func _update_crossbow(e: PlayerController) -> void:
 	var g: Node3D = _vm.crossbow
 	var ptz: float = u.ptz
 	var ptx: float = u.ptx
-	var pr := WeaponModels.xbow_progress(e.cd)
+	var pr := e.xb_show  # 휠로 감은 만큼 (사용자 요청 휠 장전 — Combat._xbow_anim)
 	var seg := func(a: float, b: float) -> float: return clampf((pr - a) / (b - a), 0, 1)
 	var low: float = smooth(seg.call(0.05, 0.17)) * (1.0 - smooth(seg.call(0.86, 0.97)))
 	var tilt: float = 0.6 * smooth(seg.call(0.05, 0.17)) - 0.35 * smooth(seg.call(0.63, 0.7)) - 0.25 * smooth(seg.call(0.86, 0.97))
@@ -365,7 +365,7 @@ func _update_crossbow(e: PlayerController) -> void:
 	var jerk := 1.0 if draw >= 1 else (floorf(draw * 3) + smooth(fmod(draw * 3, 1.0))) / 3.0
 	var ft := (1.0 - e.fire_anim) / 3.0  # 쏜 직후 시위 떨림
 	var xv := sin(ft * 90) * exp(-ft * 14) * 0.04 if e.fire_anim > 0 and pr < 0.1 else 0.0
-	var nz := (-0.04 if e.cd <= 0 else ptz + (-0.04 - ptz) * jerk) + xv
+	var nz := (-0.04 if pr >= 1.0 else ptz + (-0.04 - ptz) * jerk) + xv
 	WeaponModels.stick(u.xs1, Vector3(ptx, 0.03, ptz), Vector3(0, 0.03, nz), 0.004)
 	WeaponModels.stick(u.xs2, Vector3(0, 0.03, nz), Vector3(-ptx, 0.03, ptz), 0.004)
 	g.position = Vector3(0.16 - 0.06 * low, -0.17 - 0.07 * low, -0.4 - 0.03 * low)
@@ -378,7 +378,7 @@ func _update_crossbow(e: PlayerController) -> void:
 	var bA: float = smooth(seg.call(0.68, 0.76))
 	var bB: float = smooth(seg.call(0.76, 0.86))
 	var bolt: Node3D = u.bolt
-	if e.cd <= 0:
+	if pr >= 1.0:
 		bolt.visible = true
 		bolt.position = Vector3(0, 0.055, -0.44)
 		bolt.rotation = Vector3(0, PI, 0)
@@ -390,12 +390,12 @@ func _update_crossbow(e: PlayerController) -> void:
 		bolt.visible = false
 	# 시위 당기는 손 / 볼트 든 손
 	var ph: Node3D = u.ph
-	if pr < 0.64 and draw > 0 and e.cd > 0:
+	if pr < 0.64 and draw > 0 and pr < 1.0:
 		ph.visible = true
 		ph.position = Vector3(0, 0.04, nz + 0.035)
-	elif pr >= 0.68 and pr < 0.88 and e.cd > 0:
+	elif pr >= 0.68 and pr < 0.88:
 		ph.visible = true
 		ph.position = bolt.position + Vector3(0, -0.01, 0.46)
 	else:
 		ph.visible = false
-	# 장전 소리는 Combat._xbow_reload_sfx (3인칭·봇도 들리게)
+	# 장전 소리는 Combat._xbow_anim (휠 한 칸마다 끼릭·걸쇠·볼트, 3인칭·봇·친구도 들리게)

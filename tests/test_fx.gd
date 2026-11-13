@@ -227,9 +227,17 @@ func _run() -> void:
 	p.scripted_input = FIRE
 	await wait(2)
 	p.scripted_input = IDLE
-	await wait(int(G.WEAPONS.crossbow.cd * 60) + 10)
+	var wind_in: Dictionary = IDLE.duplicate()
+	wind_in["wind"] = true
+	await wait(20)  # 쏜 직후(cd)엔 휠이 안 먹음
+	for i in int(G.WEAPONS.crossbow.notches):  # 휠 한 칸씩
+		p.scripted_input = wind_in
+		await wait(1)
+		p.scripted_input = IDLE
+		await wait(9)
+	await wait(30)
 	var cnt := func(n: String) -> int: return S.played.count(n)
-	check("석궁 3인칭 장전 소리: crank 3 · latch 1 · seat 1", S.played.has("xbow") and cnt.call("xbow_crank") == 3 and cnt.call("xbow_latch") == 1 and cnt.call("seat") == 1, str(S.played))
+	check("석궁 3인칭 휠 장전 소리: 끼릭 10 · latch 1 · seat 1", S.played.has("xbow") and cnt.call("xbow_click") == 10 and cnt.call("xbow_latch") == 1 and cnt.call("seat") == 1, str(S.played))
 	G.third_person = tp0
 	# 봇 석궁 장전도 들림
 	put(dm, HERE + Vector3(6, 0, 0), "crossbow")
@@ -238,8 +246,14 @@ func _run() -> void:
 	dm.scripted_input = FIRE
 	await wait(2)
 	dm.scripted_input = IDLE
-	await wait(int(G.WEAPONS.crossbow.cd * 60) + 10)
-	check("봇 석궁 장전 소리도 남", cnt.call("xbow_crank") == 3 and cnt.call("xbow_latch") == 1, str(S.played))
+	await wait(20)
+	for i in int(G.WEAPONS.crossbow.notches):
+		dm.scripted_input = wind_in
+		await wait(1)
+		dm.scripted_input = IDLE
+		await wait(9)
+	await wait(30)
+	check("봇 석궁 장전 소리도 남", cnt.call("xbow_click") == 10 and cnt.call("xbow_latch") == 1, str(S.played))
 	# 성수: 던지면 holy_throw, 깨지면 glass
 	put(p, HERE, "cleric", 0.0)
 	p.pitch = -0.5

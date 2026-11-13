@@ -9,6 +9,7 @@ extends RefCounted
 
 # HTML e.ai 필드
 var think := 0.0
+var wind_acc := 0.0  # 석궁 휠 장전: 쌓여서 1이 되면 한 칸
 var target: PlayerController = null
 var vis := false
 var react := 0.0
@@ -311,7 +312,14 @@ func update(e: PlayerController, combat: Combat, dt: float) -> Dictionary:
 		held = (want_fire and aligned and (e.cd > 0 or e.charge < want_charge)) or (e.charging and e.charge < want_charge and want_fire)
 	else:
 		held = want_fire and aligned
-	return {"wish": move, "jump": jump, "crouch": crouch, "sprint": sprint, "fire": held, "aim": want_fan and aligned}
+	# 석궁 휠 장전: 난이도별로 초당 xbow_wind칸 굴림
+	var wind := false
+	if e.wep == "crossbow" and e.xb_wind < int(GameData.WEAPONS.crossbow.notches) and e.cd <= 0:
+		wind_acc += dt * float(GameData.DIFF[GameData.difficulty].xbow_wind)
+		if wind_acc >= 1.0:
+			wind_acc -= 1.0
+			wind = true
+	return {"wish": move, "jump": jump, "crouch": crouch, "sprint": sprint, "fire": held, "aim": want_fan and aligned, "wind": wind}
 
 
 ## 쟁탈전: 이 적이 자기 팀 스폰룸 문 앞에 있나 (거기선 안 쫓음)

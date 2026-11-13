@@ -654,8 +654,9 @@ func animate(p, dt: float) -> void:
 		arm_l.rotation.x -= p.rec * 0.45
 		upper.rotation.x -= p.rec * 0.12
 	# 석궁 장전: 석궁을 내리고 왼팔로 시위를 끙끙 당긴다 (처음 12%에 내리고 마지막 10%에 다시 듦)
-	if wep == "crossbow" and p.cd > 0:
-		var q := WeaponModels.xbow_progress(p.cd)
+	var xq: Variant = p.get("xb_show")  # 휠 장전 진행도 (메뉴의 가짜 포즈엔 없음 = 장전됨)
+	if wep == "crossbow" and xq != null and float(xq) < 1.0:
+		var q := float(xq)
 		var xr := clampf(minf(q / 0.12, (0.95 - q) / 0.1), 0, 1)
 		arm_r.rotation.x += xr * 0.9
 		arm_l.rotation.x += xr * (0.6 + sin(t * 7) * 0.35)

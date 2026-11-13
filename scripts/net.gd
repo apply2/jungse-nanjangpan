@@ -601,7 +601,7 @@ func _state_of(p: PlayerController) -> Array:
 		| (256 if p.invuln > 0 else 0) | (512 if p.has_ak else 0) | (1024 if p.playing else 0) | (2048 if p.dance_t > 0 else 0) \
 		| (4096 if p.star_t > 0 else 0)
 	return [p.global_position, p.yaw, p.pitch, p.velocity, fl, p.fall_t, p.fall_rx, p.fall_rz, p.fall_yaw, p.mounted,
-		maxf(0.0, ceilf(p.hp)), maxi(0, WEPS.find(p.wep)), p.charge, p.cls, p.kills, p.deaths, "play" if playing else "lobby"]
+		maxf(0.0, ceilf(p.hp)), maxi(0, WEPS.find(p.wep)), p.charge, p.cls, p.kills, p.deaths, "play" if playing else "lobby", p.xb_wind]
 
 
 @rpc("any_peer", "unreliable_ordered")
@@ -724,6 +724,8 @@ func _apply_remote(e: PlayerController, dt: float) -> void:
 	if wi >= 0 and wi < WEPS.size():
 		e.wep = WEPS[wi]
 	e.charge = float(s[12])
+	if s.size() > 17:  # 석궁 감은 칸 수 (모션·끼릭 소리는 Combat._xbow_anim)
+		e.xb_wind = int(s[17])
 
 
 # ── 사건 (HTML mpEvent / handleEvent) ───────────────────────

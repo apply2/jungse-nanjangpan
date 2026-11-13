@@ -108,11 +108,6 @@ static func make_holy(parent: Node3D, mat: Callable = _default_mat) -> Node3D:
 	return g
 
 
-## 석궁 장전 진행도 0(막 쏨)→1(장전 끝) — HTML의 1-e.cd/WEAPONS.crossbow.cd
-static func xbow_progress(cd: float) -> float:
-	return clampf(1.0 - cd / float(GameData.WEAPONS.crossbow.cd), 0, 1) if cd > 0 else 1.0
-
-
 ## +Z가 dir을 향하는 회전 — HTML quaternion.setFromUnitVectors(Z, dir)
 static func face(dir: Vector3) -> Basis:
 	var d := dir.normalized()

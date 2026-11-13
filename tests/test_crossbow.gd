@@ -1,5 +1,5 @@
 extends SceneTree
-## 석궁 자동 테스트 — HTML weaponUpdate('crossbow') / fire('crossbow') / damage와 같은 결과인지 확인.
+## 석궁 자동 테스트 — HTML fire('crossbow') / damage와 같은 결과인지 + 휠 장전(사용자 요청: 휠 10칸을 굴려야 다시 쏨) 확인.
 ## 실행: godot --headless --fixed-fps 60 --path . -s tests/test_crossbow.gd
 ## 통과하면 "ALL PASS"와 종료 코드 0, 실패하면 FAIL 줄과 종료 코드 1.
 
@@ -75,6 +75,17 @@ func hold(n: int, release := true) -> void:
 		p.scripted_input = IDLE
 
 
+## 휠을 k칸 굴린다 (한 칸 굴리고 칸 사이 간격만큼 쉼)
+func spin(k: int, gap_frames := 10) -> void:
+	var w: Dictionary = IDLE.duplicate()
+	w["wind"] = true
+	for i in k:
+		p.scripted_input = w
+		await physics_frame
+		p.scripted_input = IDLE
+		await wait(gap_frames - 1)
+
+
 func _run() -> void:
 	await wait(3)
 	G = root.get_node("GameData")
@@ -98,14 +109,56 @@ func _run() -> void:
 		var pr: Dictionary = new_shots[0]
 		check("속도 100", near((pr.vel as Vector3).length(), 100.0, 0.5), "v=%.1f" % (pr.vel as Vector3).length())
 		check("중력 2 (거의 직선), 피해 75", pr.grav == 2.0 and pr.dmg == 75.0, "grav=%.0f dmg=%.0f" % [pr.grav, pr.dmg])
-	check("장전 4초", near(p.cd, 4.0 - DT, 0.03), "cd=%.3f" % p.cd)
+	check("쏘면 0칸부터 (휠 장전)", p.xb_wind == 0 and X.notches == 10, "wind=%d" % p.xb_wind)
 	check("쏘면 큰 반동 (몸 10, 화면 11 — 한 프레임 감쇠 뒤)", p.rec_v > 7.0 and p.v_rec_v > 7.0, "rec_v=%.2f v_rec_v=%.2f" % [p.rec_v, p.v_rec_v])
 
-	# ── 누르고 있으면 장전 끝나는 대로 다음 발 (4초마다) ──
+	# ── 자동 장전 없음: 5초 기다려도 못 쏨 ──
+	await wait(300)
+	await hold(30)
+	check("자동 장전 없음 (5초 지나도 0칸, 못 쏨)", p.xb_wind == 0 and new_shots.is_empty(), "wind=%d n=%d" % [p.xb_wind, new_shots.size()])
+
+	# ── 휠 한 칸 = 한 칸, 중간에 멈춰도 유지 ──
+	var S: Node = root.get_node("Sfx")
+	S.played.clear()
+	await spin(6)
+	check("휠 6칸 → 6/10", p.xb_wind == 6, "wind=%d" % p.xb_wind)
+	check("칸마다 끼릭 소리", S.played.count("xbow_click") == 6, str(S.played))
+	await wait(120)
+	await hold(20)
+	check("멈춰도 6칸 그대로, 아직 못 쏨", p.xb_wind == 6 and new_shots.is_empty(), "wind=%d" % p.xb_wind)
+	# 한 번에 휙 돌리면 (매 프레임 휠) 칸 사이 간격만큼만 감김
+	var burst: Dictionary = IDLE.duplicate()
+	burst["wind"] = true
+	p.scripted_input = burst
+	await wait(5)
+	p.scripted_input = IDLE
+	await wait(10)
+	check("한 번에 휙 돌려도 2칸까지만 (1칸 + 남겨 둔 1칸)", p.xb_wind == 8, "wind=%d" % p.xb_wind)
+	await spin(2)
+	check("남은 3칸 감으면 장전 완료 (걸쇠·볼트 소리)", p.xb_wind == 10 and S.played.has("xbow_latch") and S.played.has("seat"), str(S.played))
+	await spin(2)
+	check("다 감았으면 휠 무시", p.xb_wind == 10, "wind=%d" % p.xb_wind)
+	await hold(2)
+	check("장전되면 쏨", new_shots.size() == 1 and p.xb_wind == 0, "n=%d" % new_shots.size())
+	# 누르고 감으면 다 감는 대로 쏨 (가장 빨라도 10칸 × notch_gap)
+	var fw: Dictionary = FIRE.duplicate()
+	fw["wind"] = true
+	await wait(20)
+	new_shots.clear()
+	var prev: Array = C.projectiles.duplicate()
+	var shot_at := -1
+	p.scripted_input = fw
+	for i in 150:
+		await physics_frame
+		for pr in C.projectiles:
+			if not prev.has(pr):
+				new_shots.append(pr)
+				if shot_at < 0:
+					shot_at = i
+		prev = C.projectiles.duplicate()
+	p.scripted_input = IDLE
+	check("누르고 휠을 계속 굴리면 다 감는 대로 한 발", new_shots.size() == 1 and shot_at >= int(9 * X.notch_gap * 60), "n=%d at=%d" % [new_shots.size(), shot_at])
 	await wait(30)
-	await hold(300)  # 5초
-	check("5초 누르고 있으면 장전 끝나고 한 발만 더", new_shots.size() == 1, "n=%d" % new_shots.size())
-	await wait(250)
 
 	# ── 몸에 맞으면 75, 볼트가 꽂힘, 크게 밀림, 봇은 0.5초 경직 ──
 	put(p, SHOOTER, "crossbow", EAST_YAW)
@@ -135,24 +188,26 @@ func _run() -> void:
 	await wait(6)
 	check("헤드샷 한 방 (체력 110도)", not dm.alive and p.kills == kills0 + 1, "alive=%s hp=%.1f" % [dm.alive, dm.hp])
 
-	# ── 장전 중엔 못 쏘고, 넘어져도 장전은 계속 됨 ──
+	# ── 넘어져도 휠은 감김, 부활하면 장전된 채 ──
 	await wait(30)
 	await hold(30)
-	check("장전 중엔 못 쏨", new_shots.is_empty(), "n=%d cd=%.2f" % [new_shots.size(), p.cd])
-	var cd0: float = p.cd
+	check("장전 안 됐으면 못 쏨", new_shots.is_empty(), "n=%d wind=%d" % [new_shots.size(), p.xb_wind])
+	var w0: int = p.xb_wind
 	p.trip()
-	await wait(30)
-	check("넘어져도 장전 시간은 흐름", near(p.cd, cd0 - 30 * DT, 0.03), "cd %.2f→%.2f" % [cd0, p.cd])
-
-	# ── 3인칭 장전 자세: 장전 중간엔 팔이 내려가 있음 ──
-	await wait(100)
+	await spin(2)
+	check("넘어져도 휠은 감김", p.xb_wind == w0 + 2, "wind %d→%d" % [w0, p.xb_wind])
+	await wait(60)
 	put(p, SHOOTER, "crossbow", EAST_YAW)
+	check("부활하면 장전된 채", p.xb_wind == int(X.notches) and p.xb_show == 1.0, "wind=%d" % p.xb_wind)
+
+	# ── 3인칭 장전 자세: 반쯤 감으면 팔이 내려가 있음 ──
 	await wait(5)
 	var arm_ready: float = p.model.arm_r.rotation.x
 	await hold(1)
-	await wait(120)  # 장전 절반쯤
+	await spin(5)
+	await wait(20)
 	var arm_reload: float = p.model.arm_r.rotation.x
-	check("장전 중엔 3인칭 팔이 내려감", arm_reload > arm_ready + 0.5, "준비 %.2f → 장전 %.2f" % [arm_ready, arm_reload])
+	check("반쯤 감았을 때 3인칭 팔이 내려감", arm_reload > arm_ready + 0.5, "준비 %.2f → 장전 %.2f (show %.2f)" % [arm_ready, arm_reload, p.xb_show])
 
 	print("ALL PASS" if fails == 0 else "%d FAILED" % fails)
 	quit(1 if fails > 0 else 0)

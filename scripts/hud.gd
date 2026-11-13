@@ -747,6 +747,7 @@ func _update_weapon() -> void:
 	var st := ""
 	var ring := -1.0
 	var ring_col := GOLD
+	var ring_label := ""
 	match e.wep:
 		"stone":
 			st = "던지는 중" if e.cd > 0 else "누르고 있으면 계속 던짐"
@@ -766,14 +767,14 @@ func _update_weapon() -> void:
 			if e.hold_t > float(B.sway_start):
 				st = "팔이 후들거린다! %.1f초 뒤 놓침" % maxf(0.0, float(B.slip_t) - e.hold_t)
 				ring_col = BLOOD
-		"crossbow":
+		"crossbow":  # 휠 장전 (사용자 요청): 조준점 고리 = 감은 칸, 아래에 "6/10"
 			var X: Dictionary = GameData.WEAPONS.crossbow
-			if e.cd > 0:
-				var q := WeaponModels.xbow_progress(e.cd)
-				var stage := "석궁 세우는 중" if q < 0.18 else ("시위 당기는 중" if q < 0.64 else ("화살 끼우는 중" if q < 0.86 else "조준 자세로"))
-				st = "%s · %.1f초" % [stage, e.cd]
-				ring = q
+			var n := int(X.notches)
+			if e.xb_wind < n:
+				st = "휠을 굴려 감기 · %d/%d칸" % [e.xb_wind, n]
+				ring = float(e.xb_wind) / n
 				ring_col = STEEL
+				ring_label = "%d/%d" % [e.xb_wind, n]
 			else:
 				st = "장전 완료 · %d 피해" % int(X.dmg)
 		"holy":
@@ -824,7 +825,7 @@ func _update_weapon() -> void:
 		hint = "Q  원래 무기로" if e.wep == "ak" else "Q  AK-47 꺼내기"
 	_w_hint.text = hint
 	_w_hint.visible = hint != ""
-	_ring.set_value(ring if e.alive else -1.0, ring_col)
+	_ring.set_value(ring if e.alive else -1.0, ring_col, ring_label if e.alive else "")
 
 
 ## 특수 아이템 안내 — 맵에 있으면 거리·남은 시간, 누가 들고 있으면 경고 (HTML updateHUD 끝부분)
@@ -955,12 +956,14 @@ class ChargeRing extends Control:
 	var _v := -1.0
 	var _c := Hud.GOLD
 	var _pop := 0.0  # 활을 끝까지 당기면 1 → 0: 바깥으로 퍼지는 고리
+	var _label := ""  # 고리 아래 작은 글자 (석궁 "6/10")
 
-	func set_value(v: float, c: Color) -> void:
-		if v == _v and c == _c:
+	func set_value(v: float, c: Color, label := "") -> void:
+		if v == _v and c == _c and label == _label:
 			return
 		_v = v
 		_c = c
+		_label = label
 		queue_redraw()
 
 	func flash() -> void:
@@ -977,6 +980,13 @@ class ChargeRing extends Control:
 			draw_arc(Vector2.ZERO, 24 + 14 * (1.0 - _pop), 0, TAU, 48, Color(Hud.MOSS, _pop), 3.0, true)
 		if _v < 0:
 			return
+		if _label != "":  # 고리 아래 "6/10" (자막 규칙: 배경 없이 외곽선만)
+			var fnt := get_theme_default_font()
+			var fs := int(GameData.HUD_UI.xbow_label_font)
+			var w := fnt.get_string_size(_label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+			var at := Vector2(-w / 2.0, 24 + 8 + fs)
+			draw_string_outline(fnt, at, _label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 5, Hud.INK)
+			draw_string(fnt, at, _label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, _c)
 		draw_arc(Vector2.ZERO, 24, 0, TAU, 48, Color(Hud.INK, 0.3), 3.5, true)
 		if _v > 0.001:  # 금색 호 (시안 #ring) — 잉크 테를 먼저 깔아 밝은 땅에서도 보이게
 			var a1 := -PI / 2 + TAU * minf(_v, 1.0)

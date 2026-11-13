@@ -152,8 +152,13 @@ const WEAPONS := {
 	"bow": {"name": "활", "dmg_min": 15, "dmg_max": 50, "nock": 0.3, "full": 1.0, "speed_min": 28, "speed_max": 72,
 		"grav": 14, "kb": 6.5, "up": 3.4, "radius": 0.05, "min_charge": 0.15,
 		"sway_start": 1.0, "sway_k": 0.05, "sway_max": 0.11, "slip_t": 3.0, "slip_yaw": 0.6, "slip_pitch": [-0.35, 0.55]},
-	# cd = 장전 시간. 누르고 있으면 장전 끝나는 대로 다시 쏜다. grav 6→2 (사용자 요청: 거의 직선, 85m에서 0.7m 떨어짐)
-	"crossbow": {"name": "석궁", "dmg": 75, "cd": 4.0, "speed": 100, "grav": 2, "kb": 11, "up": 5, "radius": 0.05},
+	# 사용자 요청 휠 장전 (예전: 쏜 뒤 4초 자동 장전): 쏜 뒤 마우스 휠을 notches칸 굴려야 다시 쏜다.
+	#   휠 위·아래 다 됨, 중간에 멈춰도 진행도 유지, 장전돼 있으면 휠 무시, 부활하면 장전된 채 (예전에도 부활하면 바로 쏠 수 있었음)
+	#   notch_gap: 한 칸으로 치는 최소 간격 — 휠을 한 번에 휙 돌려 한꺼번에 감지 못하게. 가장 빨라도 10칸 = 1.5초
+	#   show_rate: 장전 모션이 진행도를 따라가는 속도 (초당) / cd: 쏜 직후 휠도 안 먹는 시간
+	#   grav 6→2 (사용자 요청: 거의 직선, 85m에서 0.7m 떨어짐)
+	"crossbow": {"name": "석궁", "dmg": 75, "notches": 10, "notch_gap": 0.15, "show_rate": 3.0, "cd": 0.25,
+		"speed": 100, "grav": 2, "kb": 11, "up": 5, "radius": 0.05},
 	"sniper": {"name": "대물 저격총", "ammo": 5, "kb": 0, "speed_mul": 0.9},
 	"ak": {"name": "AK-47", "dmg": 23, "min_dmg": 18, "fall0": 30, "fall1": 80, "range": 120, "rate": 0.12, "mag": 25,
 		"kb": 1.2, "up": 0, "hip": 0.03, "ads": 0.006, "bloom": 0.006, "max_bloom": 0.05, "speed_mul": 0.95, "zoom": 1.6, "swap": 0.3},
@@ -236,10 +241,13 @@ const TRUMPET_SND := {"base_hz": 523.25, "melody": [0, 4, 7, 4, 0, 7, 12], "note
 # ── 봇 난이도 ────────────────────────────────────────────────
 const DIFF := {
 	"easy": {"name": "쉬움", "react": [1.0, 1.5], "err": 1.5, "sniper_err": 0.09, "head": 0.0, "lead": [0.0, 0.4], "fire": 0.5, "turn": 2.4,
+		"xbow_wind": 3.5,  # 봇 석궁 휠 감기 (초당 칸 수 — 10칸에 2.9초 / 2.2초 / 1.8초)
 		"color": 0x6cc35a, "skulls": "●○○", "desc": "봇이 늦게 반응하고 자주 빗나가요. 넘어지는 데 적응하기 좋아요."},
 	"normal": {"name": "보통", "react": [0.7, 1.1], "err": 1.0, "sniper_err": 0.06, "head": 0.03, "lead": [0.1, 0.6], "fire": 0.65, "turn": 3.2,
+		"xbow_wind": 4.5,
 		"color": 0xf3b33d, "skulls": "●●○", "desc": "적당히 맞히고 적당히 넘어져요. 기본 난이도예요."},
 	"hard": {"name": "어려움", "react": [0.4, 0.7], "err": 0.6, "sniper_err": 0.035, "head": 0.1, "lead": [0.4, 0.9], "fire": 0.85, "turn": 4.5,
+		"xbow_wind": 5.5,
 		"color": 0xe5484d, "skulls": "●●●", "desc": "빨리 반응하고, 움직임을 읽고, 헤드샷도 노려요."},
 }
 
@@ -517,14 +525,14 @@ const MAIN_MENU := {
 ## 병과 선택 화면 (시안 ClassSelect.html, px × 0.667). 막대 숫자는 class_stats()가 실제 값으로 계산
 const CLASS_PAGE := {
 	"lines": {  # 개구 한마디
-		"barbarian": "생각 없음. 돌 있음.", "archer": "당기다 손 미끄러짐 주의.", "crossbow": "한 발이면 끝. 장전은 4초.",
+		"barbarian": "생각 없음. 돌 있음.", "archer": "당기다 손 미끄러짐 주의.", "crossbow": "한 발이면 끝. 휠로 감아라.",
 		"cleric": "성수 맛 좀 봐라.", "bard": "내 연주에 춤춰라.",
 	},
 	# 아래 한 줄 설명. {..}는 WEAPONS 값으로 채움 (game_data를 고치면 문구도 따라감)
 	"blurbs": {
 		"barbarian": "{cd}초마다 돌을 퍼붓는 돌격형. 가장 빠르지만 가장 약하다.",
 		"archer": "짧게 끊어 쏘면 연사, 끝까지 당기면 {dmg_max} 피해. 화살은 포물선으로 떨어진다.",
-		"crossbow": "피해 {dmg}, 머리에 맞히면 한 방. 대신 느리고 장전이 {cd}초.",
+		"crossbow": "피해 {dmg}, 머리에 맞히면 한 방. 쏜 뒤엔 마우스 휠을 {notches}칸 굴려 감는다.",
 		"cleric": "성수병 {max_charges}개를 모아 던진다. 웅덩이가 적을 지지고 느리게 만든다.",
 		"bard": "트럼펫을 불면 적이 춤춘다. 춤추는 적은 느리고 공격을 못 한다.",
 	},
@@ -551,6 +559,7 @@ const CLASS_PAGE := {
 const HUD_UI := {
 	"edge": 20.0,                         # 화면 가장자리 여백 (30px)
 	"bow_full_pop": 3.0,                  # 활을 끝까지 당기면 조준점 고리가 번쩍 퍼짐 (초당 줄어드는 양 — 1/3초)
+	"xbow_label_font": 15,                # 석궁 휠 장전 "6/10" (조준점 고리 아래)
 	"top": {"top": 12.0, "rope": 16.0, "timer_font": 22, "tag_pad": Vector4(14, 0, 14, 2), "tag_r": 5.0,
 		"leader_font": 15, "leader_pad": Vector4(12, 3, 12, 5), "gap": -2},
 	"ctrl": {"w": 507.0, "h": 166.0, "line": 2.7, "drop": 4.0,
@@ -659,7 +668,7 @@ const SFX_PITCH := {"thud": 1.15}               # 소리별 음높이 배율
 #   크기 = 1 / (1 + (거리/ref)^rolloff), fade_from~max 사이에서 0까지 더 줄임.
 #   내 캐릭터 자리(self_r 안)에서 난 소리 = 내 소리, 나머지(적·아군·봇)는 × others
 const SFX_DIST := {"ref": 8.0, "rolloff": 1.5, "fade_from": 50.0, "max": 80.0, "others": 0.7, "self_r": 0.5}
-const XBOW_RELOAD_SND := {"pull0": 0.18, "pull": 0.44, "latch": 0.63, "seat": 0.86}  # 석궁 장전 진행도에서 소리 나는 순간
+const XBOW_RELOAD_SND := {"latch": 0.63, "seat": 0.86}  # 석궁 장전 모션 진행도에서 걸쇠·볼트 소리 나는 순간 (휠 한 칸마다는 xbow_click)
 const GALLOP := {"min_speed": 2.0, "pitch_min": 0.85, "pitch_max": 1.2, "speed_ref": HORSE_SPEED}  # 말 속도 → 다그닥 음높이
 const HITSTOP_SCALE := 0.12   # 히트스톱 동안 시간이 이만큼 느리게 흐름
 # 내가 맞혔을 때 히트스톱 길이(초) — 처치 0.1, 닭 0.04, 헤드샷 0.055(AK 0.025), 무거운 무기 0.045, 그 외 0.02(AK 0)
@@ -988,3 +997,10 @@ func _setup_input() -> void:
 		var mb := InputEventMouseButton.new()
 		mb.button_index = mouse[action]
 		InputMap.action_add_event(action, mb)
+	# 석궁 휠 장전 (사용자 요청): 휠 위·아래 한 칸 = 한 번. 석궁을 들었을 때만 쓴다 (다른 병과는 휠 동작 없음)
+	if not InputMap.has_action("wind"):
+		InputMap.add_action("wind")
+	for b: MouseButton in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		var wb := InputEventMouseButton.new()
+		wb.button_index = b
+		InputMap.action_add_event("wind", wb)

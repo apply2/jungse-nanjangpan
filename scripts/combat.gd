@@ -125,9 +125,8 @@ func _physics_process(dt: float) -> void:
 			if e.swap_req:
 				toggle_special(e)
 			weapon_update(e, e.fire_held, dt)
-		elif e.alive and e.wep == "crossbow" and e.cd > 0:  # 친구 석궁: 쏜 사건부터 장전 시간을 재서 장전 소리를 냄
-			e.cd = maxf(0.0, e.cd - dt)
-			_xbow_reload_sfx(e)
+		elif e.alive and e.wep == "crossbow":  # 친구 석궁: 받은 감은 칸 수(xb_wind)로 모션·소리
+			_xbow_anim(e, dt)
 		e.swap_req = false
 	Trumpet.update_victims(self, dt)  # 트럼펫 소리를 들은 쪽: 피해·춤 (4.5단계)
 	update_projectiles(dt)
@@ -530,8 +529,9 @@ func _hurt_me(v: PlayerController, a: PlayerController, shake: float) -> void:
 func weapon_update(e: PlayerController, held: bool, dt: float) -> void:
 	e.cd = maxf(0.0, e.cd - dt)
 	e.swap_t = maxf(0.0, e.swap_t - dt)
-	if e.wep == "crossbow":
-		_xbow_reload_sfx(e)
+	if e.wep == "crossbow":  # 휠 장전은 춤·넘어짐·스폰룸이어도 된다 (공격이 아니라서)
+		_xbow_wind(e, dt)
+		_xbow_anim(e, dt)
 	if e.bloom > 0:  # AK 퍼짐: 쏘는 중엔 천천히, 떼면 빨리 줄어듦
 		e.bloom = maxf(0.0, e.bloom - dt * (0.04 if e.trig_prev else 0.15))
 	# 성직자는 성수가 3초마다 하나씩 다시 찬다 (다른 무기를 들고 있어도)
@@ -563,8 +563,11 @@ func weapon_update(e: PlayerController, held: bool, dt: float) -> void:
 	match e.wep:
 		"bow":
 			_bow_update(e, held, dt)
-		"stone", "crossbow":  # 누르고 있으면 재사용 대기(석궁은 장전)가 끝나는 대로 쏜다
+		"stone":  # 누르고 있으면 재사용 대기가 끝나는 대로 쏜다
 			if held and e.cd <= 0:
+				fire(e, e.wep)
+		"crossbow":  # 휠로 다 감아 둔 것만 쏜다 (누르고 있으면 다 감는 대로)
+			if held and e.cd <= 0 and e.xb_wind >= int(GameData.WEAPONS.crossbow.notches):
 				fire(e, e.wep)
 		"holy":  # 누르고 있으면 0.4초마다, 남은 성수가 있는 만큼
 			if held and e.cd <= 0 and e.charges > 0:
@@ -665,24 +668,50 @@ func _bow_update(e: PlayerController, held: bool, dt: float) -> void:
 		e.reset_charge()
 
 
-## 석궁 장전 소리 (3인칭·봇도 들림): 시위 끊어 당기기 3번 · 걸쇠 · 볼트 끼우기.
-## 지난 프레임 진행도(xb_last)와 이번 사이에 지나간 순간에만 낸다 — 순간은 GameData.XBOW_RELOAD_SND
-func _xbow_reload_sfx(e: PlayerController) -> void:
-	var X: Dictionary = GameData.XBOW_RELOAD_SND
-	var pr := WeaponModels.xbow_progress(e.cd)
+## 석궁 휠 장전 (사용자 요청): 휠 한 칸(wind_req) = 한 칸 감기. notch_gap보다 빨리 온 칸은 한 칸만 남겨 두고 버린다.
+## 다 감았으면 휠 무시, 쏜 직후(cd)도 안 먹음
+func _xbow_wind(e: PlayerController, dt: float) -> void:
+	var X: Dictionary = GameData.WEAPONS.crossbow
+	e.wind_gap = maxf(0.0, e.wind_gap - dt)
+	if e.xb_wind >= int(X.notches) or e.cd > 0:
+		e.wind_req = 0
+		return
+	if e.wind_req > 0 and e.wind_gap <= 0:
+		e.wind_req = 0
+		e.xb_wind += 1
+		e.wind_gap = float(X.notch_gap)
+
+
+## 석궁 장전 모션·소리 (나·봇·친구 다): 칸이 늘면 끼릭, 모션 진행도 xb_show가 감은 만큼 따라가고
+## 걸쇠·볼트 순간(GameData.XBOW_RELOAD_SND)을 지난 프레임과 이번 사이에 지나가면 소리
+func _xbow_anim(e: PlayerController, dt: float) -> void:
+	var X: Dictionary = GameData.WEAPONS.crossbow
+	var n := int(X.notches)
+	var pos := e.global_position
+	if e.xb_wind > e.xb_heard:
+		for i in mini(e.xb_wind - e.xb_heard, 3):
+			Sfx.play("xbow_click", pos)
+	e.xb_heard = e.xb_wind
+	e.xb_show = move_toward(e.xb_show, clampf(float(e.xb_wind) / n, 0.0, 1.0), float(X.show_rate) * dt)
+	var S: Dictionary = GameData.XBOW_RELOAD_SND
 	var last := e.xb_last
+	var pr := e.xb_show
 	e.xb_last = pr
 	if pr <= last:
 		return
-	var pos := e.global_position
-	for k in 3:
-		var th := float(X.pull0) + float(X.pull) * k / 3.0 + 0.005
-		if last < th and pr >= th:
-			Sfx.play("xbow_crank", pos)
-	if last < float(X.latch) and pr >= float(X.latch):
+	if last < float(S.latch) and pr >= float(S.latch):
 		Sfx.play("xbow_latch", pos)
-	if last < float(X.seat) and pr >= float(X.seat):
+	if last < float(S.seat) and pr >= float(S.seat):
 		Sfx.play("seat", pos)
+
+
+## 석궁을 쐈음: 다시 0칸부터
+static func xbow_spent(e: PlayerController) -> void:
+	e.xb_wind = 0
+	e.xb_heard = 0
+	e.xb_show = 0.0
+	e.xb_last = 0.0
+	e.wind_req = 0
 
 
 ## 3인칭: 화면 가운데(카메라 정면)가 가리키는 지점 — HTML tpAim
@@ -789,6 +818,7 @@ func fire(e: PlayerController, kind: String, t := 0.0) -> void:
 			speed = W.speed
 			dmg = W.dmg
 			e.cd = W.cd
+			xbow_spent(e)
 			mesh = WeaponModels.make_arrow("crossbow")
 			Sfx.play("xbow", e.global_position)
 		"holy":  # 위로 살짝 띄워 던지는 포물선. 맞으면 피해 대신 웅덩이
@@ -1152,8 +1182,7 @@ func remote_fire(e: PlayerController, kind: String, pos: Vector3, vel: Vector3, 
 			dmg = W.dmg
 			Sfx.play("xbow", pos)
 			e.rec_v += 10
-			e.cd = W.cd
-			e.xb_last = 0.0
+			xbow_spent(e)
 		"holy":
 			var hg := Node3D.new()
 			WeaponModels.make_holy(hg)
