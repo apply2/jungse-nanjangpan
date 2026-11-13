@@ -175,9 +175,16 @@ func _run() -> void:
 	check("방장이 '한 판 더' 누르면 친구도 들어옴", A.state == "playing" and B.state == "playing", "%s/%s" % [A.state, B.state])
 	check("처치 수 0부터", pa.kills == 0 and pb.deaths == 0, "")
 
-	# ── 친구 나가기 ──
+	# ── 친구 나가기 ── (방장 화면에 친구의 성수병·웅덩이가 남아 있는 채로 나감)
+	rb = na.remotes.values()[0]
+	A.combat.remote_fire(rb, "holy", HERE + Vector3(10, 2, -30), Vector3(0, 12, 0), 0.0)
+	A.combat.shatter(rb, HERE + Vector3(10, 0, -34))
 	B.go_menu("main")
 	await wait_until(func(): return na.remotes.is_empty(), 120)
+	await wait(3)
+	var orphan := func(arr: Array) -> bool: return arr.any(func(x): return not is_instance_valid(x.owner))
+	check("나간 친구의 투사체·웅덩이도 치움 (주인 없는 것이 남지 않음)", not orphan.call(A.combat.projectiles) and not orphan.call(A.combat.zones),
+		"proj=%d zones=%d" % [A.combat.projectiles.size(), A.combat.zones.size()])
 	check("친구가 나가면 메인 메뉴, 봇 돌아옴", not nb.on and B.state == "menu" and B.menu.cur_page == "main" and B.combat.ents.size() == 8, "ents=%d" % B.combat.ents.size())
 	check("방장 쪽에서 친구가 사라짐", na.remotes.is_empty() and na.lobby_list().size() == 1, "")
 
