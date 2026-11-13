@@ -11,6 +11,7 @@ signal toast(text: String)  # 내 화면 알림
 signal killed(v: PlayerController, a: PlayerController, kind: String, head: bool)
 signal num(pos: Vector3, text: String, style: String)  # 내가 때린 데미지 숫자 (style: "" / head / dot / kill)
 signal hitmark(is_kill: bool)  # 내가 맞혔을 때 조준점 X 표시
+signal kill_mark(head: bool)   # 내가 막타를 쳤을 때 조준점 가운데 해골 (사용자 요청 — 헤드샷이면 빨강)
 signal hurt(dmg: float)        # 내가 맞음 → 붉은 테두리 (HTML hurt)
 signal dmg_dir(from: Vector3)  # 내가 맞음 → 때린 사람 쪽에 붉은 호 (HTML dmgDir)
 signal star_changed(e: PlayerController, on: bool)  # 황금 붕어빵 무적 시작·끝 (Main이 내 것만 보고 BGM을 바꿈)
@@ -1141,8 +1142,9 @@ func kill(v: PlayerController, a: PlayerController, kind: String, head: bool, di
 		items.spawn_chicken(v.global_position, 1.0)
 	_ragdoll(v, kind, dir)
 	v.die(dir)
-	if a and a.is_local and a != v:
+	if a and a.is_local and a != v:  # 내가 막타 (자살·낙사·남이 죽인 건 아님. 아군은 damage()에서 막혀 여기 안 옴)
 		hitmark.emit(true)
+		kill_mark.emit(head)
 		Sfx.play("kill")
 		toast.emit(("헤드샷 처치 · " if head else "처치 · ") + v.ent_name)
 	if v.is_bot and randf() < GameData.BOT_RECLASS:
@@ -1254,8 +1256,9 @@ func remote_kill(e: PlayerController, a: PlayerController, kind: String, head: b
 	e.die(dir)
 	if a and not a.is_remote:  # 나 (방장이면 내 봇도)
 		a.kills += 1
-	if a and a.is_local:
+	if a and a.is_local and a != e:  # 친구대전: 친구 쪽이 판정한 죽음이라도 막타가 나면 내 화면에만
 		hitmark.emit(true)
+		kill_mark.emit(head)
 		Sfx.play("kill")
 		toast.emit(("헤드샷 처치 · " if head else "처치 · ") + e.ent_name)
 	killed.emit(e, a, kind, head)

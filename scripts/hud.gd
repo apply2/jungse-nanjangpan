@@ -39,6 +39,7 @@ var _death_text := ""   # '무기 · 헤드샷' 부분 (뒤의 'N초 뒤 부활'
 var _nums_root: Control
 var _nums: Array[Dictionary] = []
 var _hitmark: HitMark
+var _skull: KillSkull
 var _cross: Crosshair
 var _vm: ViewModel
 var _ring: ChargeRing
@@ -122,6 +123,10 @@ func _ready() -> void:
 	_hitmark = HitMark.new()
 	_hitmark.set_anchors_preset(Control.PRESET_CENTER)
 	root.add_child(_hitmark)
+	_skull = KillSkull.new()  # 킬 마커 (조준점 가운데 해골)
+	_skull.set_anchors_preset(Control.PRESET_CENTER)
+	_skull.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_skull)
 
 	# 저격총 스코프 (HTML #scope: 가운데 원만 뚫린 검은 화면 + 십자선)
 	_scope = Scope.new()
@@ -566,6 +571,11 @@ func spawn_num(pos: Vector3, text: String, style: String) -> void:
 
 func hitmark(is_kill: bool) -> void:
 	_hitmark.pop(is_kill)
+
+
+## 내가 막타 → 조준점 가운데 해골 (연속 킬이면 처음부터 다시)
+func kill_mark(head: bool) -> void:
+	_skull.play(head)
 
 
 ## 양피지 위 강조 (형광펜 바탕)
@@ -1023,6 +1033,77 @@ class HitMark extends Control:
 			var dir: Vector2 = d.normalized()
 			draw_line(dir * 4.2 * sc, dir * 14.0 * sc, Color(0, 0, 0, 0.4 * a), 4.0)
 			draw_line(dir * 4.2 * sc, dir * 14.0 * sc, c, 2.0)
+
+
+## 킬 마커 (사용자 요청 — 오버워치처럼): 조준점 가운데 해골. 크게(punch) 튀어나와 줄고 → hold → fade로 사라짐.
+## 수치는 GameData.HUD_UI.kill_skull. 시간은 실제 시간 (처치 히트스톱에 느려지지 않게).
+## tex 그림이 있으면 그걸 그리고, 없으면 도형으로 그린 임시 해골 (잉크 외곽선 — 밝은 하늘에서도 보이게)
+class KillSkull extends Control:
+	var plays := 0          # 몇 번 떴나 (테스트용)
+	var head := false
+	var _t0 := -1           # 시작 시각 (ms), -1이면 안 보임
+	var _tex: Texture2D = null
+
+	func _ready() -> void:
+		var path := str(GameData.HUD_UI.kill_skull.tex)
+		if ResourceLoader.exists(path):
+			_tex = load(path)
+
+	func play(is_head: bool) -> void:
+		head = is_head
+		plays += 1
+		_t0 = Time.get_ticks_msec()
+		queue_redraw()
+
+	## 지금 보이는 정도 {a: 불투명도, s: 배율}. 끝났으면 a = 0
+	func state() -> Dictionary:
+		if _t0 < 0:
+			return {"a": 0.0, "s": 1.0}
+		var K: Dictionary = GameData.HUD_UI.kill_skull
+		var t := (Time.get_ticks_msec() - _t0) / 1000.0
+		var pt := float(K.punch_t)
+		var s := 1.0 + (float(K.punch) - 1.0) * (1.0 - ease(clampf(t / pt, 0.0, 1.0), 0.4)) if t < pt else 1.0
+		var a := 1.0
+		var fade_at := pt + float(K.hold)
+		if t > fade_at:
+			a = maxf(0.0, 1.0 - (t - fade_at) / float(K.fade))
+		return {"a": a, "s": s}
+
+	func _process(_dt: float) -> void:
+		if _t0 < 0:
+			return
+		if state().a <= 0:
+			_t0 = -1
+		queue_redraw()
+
+	func _draw() -> void:
+		var st := state()
+		var a: float = st.a
+		if a <= 0:
+			return
+		var K: Dictionary = GameData.HUD_UI.kill_skull
+		var r: float = float(K.size) * float(st.s) * 0.5
+		var c := GameData.col(int(K.head_color if head else K.color))
+		c.a = a
+		if _tex:
+			var sz := Vector2(r * 2, r * 2)
+			draw_texture_rect(_tex, Rect2(-sz / 2, sz), false, c)
+			return
+		var ink := Color(Hud.INK, a)
+		var crown := Vector2(0, -r * 0.18)
+		var jaw := Rect2(-r * 0.5, r * 0.2, r, r * 0.62)
+		# 잉크 외곽선
+		draw_circle(crown, r * 0.82 + 2.5, ink)
+		draw_rect(jaw.grow(2.5), ink)
+		# 머리뼈 + 턱
+		draw_circle(crown, r * 0.82, c)
+		draw_rect(jaw, c)
+		# 눈구멍·코·이빨
+		for sx in [-1.0, 1.0]:
+			draw_circle(Vector2(sx * r * 0.33, -r * 0.12), r * 0.24, ink)
+		draw_colored_polygon(PackedVector2Array([Vector2(0, r * 0.12), Vector2(-r * 0.11, r * 0.34), Vector2(r * 0.11, r * 0.34)]), ink)
+		for tx in [-0.25, 0.0, 0.25]:
+			draw_line(Vector2(tx * r, r * 0.5), Vector2(tx * r, r * 0.82), ink, maxf(1.5, r * 0.08))
 
 
 ## 십자 조준점 — HTML .xh: 막대 4개(2×9)와 점, 빨리 움직이거나 공중이면 벌어짐(--gap)

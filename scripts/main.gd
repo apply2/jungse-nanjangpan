@@ -40,6 +40,7 @@ func _ready() -> void:
 	combat.toast.connect(hud.pop_msg)
 	combat.num.connect(hud.spawn_num)
 	combat.hitmark.connect(hud.hitmark)
+	combat.kill_mark.connect(hud.kill_mark)
 	combat.hurt.connect(hud.on_hurt)
 	combat.dmg_dir.connect(hud.dmg_dir)
 	player.class_changed.connect(Music.on_class_changed)  # 내 병과 기준으로 BGM
