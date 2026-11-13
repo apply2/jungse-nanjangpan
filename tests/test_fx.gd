@@ -303,6 +303,17 @@ func _run() -> void:
 	C.items.dismount(p)
 	check("내리면 반복 소리 지움", S._loops.is_empty(), "n=%d" % S._loops.size())
 
+	# ── 최적화: 1인칭 손 화면(SubViewport)은 보일 때만 그림 ──
+	var vp: SubViewport = hud._vm._vp
+	G.third_person = true
+	await wait(3)
+	check("3인칭이면 1인칭 손 화면을 안 그림", vp.render_target_update_mode == SubViewport.UPDATE_DISABLED, str(vp.render_target_update_mode))
+	G.third_person = false
+	await wait(3)
+	check("1인칭이면 그림", vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS, str(vp.render_target_update_mode))
+	G.third_person = true
+	await wait(2)
+
 	# ── 내가 죽으면 래그돌을 따라가는 카메라 ──
 	put(p, HERE, "archer", 0.0)
 	await wait(3)
@@ -322,6 +333,12 @@ func _run() -> void:
 		check(k2 + " 래그돌 점 8개", m.mk.size() == 8, "")
 		var body_n: int = count_meshes(m) - m.weapons.values().reduce(func(acc, w): return acc + count_meshes(w), 0)
 		check(k2 + " 몸 조각을 관절별로 합침 (손에 드는 무기 빼고 14개 이하)", body_n <= 14, "합치기 전 %d개(무기 포함) → 몸 %d개" % [m.part_count, body_n])
+		var wk: String = G.CLASSES[k2].weapon
+		var wn: int = count_meshes(m.weapons[wk])
+		# 최적화: 무기 그룹 안 조각도 합침 (활은 활대·시위가 다른 부모라 2, 성수병은 반투명 유리 2개를 따로 둬서 3)
+		check(k2 + " 손에 든 무기 조각 합침 (%s)" % wk, wn <= 3, "%d개" % wn)
+		if wk == "trumpet":
+			check("트럼펫 13조각 → 1", wn == 1, "%d개" % wn)
 		m.free()
 	check("의상 조각 (야만인 표범무늬·수염, 궁수 리벳, 석궁병 방패, 성직자 영대)", counts.barbarian > 70 and counts.archer > 45 and counts.crossbow > 45 and counts.cleric > 40, str(counts))
 

@@ -252,9 +252,20 @@ func _text_l(at: Vector2, s: String, fs: int, col: Color, a := 1.0) -> void:
 class Top extends Control:
 	var mode: ControlMode
 
+	var _t := UiKit.Tris.new()  # 도형은 전부 모아 그리기 호출 한 번 (최적화 — 예전 80번 안팎), 글자는 그 위에
+	var _texts: Array = []      # [위치, 글자, 크기]
+
 	func _draw() -> void:
 		if mode == null:
 			return
+		_t.clear()
+		_texts.clear()
+		_draw_all()
+		_t.draw(self)
+		for tx: Array in _texts:
+			_out_now(tx[0], tx[1], tx[2])
+
+	func _draw_all() -> void:
 		var C: Dictionary = GameData.HUD_UI.ctrl
 		var T: Dictionary = GameData.MODES.control.teams
 		var W: float = C.w
@@ -287,21 +298,23 @@ class Top extends Control:
 				if team == "red":
 					won = (need - 1 - i) < int(mode.wins[team])  # 레드는 메달 쪽(왼쪽)부터 채움 — 거울
 				var cc := Vector2(dx + d / 2 + i * (d + g), sy + sz.y / 2)
-				draw_circle(cc, d / 2, Hud.INK, true, -1, true)
-				draw_circle(cc, d / 2 - 2, Hud.GOLD if won else C.dot_off, true, -1, true)
+				_t.circle(cc, d / 2, Hud.INK)
+				_t.circle(cc, d / 2 - 2, Hud.GOLD if won else C.dot_off)
 		# % 막대 (블루는 메달 쪽 오른쪽 끝부터, 레드는 왼쪽 끝부터)
 		var bs: Vector2 = C.bar
 		var by: float = C.bar_top
 		for team: String in ["blue", "red"]:
 			var bx := sx if team == "blue" else W - sx - bs.x
 			var rr := int(bs.y / 2)
-			draw_style_box(UiKit.box(C.bar_bg, Hud.INK, 2, rr), Rect2(bx, by, bs.x, bs.y))
+			_pill(Rect2(bx, by, bs.x, bs.y), rr, C.bar_bg)
 			var k := clampf(float(mode.pct[team]) / 100.0, 0.0, 1.0)
 			if k > 0:
 				var fw := maxf(bs.y, bs.x * k)
 				var fr := Rect2(bx + bs.x - fw if team == "blue" else bx, by, fw, bs.y)
-				draw_style_box(UiKit.box(GameData.col(T[team].body), Hud.INK, 2, rr), fr)
-				draw_rect(Rect2(fr.position.x + rr, by + bs.y - 5, maxf(0.0, fw - 2 * rr), 3), Color(0, 0, 0, 0.18))
+				_pill(fr, rr, GameData.col(T[team].body))
+				var sr := Rect2(fr.position.x + rr, by + bs.y - 5, maxf(0.0, fw - 2 * rr), 3)
+				if sr.size.x > 0:
+					_t.poly(PackedVector2Array([sr.position, Vector2(sr.end.x, sr.position.y), sr.end, Vector2(sr.position.x, sr.end.y)]), Color(0, 0, 0, 0.18))
 			var f := get_theme_default_font()
 			var fs := int(C.pct_font)
 			var s := "%d%%" % int(mode.pct[team])
@@ -319,38 +332,57 @@ class Top extends Control:
 		var locked := mode.phase == "locked"
 		var lock_col := GameData.col(GameData.MODES.control.locked_col)
 		var own := lock_col if locked else (ControlMode.team_color(mode.holder) if mode.holder != "" else GameData.col(C.track))
-		draw_circle(c + Vector2(0, float(C.drop)), R, Hud.INK, true, -1, true)
-		draw_circle(c, R, own, true, -1, true)
-		if not locked and mode.cap_team != "" and mode.cap_prog > 0:
-			var pts := PackedVector2Array([c])
+		_t.circle(c + Vector2(0, float(C.drop)), R, Hud.INK)
+		_t.circle(c, R, own)
+		if not locked and mode.cap_team != "" and mode.cap_prog > 0:  # 점령 부채꼴 (반을 넘으면 오목해서 가운데 c에서 부채로)
 			var n := 40
-			for i in n + 1:
+			var col := ControlMode.team_color(mode.cap_team)
+			var prev := c + Vector2(0, -R)
+			for i in range(1, n + 1):
 				var a := -PI / 2 + TAU * mode.cap_prog * i / n
-				pts.append(c + Vector2(cos(a), sin(a)) * R)
-			draw_colored_polygon(pts, ControlMode.team_color(mode.cap_team))
-		draw_arc(c, R - 1.3, 0, TAU, 48, Hud.INK, float(C.line), true)
+				var q := c + Vector2(cos(a), sin(a)) * R
+				_t.poly(PackedVector2Array([c, prev, q]), col)
+				prev = q
+		_t.line(_ring(c, R - 1.3, 48), Hud.INK, float(C.line), true, true)
 		var ri: float = float(C.medal_in) / 2.0
-		draw_circle(c, ri, Hud.PARCH, true, -1, true)
-		draw_circle(c - Vector2(ri, ri) * 0.25, ri * 0.6, Color(1, 1, 1, 0.25), true, -1, true)
-		draw_arc(c, ri, 0, TAU, 40, Hud.INK, 2.0, true)
+		_t.circle(c, ri, Hud.PARCH)
+		_t.circle(c - Vector2(ri, ri) * 0.25, ri * 0.6, Color(1, 1, 1, 0.25))
+		_t.line(_ring(c, ri, 40), Hud.INK, 2.0, true, true)
 		# 깃발 (시안 svg: M6 21V3 / M6 4h11l-2.5 4L17 12H6, 24칸)
 		var s: float = float(C.flag) / 24.0
 		var P := func(x: float, y: float) -> Vector2: return c + (Vector2(x, y) - Vector2(12, 12)) * s
 		var flag := PackedVector2Array([P.call(6, 4), P.call(17, 4), P.call(14.5, 8), P.call(17, 12), P.call(6, 12)])
 		var fc := lock_col if locked else (ControlMode.team_color(mode.holder) if mode.holder != "" else GameData.col(C.neutral))
-		draw_colored_polygon(flag, fc)
-		draw_polyline(flag + PackedVector2Array([flag[0]]), Hud.INK, 2.4 * s, true)
-		draw_line(P.call(6, 21), P.call(6, 3), Hud.INK, 2.6 * s, true)
+		var fl := Geometry2D.triangulate_polygon(flag)  # 깃발은 오목 (오른쪽 홈)
+		var fcs := PackedColorArray()
+		for i in flag.size():
+			fcs.append(fc)
+		_t.raw(flag, fcs, fl)
+		_t.line(flag, Hud.INK, 2.4 * s, true, true)
+		_t.line(PackedVector2Array([P.call(6, 21), P.call(6, 3)]), Hud.INK, 2.6 * s)
+
+	## 둥근 막대 (StyleBoxFlat 잉크 테 2px 대신 — 잉크 둥근 네모 위에 안쪽 색)
+	func _pill(r: Rect2, rad: float, col: Color) -> void:
+		_t.poly(_rr(r, [rad, rad, rad, rad]), Hud.INK, true)
+		var rin := maxf(0.0, rad - 2.0)
+		_t.poly(_rr(r.grow(-2.0), [rin, rin, rin, rin]), col)
+
+	static func _ring(c: Vector2, r: float, n: int) -> PackedVector2Array:
+		var p := PackedVector2Array()
+		for i in n:
+			var a := i * TAU / n
+			p.append(c + Vector2(cos(a), sin(a)) * r)
+		return p
 
 	## 방패 판: 잉크 그림자 → 색 → 위쪽 밝은 띠 → 잉크 테 (귀퉁이마다 둥글기 다름)
 	func _shape(r: Rect2, rad: Array, col: Color, C: Dictionary) -> void:
 		var drop: float = C.drop
-		draw_colored_polygon(_rr(Rect2(r.position + Vector2(0, drop), r.size), rad), Hud.INK)
+		_t.poly(_rr(Rect2(r.position + Vector2(0, drop), r.size), rad), Hud.INK)
 		var pts := _rr(r, rad)
-		draw_colored_polygon(pts, col)
+		_t.poly(pts, col)
 		var ln: float = C.line
-		draw_colored_polygon(_rr(Rect2(r.position + Vector2(ln, ln), Vector2(r.size.x - 2 * ln, 5)), [rad[0] * 0.6, rad[1] * 0.6, 0.0, 0.0]), Color(1, 1, 1, 0.2))
-		draw_polyline(pts + PackedVector2Array([pts[0]]), Hud.INK, ln, true)
+		_t.poly(_rr(Rect2(r.position + Vector2(ln, ln), Vector2(r.size.x - 2 * ln, 5)), [rad[0] * 0.6, rad[1] * 0.6, 0.0, 0.0]), Color(1, 1, 1, 0.2))
+		_t.line(pts, Hud.INK, ln, true, true)
 
 	## 귀퉁이마다 반지름이 다른 둥근 네모 (왼위·오른위·오른아래·왼아래)
 	static func _rr(r: Rect2, rad: Array) -> PackedVector2Array:
@@ -367,8 +399,11 @@ class Top extends Control:
 				pts.append(cn[0] + Vector2(cos(a), sin(a)) * cn[2])
 		return pts
 
-	## 크림색 글자 + 잉크 외곽선 (나무판·방패 위 글자 규칙)
+	## 크림색 글자 + 잉크 외곽선 (나무판·방패 위 글자 규칙). 도형을 다 그린 뒤에 그린다
 	func _out(at: Vector2, s: String, fs: int) -> void:
+		_texts.append([at, s, fs])
+
+	func _out_now(at: Vector2, s: String, fs: int) -> void:
 		var f := get_theme_default_font()
 		draw_string_outline(f, at + Vector2(0, 2), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UiKit.outline_for(fs), Hud.INK)
 		draw_string_outline(f, at, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UiKit.outline_for(fs), Hud.INK)

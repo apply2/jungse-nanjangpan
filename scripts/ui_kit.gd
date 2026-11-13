@@ -263,14 +263,133 @@ static func tilted(inner: Control, deg: float) -> Control:
 
 ## 쇠못 하나 (회색 원 + 하이라이트 + 아래 그림자)
 static func draw_nail(ci: CanvasItem, p: Vector2, r := 0.0) -> void:
+	var t := Tris.new()
+	add_nail(t, p, r)
+	t.draw(ci)
+
+
+## 쇠못을 삼각형 묶음에 더함 (원 4개 — 따로 그리면 그리기 호출 4~8번이라 한 번에)
+static func add_nail(t: Tris, p: Vector2, r := 0.0) -> void:
 	var K: Dictionary = GameData.UI_KIT
 	if r <= 0:
 		r = K.nail_r
 	var C: Array = K.nail_cols
-	ci.draw_circle(p + Vector2(0, r * 0.35), r, Color(0, 0, 0, 0.45), true, -1, true)
-	ci.draw_circle(p, r, GameData.col(C[2]), true, -1, true)
-	ci.draw_circle(p - Vector2(r, r) * 0.12, r * 0.78, GameData.col(C[1]), true, -1, true)
-	ci.draw_circle(p - Vector2(r, r) * 0.3, r * 0.36, GameData.col(C[0]), true, -1, true)
+	t.circle(p + Vector2(0, r * 0.35), r, Color(0, 0, 0, 0.45))
+	t.circle(p, r, GameData.col(C[2]))
+	t.circle(p - Vector2(r, r) * 0.12, r * 0.78, GameData.col(C[1]))
+	t.circle(p - Vector2(r, r) * 0.3, r * 0.36, GameData.col(C[0]))
+
+
+## 최적화: 2D 도형을 삼각형 한 묶음(정점 색)으로 모아 그리기 호출 한 번에 그린다.
+## Compatibility 렌더러는 draw_colored_polygon·draw_polyline·draw_circle(테두리 부드럽게)을 하나하나 따로 그려서
+## 나무판 하나가 40~60번이었다. 넣은 순서대로 겹쳐 그려진다 (뒤에 넣은 것이 위).
+## 테두리 부드럽게(antialiased)는 바깥쪽 1px을 투명으로 흐려지게 해서 흉내 낸다.
+class Tris:
+	var pts := PackedVector2Array()
+	var cols := PackedColorArray()
+	var idx := PackedInt32Array()
+	const FEATHER := 1.0
+
+	func clear() -> void:
+		pts.clear()
+		cols.clear()
+		idx.clear()
+
+	func is_empty() -> bool:
+		return idx.is_empty()
+
+	func draw(ci: CanvasItem) -> void:
+		if not idx.is_empty():
+			RenderingServer.canvas_item_add_triangle_array(ci.get_canvas_item(), idx, pts, cols)
+
+	func _v(p: Vector2, c: Color) -> int:
+		pts.append(p)
+		cols.append(c)
+		return pts.size() - 1
+
+	## 볼록 다각형 (판 모양·띠·원). aa면 바깥 1px 흐림
+	func poly(p: PackedVector2Array, c: Color, aa := false) -> void:
+		var n := p.size()
+		if n < 3:
+			return
+		var ctr := Vector2.ZERO
+		for q in p:
+			ctr += q
+		ctr /= n
+		var ci := _v(ctr, c)
+		var b := pts.size()
+		for q in p:
+			_v(q, c)
+		for i in n:
+			idx.append_array([ci, b + i, b + (i + 1) % n])
+		if aa:
+			var clear_c := Color(c, 0.0)
+			var o := pts.size()
+			for q in p:
+				var d := q - ctr
+				_v(q + (d.normalized() * FEATHER if d.length() > 0.001 else Vector2.ZERO), clear_c)
+			for i in n:
+				var j := (i + 1) % n
+				idx.append_array([b + i, o + i, o + j, b + i, o + j, b + j])
+
+	func circle(ctr: Vector2, r: float, c: Color, aa := true) -> void:
+		var seg := clampi(int(r * 2.5), 12, 40)
+		var p := PackedVector2Array()
+		for i in seg:
+			var a := i * TAU / seg
+			p.append(ctr + Vector2(cos(a), sin(a)) * r)
+		poly(p, c, aa)
+
+	## 굵기 w 선 (꺾인 점은 앞뒤 방향 평균의 법선). aa면 양옆 1px 흐림, closed면 처음과 끝을 이음
+	func line(pl0: PackedVector2Array, c: Color, w: float, aa := true, closed := false) -> void:
+		var pl := PackedVector2Array()  # 겹친 점은 빼야 꺾이는 곳 방향이 안 틀어짐 (둥근 네모의 반지름 0 귀퉁이)
+		for q in pl0:
+			if pl.is_empty() or q.distance_squared_to(pl[pl.size() - 1]) > 1e-6:
+				pl.append(q)
+		if closed and pl.size() > 2 and pl[0].distance_squared_to(pl[pl.size() - 1]) <= 1e-6:
+			pl.remove_at(pl.size() - 1)
+		var n := pl.size()
+		if n < 2:
+			return
+		var hw := maxf(w, 0.5) / 2.0
+		var clear_c := Color(c, 0.0)
+		var rows := []  # 각 점의 [바깥-, 안-, 안+, 바깥+] 정점 번호
+		for i in n:
+			var a: Vector2
+			var b: Vector2
+			if closed:
+				a = pl[(i - 1 + n) % n]
+				b = pl[(i + 1) % n]
+			else:
+				a = pl[maxi(0, i - 1)]
+				b = pl[mini(n - 1, i + 1)]
+			var d := b - a
+			if d.length() < 0.0001:
+				d = Vector2.RIGHT
+			var m := d.normalized().orthogonal()
+			var p := pl[i]
+			var r := []
+			if aa:
+				r.append(_v(p - m * (hw + FEATHER), clear_c))
+			r.append(_v(p - m * hw, c))
+			r.append(_v(p + m * hw, c))
+			if aa:
+				r.append(_v(p + m * (hw + FEATHER), clear_c))
+			rows.append(r)
+		var segs := n if closed else n - 1
+		for i in segs:
+			var r0: Array = rows[i]
+			var r1: Array = rows[(i + 1) % n]
+			for k in r0.size() - 1:
+				idx.append_array([r0[k], r1[k], r1[k + 1], r0[k], r1[k + 1], r0[k + 1]])
+
+	## 미리 만든 삼각형 배열 그대로 더함
+	func raw(p: PackedVector2Array, c: PackedColorArray, ix: PackedInt32Array) -> void:
+		var b := pts.size()
+		pts.append_array(p)
+		cols.append_array(c)
+		for i in ix:
+			idx.append(b + i)
 
 
 static var _nail_icons := {}
@@ -323,6 +442,7 @@ class Board extends PanelContainer:
 	var nails := 0:
 		set(v):
 			nails = v
+			_geo.clear()
 			queue_redraw()
 	var arrow := false:
 		set(v):
@@ -363,6 +483,7 @@ class Board extends PanelContainer:
 	var bands: Array = []:  # 위쪽 색 띠 (외곽선 안쪽). 색 여러 개면 가로로 나눔 — 난이도 색, 쟁탈전 블루|레드
 		set(v):
 			bands = v
+			_geo.clear()
 			queue_redraw()
 	var band_h := 0.0       # 0이면 UI_KIT.band_h
 	var grain_seed := 0  # 나뭇결 무늬 (인스턴스마다 고정)
@@ -584,46 +705,17 @@ class Board extends PanelContainer:
 					ring.append(Vector2(cx + cos(an) * rx, cy + sin(an) * ry))
 				lines.append([ring, Color8(60, 30, 10, 70), 1.2])
 		_geo.lines = lines
+		_bake()
 
-	func _draw() -> void:
-		var w := size.x
-		var h := size.y
-		if w < 4 or h < 4:
-			return
+	## 외곽선·바탕·결·띠·밝은 띠·못 = 바뀌지 않는 부분을 삼각형 한 묶음으로 (크기·종류·색이 바뀔 때만 다시)
+	func _bake() -> void:
 		var K: Dictionary = GameData.UI_KIT
-		var M := _M()
-		if _geo.is_empty():
-			_build()
-		if tilt != 0.0:
-			var rot := deg_to_rad(tilt)
-			var ctr := size / 2.0
-			draw_set_transform(ctr - ctr.rotated(rot), rot, Vector2.ONE)
-		if ropes:
-			_draw_ropes()
+		var t := Tris.new()
 		var ink := UiKit.c("ink")
-		var outer: PackedVector2Array = _geo.outer
-		if ring.a > 0:  # 고른 표시: 형광펜 테 + 바깥 잉크 선 (그림자보다 먼저)
-			var rw: float = K.ring_w
-			var r0: float = radius if radius >= 0 else float(M.radius)
-			var big := _perimeter(_shape(-rw - 2, -rw - 2, w + 2 * rw + 4, h + 2 * rw + 4, r0 + rw + 2, 0, w + rw + 2))
-			draw_colored_polygon(big, ink)
-			draw_colored_polygon(_perimeter(_shape(-rw, -rw, w + 2 * rw, h + 2 * rw, r0 + rw, 0, w + rw)), ring)
-		var dr: float = maxf(0.0, float(M.drop) - sink)
-		if dr > 0:  # 아래로 단단한 그림자
-			var sh := PackedVector2Array()
-			for p in outer:
-				sh.append(p + Vector2(0, dr))
-			var sc := UiKit.c("ink", float(M.drop_a))
-			draw_colored_polygon(sh, sc)
-			sh.append(sh[0])
-			draw_polyline(sh, sc, 1.0, true)
-		draw_colored_polygon(outer, ink)  # 잉크 외곽선 (안쪽 판이 위를 덮음)
-		var ring := outer.duplicate()
-		ring.append(outer[0])
-		draw_polyline(ring, ink, 1.0, true)
-		RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), _geo.idx, _geo.pts, _geo.cols)
+		t.poly(_geo.outer, ink, true)  # 잉크 외곽선 (안쪽 판이 위를 덮음), 바깥 1px 부드럽게
+		t.raw(_geo.pts, _geo.cols, _geo.idx)
 		for ln: Array in _geo.lines:
-			draw_polyline(ln[0], ln[1], ln[2], true)
+			t.line(ln[0], ln[1], ln[2])
 		if not bands.is_empty():  # 위쪽 색 띠 + 아래 잉크 선
 			var S: Dictionary = _geo.inner
 			var bh: float = band_h if band_h > 0 else float(K.band_h)
@@ -651,33 +743,67 @@ class Board extends PanelContainer:
 					if clean.is_empty() or q.distance_to(clean[clean.size() - 1]) > 0.05:
 						clean.append(q)
 				if clean.size() >= 3:
-					draw_colored_polygon(clean, bands[i])
-			draw_line(Vector2(xr0.x, y0 + bh), Vector2(xr0.y, y0 + bh), ink, 2.0)
+					t.poly(clean, bands[i])
+			t.line(PackedVector2Array([Vector2(xr0.x, y0 + bh), Vector2(xr0.y, y0 + bh)]), ink, 2.0, false)
 		if kind == "wood" and paint.a == 0:  # 위쪽 밝은 띠
 			var S: Dictionary = _geo.inner
 			var y: float = float(S.y0) + float(K.shine_h) / 2.0
 			var xr := _xr(S, y)
-			draw_line(Vector2(xr.x, y), Vector2(xr.y, y), Color8(255, 220, 170, int(255 * float(K.shine_a))), float(K.shine_h))
-		_draw_nails()
+			t.line(PackedVector2Array([Vector2(xr.x, y), Vector2(xr.y, y)]), Color8(255, 220, 170, int(255 * float(K.shine_a))), float(K.shine_h), false)
+		_add_nails(t)
+		_geo.tris = t
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		if w < 4 or h < 4:
+			return
+		var K: Dictionary = GameData.UI_KIT
+		var M := _M()
+		if _geo.is_empty():
+			_build()
+		if tilt != 0.0:
+			var rot := deg_to_rad(tilt)
+			var ctr := size / 2.0
+			draw_set_transform(ctr - ctr.rotated(rot), rot, Vector2.ONE)
+		var t := Tris.new()  # 그릴 때마다 바뀌는 것(밧줄·고름 테·눌림 그림자) 뒤에 정적인 묶음 — 전부 그리기 호출 한 번
+		if ropes:
+			_add_ropes(t)
+		var ink := UiKit.c("ink")
+		var outer: PackedVector2Array = _geo.outer
+		if ring.a > 0:  # 고른 표시: 형광펜 테 + 바깥 잉크 선 (그림자보다 먼저)
+			var rw: float = K.ring_w
+			var r0: float = radius if radius >= 0 else float(M.radius)
+			t.poly(_perimeter(_shape(-rw - 2, -rw - 2, w + 2 * rw + 4, h + 2 * rw + 4, r0 + rw + 2, 0, w + rw + 2)), ink)
+			t.poly(_perimeter(_shape(-rw, -rw, w + 2 * rw, h + 2 * rw, r0 + rw, 0, w + rw)), ring)
+		var dr: float = maxf(0.0, float(M.drop) - sink)
+		if dr > 0:  # 아래로 단단한 그림자
+			var sh := PackedVector2Array()
+			for p in outer:
+				sh.append(p + Vector2(0, dr))
+			t.poly(sh, UiKit.c("ink", float(M.drop_a)), true)
+		var st: Tris = _geo.tris
+		t.raw(st.pts, st.cols, st.idx)
+		t.draw(self)
 		if tilt != 0.0:
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
-	func _draw_nails() -> void:
+	func _add_nails(t: Tris) -> void:
 		if nails <= 0:
 			return
 		var d: float = GameData.UI_KIT.nail_in
 		var x1 := size.x - tip_len() - d
 		if nails == 1:
-			UiKit.draw_nail(self, Vector2((size.x - tip_len()) / 2.0, d))
+			UiKit.add_nail(t, Vector2((size.x - tip_len()) / 2.0, d))
 			return
-		UiKit.draw_nail(self, Vector2(d, d))
-		UiKit.draw_nail(self, Vector2(x1, d))
+		UiKit.add_nail(t, Vector2(d, d))
+		UiKit.add_nail(t, Vector2(x1, d))
 		if nails >= 4:
-			UiKit.draw_nail(self, Vector2(d, size.y - d))
-			UiKit.draw_nail(self, Vector2(x1, size.y - d))
+			UiKit.add_nail(t, Vector2(d, size.y - d))
+			UiKit.add_nail(t, Vector2(x1, size.y - d))
 
 	## 위로 매달린 밧줄 두 개 (-35° 사선 줄무늬 막대). 판보다 먼저 그려서 아래 끝은 판에 가려진다
-	func _draw_ropes() -> void:
+	func _add_ropes(t: Tris) -> void:
 		var K: Dictionary = GameData.UI_KIT
 		var rw: float = K.rope_w
 		var top: float = -(rope_len if rope_len > 0 else float(K.rope_len))
@@ -704,10 +830,10 @@ class Board extends PanelContainer:
 				idx.append_array([base, base + 1, base + 2, base, base + 2, base + 3])
 				y += b
 				i += 1
-			RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), idx, pts, cols)
+			t.raw(pts, cols, idx)
 			var oc := GameData.col(C[2])
-			draw_line(Vector2(x0, top), Vector2(x0, bot), oc, 1.4, true)
-			draw_line(Vector2(x0 + rw, top), Vector2(x0 + rw, bot), oc, 1.4, true)
+			t.line(PackedVector2Array([Vector2(x0, top), Vector2(x0, bot)]), oc, 1.4)
+			t.line(PackedVector2Array([Vector2(x0 + rw, top), Vector2(x0 + rw, bot)]), oc, 1.4)
 
 
 ## 판을 담은 얼굴 — 버튼(또는 Tap) 위를 덮고, 마우스 올림·누름에 Tween으로 살짝 밀리고 기운다.

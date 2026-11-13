@@ -38,7 +38,7 @@ func _ready() -> void:
 	_vp.own_world_3d = true
 	_vp.transparent_bg = true
 	_vp.msaa_3d = Viewport.MSAA_2X
-	_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED  # 보일 때만 그림 (_process) — 3인칭·메뉴·죽음 땐 안 그림
 	add_child(_vp)
 	texture = _vp.get_texture()
 	var cam := Camera3D.new()
@@ -246,6 +246,10 @@ static func smooth(x: float) -> float:
 func _process(dt: float) -> void:
 	var e := player
 	visible = e != null and e.alive and not GameData.third_person and not e.is_scoped()
+	# 최적화: 안 보이면 화면 크기 SubViewport(MSAA 2배)를 그리지 않는다. 예전엔 3인칭(기본)·메뉴에서도 매 프레임 그렸다
+	var mode := SubViewport.UPDATE_ALWAYS if visible and is_visible_in_tree() else SubViewport.UPDATE_DISABLED
+	if _vp.render_target_update_mode != mode:
+		_vp.render_target_update_mode = mode
 	if not e or not e.alive:
 		return
 	var win := get_window().size

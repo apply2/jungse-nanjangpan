@@ -112,7 +112,8 @@ static func _make_shapes() -> void:
 
 
 ## 최적화(10단계): 같은 관절에 붙은 움직이지 않는 조각들을 메시 하나로 합친다 (캐릭터 하나 70~100번 → 20번 안팎).
-## 눈동자(굴러다님)와 무기(바꿔 들고 따로 움직임)는 그대로 둔다. 번쩍임은 합친 재질도 같이 바뀐다.
+## 눈동자(굴러다님)·볼(부풂)은 그대로 둔다. 무기는 그룹 안쪽 조각끼리 합친다 (최적화 — 트럼펫 13조각 → 1). 반투명(성수병 유리)은 안 합침.
+## 번쩍임은 합친 재질도 같이 바뀐다.
 func _merge(n: Node3D) -> void:
 	part_count = _count_meshes(n)
 	var skip := {}
@@ -120,9 +121,7 @@ func _merge(n: Node3D) -> void:
 		skip[pp.m] = true
 	for c in cheeks:
 		skip[c] = true
-	for w: Node3D in weapons.values():
-		skip[w] = true
-	_merge_node(n, skip)
+	_merge_node(n, skip)  # 무기 그룹도 안쪽 조각끼리 합친다 (그룹 노드는 남아서 보이기·배율·위치는 그대로)
 
 
 static func _count_meshes(n: Node) -> int:
@@ -137,7 +136,7 @@ func _merge_node(n: Node3D, skip: Dictionary) -> void:
 	for c in n.get_children():
 		if skip.has(c):
 			continue
-		if c is MeshInstance3D and c.get_child_count() == 0 and (c as MeshInstance3D).material_override is StandardMaterial3D:
+		if c is MeshInstance3D and c.get_child_count() == 0 and (c as MeshInstance3D).material_override is StandardMaterial3D 				and ((c as MeshInstance3D).material_override as StandardMaterial3D).transparency == BaseMaterial3D.TRANSPARENCY_DISABLED:  # 성수병 유리 같은 반투명은 따로
 			var mi := c as MeshInstance3D
 			groups[mi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF].append(mi)
 		elif c is Node3D:

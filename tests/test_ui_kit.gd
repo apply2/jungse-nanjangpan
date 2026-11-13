@@ -182,6 +182,29 @@ func _run() -> void:
 	check("설정: 1인칭 누르면 형광펜이 옮겨감", sp._view_btns.fp.selected and not sp._view_btns.tp.selected and not G.third_person)
 	G.third_person = true
 
+	# 최적화: 판·못·HUD 도형을 삼각형 한 묶음(UiKit.Tris)으로 — 그리기 호출 한 번
+	var T = U.Tris.new()
+	T.poly(PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)]), Color.RED, true)
+	check("Tris: 다각형 + 부드러운 테두리 = 부채 4 + 테 4칸", T.idx.size() == 4 * 3 + 4 * 6 and T.pts.size() == 1 + 4 + 4, "idx %d pts %d" % [T.idx.size(), T.pts.size()])
+	T.clear()
+	T.line(PackedVector2Array([Vector2(0, 0), Vector2(0, 0), Vector2(10, 0)]), Color.RED, 2.0)
+	check("Tris: 선 (겹친 점 빼고) 한 칸 = 띠 3줄", T.idx.size() == 18 and T.pts.size() == 8, "idx %d pts %d" % [T.idx.size(), T.pts.size()])
+	var okb := true
+	for kind in ["wood", "parch", "gilt"]:
+		var bb = U.Board.new(kind)
+		bb.nails = 4
+		bb.bands = [Color.RED, Color.BLUE]
+		host.add_child(bb)
+		bb.size = Vector2(220, 90)
+		bb._build()
+		var tr = bb._geo.tris
+		var mx := 0
+		for i in tr.idx:
+			mx = maxi(mx, i)
+		okb = okb and tr.idx.size() > 0 and tr.idx.size() % 3 == 0 and mx < tr.pts.size() and tr.pts.size() == tr.cols.size()
+		bb.queue_free()
+	check("판: 외곽선·바탕·결·띠·못을 삼각형 한 묶음으로 미리 만듦", okb)
+
 	host.queue_free()
 	await frames(2)
 	_font_coverage()

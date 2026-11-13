@@ -1,0 +1,3 @@
+PROF tag=after1 scene=menu fps=284 avg_ms=3.52 p99_ms=8.40 max_ms=11.59 proc_ms=10.07 phys_ms=6.86 draw=559 prims=458682 nodes=2197 objs=6102
+PROF tag=after1 scene=ffa fps=319 avg_ms=3.14 p99_ms=7.35 max_ms=9.65 proc_ms=11.75 phys_ms=4.94 draw=479 prims=400690 nodes=2181 objs=6136
+PROF tag=after1 scene=control fps=266 avg_ms=3.76 p99_ms=7.11 max_ms=9.58 proc_ms=21.04 phys_ms=2.74 draw=587 prims=444424 nodes=2237 objs=6794

@@ -95,6 +95,10 @@ scripts/ui/control_hud.gd     쟁탈전 HUD (Hud 아래): 방패 점수판(라�
 tests/test_control.gd  쟁탈전: 5:5·팀 색·점령 속도·게이지 빼기·감소·경합·점수·연장전·4분·2선승·팀킬 없음·부활 5초·스폰룸 회복/공격 금지·거울 대칭·3갈래 내비·문 막·봇 점령·라운드 흐름·메뉴 복귀 자동 테스트
 tests/test_result_fx.gd 결과 화면 연출: 개인전 1~3등 승리·4등 패배, 쟁탈전 승패·무승부, 문구 목록, 헤드리스 효과음, 느린 화면 되돌림 자동 테스트
 tests/test_map_deco.gd 맵 꾸미기: 충돌 상자·스폰 지문이 꾸미기 전과 같음, 장식 충돌 없음, 잔디가 상자·흙길 위에 없음·높이 ≤0.25, 고정 시드, 그래픽 품질·저장·설정 버튼 자동 테스트
+tests/perf_profile.gd  봇 경기 FPS·1% 최저·그리기 호출·삼각형 (메뉴·개인전·쟁탈전, 화면 필요: godot --path . --resolution 1280x720 -s tests/perf_profile.gd -- tag=now secs=20)
+tests/perf_break.gd    그리기 호출이 어디서 나오나 (같은 장면을 멈춰 두고 그림자·잔디·소품·캐릭터·HUD·맵을 하나씩 끔, 화면 필요)
+tests/perf_hud.gd      HUD 그리기 호출을 노드별로 (화면 필요) / tests/perf_model.gd 병과별 캐릭터 조각·삼각형 수 (화면 필요)
+tests/perf_cpu.gd      스크립트 CPU 시간 (물리 프레임 한 번, 봇 AI 켬/끔, 헤드리스: godot --headless --path . -s tests/perf_cpu.gd)
 tests/perf_maps.gd     두 맵 같은 카메라 5곳 사진(deco_<tag>_*.png) + 봇 경기 FPS·드로우콜 (화면 있어야 함: godot --path . --resolution 1280x720 -s tests/perf_maps.gd -- tag=after quality=normal secs=30)
 tests/screenshot_held.gd 손에 든 무기 크기 비교 사진 (병과 5 + 저격총·AK·닭·말, 4m·8m·20m + 내 어깨 너머) + 조준점 가림 %
 tests/screenshot_control.gd   쟁탈전 맵 위에서 본 사진 → tests/screenshots/ (화면 있어야 함: godot --path . --resolution 1400x760 -s tests/screenshot_control.gd)
@@ -656,8 +660,18 @@ cd export/web && python -m http.server 8060   # 브라우저로 http://localhost
 - 웹에선 Esc를 브라우저가 가져가 마우스 잠금만 풀린다 → 잠금이 풀리면 일시정지 (`main._check_web_lock`, HTML pointerlockchange).
 - 웹엔 시스템 폰트가 없어서 폰트에 없는 글자는 □로 나온다. UI 글자를 새로 넣으면 도현·대체 폰트에 있는지 확인할 것.
 - 최적화: 움직이지 않는 맵 조각은 `world_builder._merge_static()`이, 캐릭터의 관절별 조각은 `derp_model._merge()`가 `Meshes.merge()`로 정점 색 메시 하나로 합친다.
-  그리기 호출이 경기 중 약 1300 → 200으로 줄었다. 맵·캐릭터에 조각을 더하면 자동으로 합쳐진다 (눈동자·무기는 안 합침).
+  그리기 호출이 경기 중 약 1300 → 200으로 줄었다. 맵·캐릭터에 조각을 더하면 자동으로 합쳐진다 (눈동자·볼은 안 합침).
   합친 메시는 정점 색 재질(`Meshes.vertex_color_mat`)을 쓴다. 캐릭터 번쩍임은 그 재질도 같이 바뀐다.
+- **최적화 2차** (사용자 요청 — 측정: `tests/perf_profile.gd`, 1280×720 Intel Arc 내장 그래픽):
+  메뉴 180 → 284 FPS (그리기 호출 1135 → 559), 개인전 251 → 319 (620 → 479), 쟁탈전 178 → 266 (774 → 587).
+  - 1인칭 손 화면(`viewmodel.gd`의 화면 크기 SubViewport, MSAA 2배)은 **보일 때만** 그린다. 예전엔 3인칭(기본)·메뉴·죽음 중에도 매 프레임 그렸다.
+  - 손에 든 무기도 그룹 안 조각끼리 합친다 (트럼펫 13 → 1). 반투명 재질(성수병 유리)은 안 합친다 (`_merge_node`).
+  - **2D는 `UiKit.Tris`로 한 번에**: Compatibility 렌더러는 draw_colored_polygon·draw_polyline·draw_circle(부드럽게)을 하나하나 따로 그린다.
+    `Board`는 외곽선·바탕·결·띠·못을 크기·종류·색이 바뀔 때만 삼각형 한 묶음(`_geo.tris`)으로 만들고, 그릴 땐 밧줄·고름 테·그림자 + 그 묶음을 한 번에 (판 하나 40~60번 → 1~2번).
+    쇠못(`add_nail`)·쟁탈전 위 점수판(`ControlHud.Top`, 80 → 33번, 남은 건 글자)도 같은 방식. 부드러운 테두리는 바깥 1px을 투명으로 흐리게 해서 흉내 냄 (사진 비교 차이 0.1~0.5%).
+    **새 HUD·UI 도형을 그릴 땐 draw_* 여러 번 대신 `UiKit.Tris`에 모아 `draw(self)` 한 번.** 볼록 다각형은 `poly`, 오목하면 `Geometry2D.triangulate_polygon` + `raw`.
+  - 남은 큰 것: 캐릭터(한 명 15~25번 + 그림자, 삼각형 1.3만~2.5만), 그림자 패스(약 160번), 외곽선·그림자 있는 글자(줄마다 8~20번).
+  - CPU(스크립트)는 물리 프레임 한 번에 0.5~1.5ms (봇 AI 절반) — `tests/perf_cpu.gd`. `Performance`의 TIME_* 값은 여러 물리 스텝을 묶어 세서 믿지 말 것.
 
 ## PC 내보내기 (친구대전용 exe)
 
