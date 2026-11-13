@@ -74,8 +74,19 @@ func register(e: PlayerController) -> void:
 		e.ai = BotAI.new()
 
 
+## 빠지는 캐릭터의 투사체·성수 웅덩이도 같이 치운다 (친구가 나가 노드가 지워진 뒤 owner로 남으면
+## ally()·타입 있는 변수에서 "previously freed" 오류가 나서 투사체·웅덩이가 멈춘다)
 func unregister(e: PlayerController) -> void:
 	ents.erase(e)
+	for i in range(projectiles.size() - 1, -1, -1):
+		if projectiles[i].owner == e:
+			(projectiles[i].mesh as Node).queue_free()
+			projectiles.remove_at(i)
+	for i in range(zones.size() - 1, -1, -1):
+		if zones[i].owner == e:
+			(zones[i].disc as Node).queue_free()
+			(zones[i].rim as Node).queue_free()
+			zones.remove_at(i)
 
 
 ## 친구대전 중인가 (HTML MP.on)
@@ -1136,7 +1147,7 @@ func remote_hit(e: PlayerController, a: PlayerController, dmg: float, kind: Stri
 	impact_fx(e, a, pt, kind, head, dir, dmg, false)
 	if a and a.is_local:
 		hitmark.emit(false)
-		if kind != "holy":
+		if kind != "holy" and kind != "trumpet":
 			Sfx.play("head" if head else "hit")
 
 
