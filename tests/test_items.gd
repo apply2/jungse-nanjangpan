@@ -224,6 +224,23 @@ func _run() -> void:
 		"mounted=%.2f wep=%s" % [p.mounted, p.wep])
 	await wait(160)
 	check("달아난 말은 사라짐", I.runaways.is_empty(), "n=%d" % I.runaways.size())
+	# 1인칭으로 타면 내 말의 창·머리는 숨김 (뷰모델이 따로 그려서 두 개로 보이던 버그), 3인칭이면 보임, 내리면 다시 보임
+	put(p, SHOOTER, "archer", EAST_YAW)
+	G.third_person = false
+	I.mount(p)
+	await wait(3)
+	var fp_hidden: bool = not (p.horse.lance as Node3D).visible and not (p.horse.hd as Node3D).visible
+	G.third_person = true
+	await wait(3)
+	var tp_shown: bool = (p.horse.lance as Node3D).visible and (p.horse.hd as Node3D).visible
+	G.third_person = false
+	await wait(3)
+	var rider_h: Dictionary = p.horse
+	I.dismount(p)
+	check("1인칭으로 타면 내 말 창·머리 숨김 (창 두 개 버그)", fp_hidden, "")
+	check("3인칭이면 창·머리 보임", tp_shown, "")
+	check("내리면 달아나는 말 창·머리 다시 보임", (rider_h.lance as Node3D).visible and (rider_h.hd as Node3D).visible, "")
+	await wait(160)
 	# 말 몸통에 치이면 넘어짐 (옆에 바짝 붙은 사람)
 	put(p, SHOOTER, "archer", EAST_YAW)
 	put(dm, SHOOTER + Vector3(0, 0, 1.0))

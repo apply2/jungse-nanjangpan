@@ -448,9 +448,20 @@ func gallop_sfx(e: PlayerController, sp: float) -> void:
 	Sfx.loop(e, "gallop", e.global_position, lerpf(float(G.pitch_min), float(G.pitch_max), k))
 
 
+## 1인칭으로 말을 탔으면 내 말의 창·머리는 숨긴다 — 뷰모델이 창과 말 머리를 따로 그려서 두 개로 보였음 (버그 고침).
+## 내 몸(player.gd model.visible)과 같은 조건: 3인칭이고 카메라가 몸에서 떨어져 있을 때만 보임
+static func _hide_fp_parts(e: PlayerController, force_show := false) -> void:
+	var show := force_show or not e.is_local or (e.tp_view() and e.tp_dist > 0.9)
+	for key in ["lance", "hd"]:
+		var n: Node3D = e.horse.get(key)
+		if n:
+			n.visible = show
+
+
 func dismount(e: PlayerController) -> void:
 	Sfx.loop_stop(e)
 	if not e.horse.is_empty():
+		_hide_fp_parts(e, true)  # 달아나는 말은 창·머리가 다 보이게
 		runaways.append({"h": e.horse, "dir": Vector3(-sin(e.yaw), 0, -cos(e.yaw)), "life": GameData.ITEM.runaway})
 		e.horse = {}
 	e.mounted = 0.0
@@ -549,6 +560,7 @@ func update_horses(dt: float) -> void:
 		var hg: Node3D = e.horse.g
 		hg.global_position = e.global_position
 		hg.rotation.y = e.yaw + PI
+		_hide_fp_parts(e)
 		WeaponModels.anim_horse(e.horse, sp, dt)
 		gallop_sfx(e, sp)
 		if e.dance_t <= 0:  # 춤추는 동안엔 창도 안 찌름
