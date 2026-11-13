@@ -493,7 +493,7 @@ const HORSE_SPOTS := [Vector3(-30, 0, 0), Vector3(30, 0, -4), Vector3(2, 0, 30),
 
 # ── 매치·메뉴·HUD (HTML startMatch / startMenuSim / updateHUD / killfeed / banner / toast) ──
 ## 메인 메뉴 (마을 게시판 — reference/ui_design/Main.html, px는 1080 시안 × 0.667)
-const VERSION := "v0.2"
+const VERSION := "v0.3"
 const MAIN_MENU := {
 	"tips": [  # 오늘의 팁 (메인 화면을 열 때마다 하나, \n = 줄 바꿈 자리). 규칙이 바뀌면 같이 고칠 것
 		"달리다가 급하게 돌면\n넘어집니다. 진짜로.",
