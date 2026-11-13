@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>개인전 승리</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&amp;family=Gaegu:wght@700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2b1d12;text-decoration:none}a:hover{color:#2b1d12}
+.wood{background-color:#9a6236;background-image:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 26px,rgba(60,30,10,.38) 26px 29px),repeating-linear-gradient(90deg,rgba(255,220,170,.07) 0 2px,rgba(0,0,0,0) 2px 13px),linear-gradient(180deg,#b57a47,#8a542b)}
+.parch{background-color:#f4e4bc;background-image:radial-gradient(ellipse at 18% 12%,rgba(255,255,255,.6),rgba(255,255,255,0) 50%),radial-gradient(ellipse at 92% 96%,rgba(150,100,40,.25),rgba(0,0,0,0) 55%)}
+.ink{box-shadow:inset 0 0 0 4px #2b1d12,inset 0 6px 0 4px rgba(255,220,170,.22),0 8px 0 #2b1d12}
+.inkp{box-shadow:inset 0 0 0 3px #2b1d12,inset 0 0 22px rgba(120,80,30,.32),0 6px 0 rgba(43,29,18,.9)}
+.nail{position:absolute;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8e2d8,#77706a 55%,#35302b);box-shadow:0 2px 0 rgba(0,0,0,.45)}
+.rope{position:absolute;width:12px;border-radius:6px;background:repeating-linear-gradient(-35deg,#dcb878 0 7px,#9c7438 7px 12px);box-shadow:inset 0 0 0 2px #5a3e1a}
+.out{color:#fff8e6;-webkit-text-stroke:8px #2b1d12;paint-order:stroke fill}
+.marker{background:linear-gradient(180deg,rgba(0,0,0,0) 52%,#ffd84a 52% 90%,rgba(0,0,0,0) 90%)}
+.rays{background:repeating-conic-gradient(from 0deg,rgba(255,216,74,.42) 0 9deg,rgba(255,216,74,0) 9deg 22deg)}
+.btn{display:flex;align-items:center;justify-content:center;border-radius:12px}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1080px; position: relative; overflow: hidden; font-family: 'Do Hyeon', sans-serif; color: #2b1d12; background: #8fc6ea">
+  <img src="img/menu_bg.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(3px) saturate(1.1)">
+  <div style="position: absolute; inset: 0; background: radial-gradient(ellipse at 34% 60%, rgba(255,236,170,.25), rgba(43,29,18,.55) 75%)"></div>
+  <div class="rays" style="position: absolute; left: 660px; top: 600px; width: 2200px; height: 2200px; margin: -1100px 0 0 -1100px; border-radius: 50%; -webkit-mask: radial-gradient(circle, #000 15%, rgba(0,0,0,0) 60%); mask: radial-gradient(circle, #000 15%, rgba(0,0,0,0) 60%)"></div>
+
+  <!-- 결과 간판 -->
+  <div class="rope" style="left: 470px; top: -10px; height: 66px"></div>
+  <div class="rope" style="left: 840px; top: -10px; height: 66px"></div>
+  <div class="wood ink" style="position: absolute; left: 330px; top: 48px; width: 660px; height: 200px; border-radius: 18px; transform: rotate(-2deg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+    <span class="nail" style="left: 134px; top: 14px"></span>
+    <span class="nail" style="left: 504px; top: 14px"></span>
+    <h1 class="out" style="margin: 0; font-size: 140px; line-height: .95; font-weight: 400; -webkit-text-stroke-width: 14px; text-shadow: 0 8px 0 #2b1d12">{{head}}</h1>
+  </div>
+  <div style="position: absolute; left: 380px; top: 236px; transform: rotate(2deg); background: #ffd84a; padding: 8px 30px 12px; border-radius: 6px; box-shadow: inset 0 0 0 3px #2b1d12, 0 6px 0 #2b1d12">
+    <span style="font-family: 'Gaegu', cursive; font-size: 50px; line-height: 1">{{line}}</span>
+  </div>
+
+  <!-- 시상대 -->
+  <div style="position: absolute; left: 190px; top: 380px; width: 940px; height: 700px">
+    <sc-for list="{{podium}}" as="p" hint-placeholder-count="3">
+      <div style="position: absolute; left: {{p.x}}; bottom: 0; width: 300px; height: {{p.h}}">
+        <img src="{{p.img}}" alt="{{p.alt}}" style="position: absolute; left: 50%; bottom: 100%; height: {{p.ih}}; transform: translateX(-50%); margin-bottom: -14px; filter: drop-shadow(0 12px 8px rgba(43,29,18,.35))">
+        <sc-if value="{{p.me}}" hint-placeholder-val="{{ true }}">
+          <div style="position: absolute; left: 50%; bottom: calc(100% + {{p.ih}} - 6px); transform: translateX(-50%) rotate(-4deg); background: #ffd84a; padding: 2px 18px 6px; border-radius: 6px; box-shadow: inset 0 0 0 3px #2b1d12, 0 4px 0 #2b1d12; font-size: 40px; white-space: nowrap">나</div>
+        </sc-if>
+        <div class="wood ink" style="position: absolute; inset: 0; border-radius: 10px 10px 0 0; display: flex; justify-content: center; padding-top: 16px; box-sizing: border-box">
+          <span class="out" style="font-size: 86px; line-height: 1">{{p.n}}</span>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- 색종이 -->
+  <sc-for list="{{confetti}}" as="c" hint-placeholder-count="40">
+    <div style="position: absolute; left: {{c.x}}; top: {{c.y}}; width: {{c.w}}; height: {{c.h}}; background: {{c.col}}; transform: rotate({{c.r}}); border-radius: 2px; box-shadow: 0 0 0 2px rgba(43,29,18,.55)"></div>
+  </sc-for>
+
+  <!-- 점수표 -->
+  <div class="parch inkp" style="position: absolute; right: 90px; top: 120px; width: 640px; border-radius: 8px; padding: 36px 40px 30px; box-sizing: border-box">
+    <span class="nail" style="left: 16px; top: 16px"></span>
+    <span class="nail" style="right: 16px; top: 16px"></span>
+    <h2 style="margin: 0 0 16px; font-size: 48px; font-weight: 400; text-align: center">개인전 결과</h2>
+    <div style="display: grid; grid-template-columns: 60px 1fr 100px 80px 80px; gap: 10px 12px; font-size: 30px; align-items: center">
+      <span style="color: #7b5a3a; font-size: 24px">순위</span><span style="color: #7b5a3a; font-size: 24px">이름</span><span style="color: #7b5a3a; font-size: 24px">병과</span><span style="color: #7b5a3a; font-size: 24px; text-align: right">처치</span><span style="color: #7b5a3a; font-size: 24px; text-align: right">죽음</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px">
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+        <div style="display: grid; grid-template-columns: 60px 1fr 100px 80px 80px; gap: 12px; font-size: 32px; align-items: center; padding: 6px 10px; border-radius: 6px; background: {{r.bg}}; box-shadow: {{r.ring}}">
+          <span>{{r.rank}}</span><span>{{r.name}}</span><span style="font-size: 26px; color: #5a3410">{{r.cls}}</span><span style="text-align: right">{{r.k}}</span><span style="text-align: right">{{r.d}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- 버튼 -->
+  <nav aria-label="다음" style="position: absolute; right: 90px; bottom: 70px; display: flex; gap: 22px; align-items: center">
+    <a href="Main.dc.html" class="btn parch" style="height: 84px; padding: 0 30px; font-size: 36px; box-shadow: inset 0 0 0 3px #2b1d12, 0 6px 0 #2b1d12">메인 메뉴</a>
+    <a href="ClassSelect.dc.html" class="btn parch" style="height: 84px; padding: 0 30px; font-size: 36px; box-shadow: inset 0 0 0 3px #2b1d12, 0 6px 0 #2b1d12">병과 다시 고르기</a>
+    <a href="ResultFfaWin.dc.html" class="btn" style="position: relative; height: 110px; padding: 0 56px; font-size: 56px; background: linear-gradient(180deg,#f6c25a,#d9922e); box-shadow: inset 0 0 0 5px #2b1d12, inset 0 6px 0 5px rgba(255,240,200,.35), 0 9px 0 #2b1d12; transform: rotate(-1deg)"><span class="nail" style="left: 12px; top: 12px"></span><span class="nail" style="right: 12px; top: 12px"></span>한 판 더!</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"rank":{"editor":"enum","options":["1","2","3"],"default":"1"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rank = Number(this.props.rank ?? '1');
+    const L = {
+      1: ['1등!', '중세 최강 바보 등극'],
+      2: ['2등!', '아깝다! 은메달도 메달이다'],
+      3: ['3등!', '시상대에는 올라갔다'],
+    }[rank] || ['1등!', '중세 최강 바보 등극'];
+    const me = { img: 'img/archer_base_q34.png', alt: '궁수 (나)', name: '나', cls: '궁수' };
+    const others = [
+      { img: 'img/barbarian_base_q34.png', alt: '야만인', name: '술 취한 용병', cls: '야만인' },
+      { img: 'img/bard_base_q34.png', alt: '음유시인', name: '늪지 마녀', cls: '음유시인' },
+    ];
+    const byRank = [null, null, null];
+    byRank[rank - 1] = me;
+    let k = 0;
+    for (let i = 0; i < 3; i++) if (!byRank[i]) byRank[i] = others[k++];
+    const slot = { 1: { x: '320px', h: '280px', ih: '420px' }, 2: { x: '0px', h: '200px', ih: '380px' }, 3: { x: '640px', h: '140px', ih: '360px' } };
+    const podium = [2, 1, 3].map((n) => ({ ...byRank[n - 1], n: String(n), me: byRank[n - 1] === me, ...slot[n] }));
+    const kills = [14, 11, 9, 7, 5, 3];
+    const tail = [
+      { name: '방앗간 한스', cls: '석궁병' }, { name: '감자 농부', cls: '성직자' }, { name: '졸린 경비병', cls: '궁수' },
+    ];
+    const list = byRank.concat(tail);
+    const rows = list.map((p, i) => ({
+      rank: String(i + 1), name: p.name, cls: p.cls, k: String(kills[i]), d: String([4, 6, 7, 8, 9, 12][i]),
+      bg: p === me ? '#ffd84a' : 'rgba(0,0,0,0)',
+      ring: p === me ? 'inset 0 0 0 3px #2b1d12' : 'none',
+    }));
+    const cols = ['#ffd84a', '#3d6fd6', '#d8453b', '#6cc35a', '#fff8e6', '#f28a1e', '#7a3fa8'];
+    const confetti = [];
+    for (let i = 0; i < 46; i++) {
+      const a = (i * 97) % 100, b = (i * 53 + 17) % 100;
+      confetti.push({
+        x: Math.round(40 + a * 11.6) + 'px', y: Math.round(20 + b * 7.4) + 'px',
+        w: (12 + (i % 3) * 6) + 'px', h: (22 + (i % 4) * 5) + 'px',
+        r: ((i * 37) % 180 - 90) + 'deg', col: cols[i % cols.length],
+      });
+    }
+    return { head: L[0], line: L[1], podium, rows, confetti };
+  }
+}
+</script>
+</body>
+</html>

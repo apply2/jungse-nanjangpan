@@ -26,6 +26,7 @@ var _mm_two: MultiMeshInstance3D
 var _mm_deco: MultiMeshInstance3D
 var _mm_bits: MultiMeshInstance3D
 var _t := 0.0
+var keep_mats: Array[Material] = []  # 시작할 때 셰이더를 미리 데울 재질 (ShaderWarm): 음파 고리·조명·충격파, 삑사리 음표
 
 static var _meshes := {}
 
@@ -37,6 +38,7 @@ func _ready() -> void:
 	_mm_two = _mm(note_mesh("two"), int(FX.max))
 	_mm_deco = _mm(note_mesh("one"), int(FX.deco_max))
 	_mm_bits = _mm(Meshes.box(), int(FX.bits_max))
+	keep_mats = [_flat_mat(FX.wave_col, 0.0, true), note_mat()]
 
 
 # ── 모양 ─────────────────────────────────────────────────────

@@ -48,13 +48,14 @@ scripts/viewmodel.gd   1인칭 손·무기 (HTML buildVM·updateVM). 따로 된 
 scripts/player.gd      캐릭터 하나(나·봇 공용, is_local로 구분. 봇은 ai가 입력을 만듦). Quake식 이동, 달리기, 슬라이드, 점프, 급회전 넘어짐, 계단 오르기, 1·3인칭 카메라
 scripts/derp_model.gd  흐물 캐릭터 몸 + 애니메이션 (뒤뚱 걸음, 젤리 출렁, 굴러다니는 눈, 넘어지면 만세)
 scripts/main.gd        경기 흐름 (HTML startMatch·endMatch·startMenuSim·pauseGame·goMenu). state = menu / playing / paused / ended, 남은 시간, 20킬 종료
-scripts/hud.gd         경기 중 화면 (HTML updateHUD): 시간·1위, 킬피드, 병과·체력, 무기, 속도, 조준점(움직이면 벌어짐), banner, 조준점 아래 문구(pop_msg), 데미지 숫자, 사망 화면, 점수판(Tab)
+scripts/hud.gd         경기 중 화면 (HTML updateHUD, 모양은 시안 Hud — 아래 "경기 화면 HUD"): 시간·1위, 킬피드, 병과·체력, 무기, 속도, 조준점(움직이면 벌어짐), banner, 조준점 아래 자막(pop_msg), 데미지 숫자, 사망 자막, 점수판(Tab)
 scripts/menu.gd        메뉴 (메인·난이도·병과·설정·친구대전 자리·나가기), 일시정지, 결과 화면, 아래쪽 알림 상자(toast)
-scripts/ui_kit.gd      메뉴·HUD 공용 조각 (HTML CSS의 .panel·.primary·.ghost·.navbtn·병과 카드·난이도 카드·점수판, 병과 아이콘 SVG)
+scripts/ui_kit.gd      메뉴·HUD 공용 조각 (HTML CSS의 .panel·.primary·.ghost·.navbtn·병과 카드·난이도 카드·점수판, 병과 아이콘 SVG) + 마을 게시판 재료 (Board·Face·KitButton·tilted·쇠못) — 아래 "UI: 마을 게시판 스타일"
 tests/test_movement.gd 이동 자동 테스트 (HTML과 같은 값이 나오는지)
 tests/test_combat.gd   피격·피해·투구·재생·부활·스폰 자동 테스트
 tests/test_stone.gd    돌멩이·투사체·맞은 효과 자동 테스트
 tests/test_bow.gd      활 당기기·세기·후들거림·손 미끄러짐·꽂힘·반동 자동 테스트
+tests/test_close_range.gd 근거리 명중: 1·3·10m × 활 최소/풀·석궁 × 1·3인칭 × 조준점 5곳 표, 0.6m, 첫 프레임 눈→손 판정, 터널링, F9 디버그 표시 자동 테스트
 tests/test_crossbow.gd 석궁 발사·장전 4초·75 피해·헤드샷 한 방·경직·장전 자세 자동 테스트
 tests/test_holy.gd     성수 충전·재충전·포물선·웅덩이 피해·둔화·착지 표시·테두리 색 자동 테스트
 scripts/bot_ai.gd      봇 머리 (HTML botUpdate·aimSolve). 대상 고르기·반응·조준 오차·앞질러 쏘기·포물선·무빙·끼임 탈출·웅덩이 피하기
@@ -65,32 +66,49 @@ tests/test_items.gd    닭 잡기·던지기·넘어짐, 저격총 줍기·즉�
 scripts/trumpet.gd     음유시인 트럼펫 (4.5단계, class_name Trumpet). 원뿔 판정(in_cone·reaches), 숨·삑사리·헐떡임(update), 팡파레(try_fanfare), 듣는 쪽 피해·춤(update_victims·_dance_tick)
 scripts/fx/bard_fx.gd  트럼펫 공격 이펙트 (Combat 아래 BardFx 노드, 보기만 함). 날아가는 음표·음파 고리·틱 음표·춤 게이지·춤(조명·색종이)·면역·팡파레·삑사리·숨 참. 음표·색종이는 MultiMesh 풀
 scripts/fx/star_fx.gd  황금 붕어빵 무적 반짝임 (Combat 아래 StarFx 노드, 보기만 함). 몸 금색↔흰색 덮어씌우기·별 반짝이·금가루 꼬리(MultiMesh)·금빛(가까운 2명)
-tests/test_fish.gd     황금 붕어빵: 등장 자리·먹기·5초 무적·막는 것·몸박치기·반짝임·HUD·뷰모델·무적 BGM·봇·친구대전 비트 자동 테스트
+tests/test_fish.gd     황금 붕어빵: 등장 자리·먹기·8초 무적·막는 것·몸박치기·반짝임·HUD·뷰모델·무적 BGM·봇·친구대전 비트 자동 테스트
 tests/test_bard_fx.gd  트럼펫 이펙트: 풀 상한(한 명 24·전체 120)·원뿔 안 퍼짐·벽 튕김·1인칭 비켜 감·고리 주기·게이지 1→3·춤 조명·면역·팡파레·삑사리·숨 참·정리 자동 테스트
 scripts/trumpet_voice.gd  연주 멜로디 (AudioStreamGenerator, 톱니파+비브라토+로우패스). 음유시인 모델마다 하나
 tests/test_bard.gd     원뿔 안/밖·벽 차단·피해 주기·누적 0.75초 춤·1.5초 창·3초 면역·넘어짐 우선·숨 소진·삑사리·팡파레·봇 오차·베레모·볼·숨 막대 자동 테스트
 scripts/ragdoll.gd     죽으면 쓰러지는 몸 (HTML makeRagdoll·stepRagdoll·poseRagdoll). 점 8개 Verlet + world.aabbs 충돌. 모델의 머리·몸통·팔·다리를 떼어 와서 돌림
 scripts/music.gd       배경음악 (오토로드 Music). AudioStreamPlayer 둘로 크로스페이드, 내 병과·경기 여부로 곡 고름 — 아래 "오디오"
+scripts/ui/model_stage.gd 병과 화면 큰 액자·카드 그림 (SubViewport에 DerpModel 하나. set_active로 계속 그림, portrait(k)로 한 번 찍기)
+scripts/ui/result_stage.gd 결과 화면 왼쪽 3D 무대 (직교 카메라 — 배치 px ↔ m 그대로, RESULT_UI.stage.ppm). setup([{cls, team, at, yaw, lie, mood}])
+scripts/ui/menu_crowd.gd  메인 메뉴 오른쪽 병과 무리 (SubViewport·투명 배경·자기 World3D에 DerpModel 4개, 가짜 플레이어 Pose로 animate). 메인이 안 보이면 렌더·애니메이션 끔
 scripts/ui/settings_panel.gd + scenes/ui/settings_panel.tscn  설정 본문 (감도·시점·볼륨 3개·조작키). 메인 메뉴 설정·일시정지 설정이 같이 씀
 default_bus_layout.tres  오디오 버스 Master ─ Music · SFX
-audio/                 BGM ogg 두 개 (루프 음원)
+audio/                 BGM ogg (루프 음원) + 결과 화면 효과음
+audio/sfx/             사용자가 만든 효과음 21개 (앞뒤 무음 자르고 크기 맞춤 — 다시 가공하지 말 것, 크기는 GameData.SFX_GAIN으로만). 아래 "효과음"
 tests/test_music.gd    병과 → 곡·크로스페이드·같은 그룹 이어서·메뉴 곡·버스·루프·설정 저장/불러오기·볼륨 dB·음소거·설정 패널 자동 테스트
-scripts/sfx.gd         효과음 (오토로드 Sfx, HTML sfx). WebAudio tone·noise 합성을 PCM으로 구워 AudioStreamPlayer 32개로 튼다. 소리 파일 없음
+scripts/sfx.gd         효과음 (오토로드 Sfx). FILES(audio/sfx/ 파일, 무작위·음높이 흔들기) + RECIPES(HTML WebAudio 합성을 PCM으로 구움). 플레이어 32개(쉬는 것부터), play()→번호·stop(번호), 반복 소리 loop()·loop_stop(). 결과 화면 stinger
 scripts/net.gd         친구대전 (Main 아래 Net 노드, HTML MP). ENet 방 만들기·코드로 찾기(UDP 방송)·IP로 들어가기, 상태 30Hz, 사건(f·sn·ak·ln·h·k), 방장 경기 시간·아이템·줍기 허락
 tests/test_net.gd      친구대전: Main 둘을 한 프로세스에 띄워 방·대기실·시작·위치·투사체·저격총·처치 수·줍기 허락·끝·나가기 자동 테스트
 tests/test_net_control.gd 친구대전 쟁탈전: 모드·팀 나누기·팀 바꾸기·빈자리 봇·봇 따라가기·봇↔친구 피해·처치 수·거점 열림·점령·라운드·경기 끝·대기실 복귀·개인전 다시 자동 테스트
 tests/test_fx.gd       효과음 합성·소리 나는 곳, 히트스톱, 래그돌(쓰러짐·뼈 길이·무기별 날아감·7초 뒤 사라짐), 흔들림, 붉은 테두리, 피격 방향, 죽음 카메라, 병과 의상 자동 테스트
 fonts/DoHyeon-Regular.ttf  HTML과 같은 '도현' 폰트 (OFL 라이선스)
 fonts/NotoSans-Bold-sub.ttf, NotoSansSymbols2-sub.ttf  도현에 없는 · … ⚠ 세 글자만 담은 대체 폰트 (OFL, fonts/OFL-Noto.txt). GameData가 시작할 때 도현의 fallbacks로 붙인다
+fonts/Gaegu-Bold-sub.woff2  '개구' Bold 손글씨 (OFL, fonts/OFL-Gaegu.txt). 완성형 2350자 + 영문·숫자만. `UiKit.SCRIBBLE` — 한마디·쪽지·팁에만, 한 화면에 1~2곳. fallbacks = Noto 둘 + 도현 (GameData._setup_font_fallbacks)
 export_presets.cfg     웹 내보내기 설정 (Web, 스레드 없음 → 아무 정적 호스팅에서 돎). 결과는 export/web/ (git에 안 올림)
 scripts/maps/map_control.gd  쟁탈전 맵 "성곽 우물 광장" (class MapControl extends WorldBuilder). 블루 절반(z+)만 _half(side)로 짓고 side=-1로 뒤집어 레드. 스폰룸 문 막(적만 막힘)·거점 표시(_build_live)·내비 메시 굽기(_bake_nav)·팀별 스폰/갈래 길/감시 지점
 scripts/modes/control_mode.gd 쟁탈전 규칙 (class ControlMode). 라운드·잠김·점령·경합·점수·연장전·안전장치·스폰룸 회복·공격 금지. Combat.mode에 걸림 (개인전은 null)
-scripts/ui/control_hud.gd     쟁탈전 HUD (Hud 아래): 라운드 점수·% 막대·거점 아이콘·상태 문구, 아군 ▼+이름, 조준한 적 이름, 거점 화살표, 죽었을 때 병과 고르기
+scripts/ui/control_hud.gd     쟁탈전 HUD (Hud 아래): 방패 점수판(라운드 동그라미)·거점 메달·% 막대·상태 쪽지, 거점 표지판 "거점 16m", 아군 ▼+이름, 조준한 적 이름, 거점 화살표, 죽었을 때 병과 고르기
 tests/test_control.gd  쟁탈전: 5:5·팀 색·점령 속도·게이지 빼기·감소·경합·점수·연장전·4분·2선승·팀킬 없음·부활 5초·스폰룸 회복/공격 금지·거울 대칭·3갈래 내비·문 막·봇 점령·라운드 흐름·메뉴 복귀 자동 테스트
+tests/test_result_fx.gd 결과 화면 연출: 개인전 1~3등 승리·4등 패배, 쟁탈전 승패·무승부, 문구 목록, 헤드리스 효과음, 느린 화면 되돌림 자동 테스트
 tests/test_map_deco.gd 맵 꾸미기: 충돌 상자·스폰 지문이 꾸미기 전과 같음, 장식 충돌 없음, 잔디가 상자·흙길 위에 없음·높이 ≤0.25, 고정 시드, 그래픽 품질·저장·설정 버튼 자동 테스트
+tests/perf_profile.gd  봇 경기 FPS·1% 최저·그리기 호출·삼각형 (메뉴·개인전·쟁탈전, 화면 필요: godot --path . --resolution 1280x720 -s tests/perf_profile.gd -- tag=now secs=20)
+tests/perf_break.gd    그리기 호출이 어디서 나오나 (같은 장면을 멈춰 두고 그림자·잔디·소품·캐릭터·HUD·맵을 하나씩 끔, 화면 필요)
+tests/perf_hud.gd      HUD 그리기 호출을 노드별로 (화면 필요) / tests/perf_model.gd 병과별 캐릭터 조각·삼각형 수 (화면 필요)
+tests/perf_cpu.gd      스크립트 CPU 시간 (물리 프레임 한 번, 봇 AI 켬/끔, 헤드리스: godot --headless --path . -s tests/perf_cpu.gd)
 tests/perf_maps.gd     두 맵 같은 카메라 5곳 사진(deco_<tag>_*.png) + 봇 경기 FPS·드로우콜 (화면 있어야 함: godot --path . --resolution 1280x720 -s tests/perf_maps.gd -- tag=after quality=normal secs=30)
+tests/screenshot_held.gd 손에 든 무기 크기 비교 사진 (병과 5 + 저격총·AK·닭·말, 4m·8m·20m + 내 어깨 너머) + 조준점 가림 %
 tests/screenshot_control.gd   쟁탈전 맵 위에서 본 사진 → tests/screenshots/ (화면 있어야 함: godot --path . --resolution 1400x760 -s tests/screenshot_control.gd)
 reference/arrow-arena.html 원본
+reference/ui_design/    UI 시안 "마을 게시판 스타일" (README.md·Guide.jpg 먼저. .jpg = 완성 모습, .html = 좌표·크기·색. 1920×1080 기준 → 게임은 ×0.667). .gdignore로 임포트 안 함
+tests/test_ui_kit.gd   UI 재료: 팔레트·HUD 상수·개구·Board 재질 3개·이정표·seed 나뭇결·기울기 한도·버튼 3종(Button 그대로)·고름·마우스 올림·설정 패널 자동 테스트
+tests/screenshot_hud.gd 경기 화면 HUD 사진 hud_<tag>_control·ffa·death_<가로>.png + 가운데 40% 겹침 검사 (화면 있어야 함: godot --path . --resolution 1920x1080 -s tests/screenshot_hud.gd -- mode=control)
+tests/screenshot_ui.gd  UI 사진 ui_<tag>_main·settings·diff·mode·class·exit·friend·lobby·toast·pause·pause_settings·kit.png (화면 있어야 함: godot --path . --resolution 1280x720 -s tests/screenshot_ui.gd -- tag=after)
+tests/screenshot_captions.gd 자막(배경 없는 글자) 사진 cap_<tag>_sky·ground·wall(_death)_<가로>.png (화면 있어야 함: godot --path . --resolution 1280x720 -s tests/screenshot_captions.gd)
+tests/screenshot_result.gd 결과 화면 사진 result_<tag>_ffa_win·ffa_lose·ctrl_win·ctrl_lose_<가로>.png (화면 있어야 함, 시안 Result*.jpg와 비교)
 ```
 
 실행하면 메인 메뉴가 뜨고, 뒤에서 봇 7명이 싸우는 걸 맵을 빙 도는 카메라로 보여준다 (나는 구경, HTML startMenuSim).
@@ -101,8 +119,8 @@ AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 
 - 경기 중 1~4로 병과 바꾸기와 F1~F3 난이도 키는 지웠다 (HTML에도 없음). 병과는 일시정지에서 다음 부활부터.
 - 킬피드·사망 화면·20킬 종료는 `Combat.killed` 신호를 Main이 받아 처리한다. 처치·알림 문구(HTML popMsg/killPop)는 `hud.pop_msg`.
 1번(야만인)으로 좌클릭하면 돌멩이를 던진다 (누르고 있으면 0.4초마다 연사).
-2번(궁수)은 좌클릭을 누르고 있으면 활을 당기고 놓으면 쏜다. 3번(석궁병)은 좌클릭하면 바로 쏘고 4초 장전한다(누르고 있으면 장전 끝나는 대로 다시 쏨). 우클릭은 조준(카메라가 다가오고 확대).
-- 석궁 장전 모션: 1인칭은 세우기 → 시위 세 번 끊어 당기기 → 걸쇠 → 볼트 끼우기 → 조준 자세, 3인칭은 석궁을 내리고 왼팔로 당긴다. 장전 소리(끙차·톱니·걸쇠·볼트)는 뷰모델이 낸다.
+2번(궁수)은 좌클릭을 누르고 있으면 활을 당기고 놓으면 쏜다. 3번(석궁병)은 좌클릭하면 바로 쏘고, 마우스 휠을 아래로 25칸 굴려 감아야 다시 쏜다 (사용자 요청 — 예전엔 4초 자동 장전. 누르고 있으면 다 감는 대로 쏨). 우클릭은 조준(카메라가 다가오고 확대).
+- 석궁 장전 모션: 1인칭은 세우기 → 시위 세 번 끊어 당기기 → 걸쇠 → 볼트 끼우기 → 조준 자세, 3인칭은 석궁을 내리고 왼팔로 당긴다. 진행도는 휠로 감은 만큼(`xb_show`). 장전 소리(칸마다 끼릭·걸쇠·볼트)는 Combat이 낸다 (3인칭·봇도 들림).
 - 화살은 사람에 맞으면 머리·몸에 꽂히고, 벽·땅에 맞으면 10초 꽂혀 있다.
 - 반동: 3인칭은 팔·상체가 튕기고(`rec`), 1인칭은 화면·손이 튕긴다(`v_rec`, 조준은 그대로).
 - 오른쪽 아래 무기 칸에 상태 문구, 조준점 둘레에 당기기 고리가 뜬다 (HTML `#weapon`, `#ring`).
@@ -114,8 +132,14 @@ AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 
 - HTML처럼 끼이면 점프하는데, 공중에선 끼임 시간이 줄어서 "아무 방향 탈출"은 머리 위가 막혔을 때 정도만 나온다 (HTML도 같음).
 - `scripted_input`이 비어 있지 않으면 AI보다 먼저 쓰인다. 테스트는 `GameData.ai_enabled = false`로 봇을 세워 둔다.
 - 공격 입력은 player.gd가 `fire_held`에 담고, Combat이 이동 다음에 `weapon_update()`로 처리한다. `scripted_input`에 `"fire": true`를 넣으면 테스트·봇도 쏠 수 있다.
-- 3인칭에선 화면 가운데가 가리키는 곳으로 던진다 (HTML `playerAimDir`/`tpAim`).
+- 3인칭에선 화면 가운데가 가리키는 곳으로 던진다 (HTML `playerAimDir`/`tpAim` → `Combat.tp_aim`·`local_launch`).
 - 맞히면 조준점에 X 표시(처치면 빨간색)가 뜬다 — HTML `hitmark`.
+- **킬 마커** (사용자 요청, 오버워치처럼 — HTML엔 없음): 내가 막타를 치면 조준점 가운데 해골 (`Combat.kill_mark(head)` → `hud.kill_mark` → `Hud.KillSkull`).
+  1.3배로 튀어나와 0.1초에 원래 크기 → 0.5초 그대로 → 0.25초 흐려짐. 흰색, 헤드샷이면 빨강.
+  반투명: 가장 진할 때 불투명도 0.6 (`kill_skull.alpha`, 사용자 요청), 흐려질 땐 0.6 → 0. 빨간 해골·그림 파일도 같음. 연속 킬이면 처음부터. 시간은 실제 시간 (히트스톱에 안 느려짐).
+  내가 막타일 때만 (`a.is_local and a != v` — 자살·낙사·봇끼리·내가 죽은 건 아님, 아군은 damage()에서 막혀 처치가 안 생김). 친구대전은 `remote_kill`에서 내가 막타면 내 화면에만.
+  수치·색은 `GameData.HUD_UI.kill_skull`. 그림: `res://ui/kill_skull.png`(흰색 해골·투명 배경, 128×128 권장)가 있으면 그걸 색으로 물들여 그림, 없으면 도형으로 그린 임시 해골.
+  소리는 원래 `kill` 합성 그대로 — `audio/sfx/kill.ogg`를 넣고 `Sfx.FILES`에 더하면 바뀐다.
 - 1인칭 손 모델(뷰모델)은 무기 8개 다 있다 (마상창은 아래에 말 머리가 보임). 스코프를 보면 숨는다.
 - 특수 아이템 (7단계): 수치는 `GameData.ITEM`·`WEAPONS`·`HORSE_*`.
   - 저격총·AK·말은 정해진 지점(`SNIPER_SPOTS`·`HORSE_SPOTS`)에 빛기둥과 함께 나타나고 40초 뒤 사라진다. 경기 시작 때 닭 2마리.
@@ -127,7 +151,7 @@ AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 
   - 죽으면 `Combat.kill`이 모델을 래그돌로 바꾸고(`v.ragdoll`) 모델은 지운다. 부활할 때 `set_class`가 새로 만든다. 죽음 카메라는 래그돌 골반을 따라간다.
   - 히트스톱은 `Engine.time_scale = 0.12`로 한다. 남은 시간은 실제 시간으로 줄이고, 경기 시계도 실제 시간대로 간다. 일시정지·메뉴로 가면 바로 푼다.
   - 내가 맞으면 화면 흔들림(`player.shake`), 붉은 테두리(`hud.on_hurt`), 때린 쪽 붉은 호(`hud.dmg_dir`) — Combat의 `hurt`·`dmg_dir` 신호.
-  - 효과음: `Sfx.play(이름, 위치)`. 위치가 있으면 경기 중에만 나고 거리에 따라 작아진다. 헤드리스에선 소리 없이 `Sfx.played`에 이름만 쌓인다 (테스트용).
+  - 효과음: `Sfx.play(이름, 위치)`. 위치가 있으면 경기 중에만 나고 거리에 따라 작아진다. 헤드리스에선 소리 없이 `Sfx.played`에 이름만 쌓인다 (테스트용). 자세한 건 아래 "효과음".
   - 병과 의상은 HTML makeModel 그대로 (`derp_model.gd`의 `_build_outfit`·`_build_robe`·`_build_head_extras`).
 
 **HTML과 다른 점 (의도한 것)**
@@ -139,6 +163,19 @@ AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 
 - 내가 쏘는 투사체·히트스캔은 화면 가운데 조준선 위로 나간다 (`Combat.local_launch`, 사용자 요청 — 좌하탄 고침).
   HTML은 눈에서 조준점으로 쏴서 3인칭이면 조준점이 멀 때 조준선보다 왼쪽 0.85m·아래 0.6m로 지나갔다.
   3인칭은 카메라 조준선에서 눈에 가장 가까운 점부터 조준선 그대로, 1인칭은 손 자리에서 조준점으로. 성수 착지 표시도 같은 계산. 중력 낙하는 그대로.
+- **초근접 명중 보정** (사용자 피드백 "가까이서 화살·볼트가 안 맞음", `Combat.local_launch`·`_sweep`):
+  - 방향은 언제나 나가는 자리 → 조준점. 예전엔 조준점이 1m 안이면 조준선과 나란히 쏴서 1인칭은 손 위치(오른쪽 0.16m)만큼,
+    3인칭은 눈에서 카메라 방향 그대로(내려다보면 발밑으로) 나가 빗나갔다.
+  - 조준점이 나가는 자리보다 가까우면(`FIRE_NEAR`) 판정 시작점 `from`(1인칭 = 눈, 3인칭 = 조준선 위 눈 깊이)에서 조준점으로 쏜다.
+  - 투사체 첫 프레임은 `from` → 나가는 자리 구간을 먼저 판정 (눈과 손 사이에 있는 적). 그 뒤는 예전처럼 매 프레임 이전 위치 → 다음 위치 선분 판정 (터널링 없음).
+  - 친구대전 "f" 사건은 pos·vel만 보낸다 (초근접이면 pos = from이라 친구 쪽도 같은 판정).
+  - 10m에서 가장 약한 화살(28m/s)은 0.9m 떨어져서 몸 가장자리를 겨누면 아래로 지나간다 — 의도한 포물선.
+- **명중 판정 디버그 표시** (`scripts/fx/hit_debug.gd`, Combat 아래 HitDebug): **F9**로 켜고 끔 (`GameData.debug_hits`, 기본 꺼짐, 저장 안 함, 색·시간 `HIT_DEBUG`).
+  모든 캐릭터 히트박스(머리 구·몸 캡슐), 쏜 자리(판정 시작점 하늘색 → 나가는 자리 초록, 조준점 분홍), 프레임마다 판정한 선분(노랑), 맞은 곳(사람 빨강·벽 회색). 벽 뒤도 보임.
+- 3인칭 손에 든 무기는 HTML보다 크다 (`GameData.HELD_SCALE`, 사용자 요청 — 잘 안 보여서. 보기만, 판정 그대로).
+  DerpModel 무기 그룹(원점 = 손잡이, 트럼펫은 마우스피스)에 배율을 걸고, 마상창은 탄 사람 말만 `Items.held_lance`로 굵기만(길이 그대로, 창끝 tip배).
+  뷰모델·투사체·맵 진열 아이템은 그대로. 내 캐릭터만 다르게: `HELD_SCALE_SELF` (닭 1.0 — 어깨 너머 화면에서 조준점을 가려서).
+  비교 사진: `godot --path . --resolution 1280x720 -s tests/screenshot_held.gd -- tag=after` → tests/screenshots/held_<tag>_4m·8m·20m·self.png (+ 조준점 가림 % 출력)
 - 저격총·AK·말이 나타날 때 알림은 제목만 띄운다. 그 아래 설명 문구는 사용자 요청으로 뺐다 (줍거나 올라탈 때 알림은 그대로).
 
 ---
@@ -193,8 +230,8 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
 | 병과 | 무기 | 속도 배율 | 체력 | 특징 |
 |---|---|---|---|---|
 | 야만인 | 돌멩이 | 1.372 (달리기 10.0 m/s) | 90 (사용자 요청으로 100→90) | 짐승 해골 투구 |
-| 궁수 | 활 | 1.0 | 100 | 빨간 갑옷 |
-| 석궁병 | 석궁 | 0.85 | 110 | 파란 갑옷 |
+| 궁수 | 활 | 1.0556 (걷기 5.7 m/s, 사용자 요청으로 5.4→5.7) | 100 | 빨간 갑옷 |
+| 석궁병 | 석궁 | 0.85 (휠로 감는 중 ×0.75) | 110 | 파란 갑옷 |
 | 성직자 | 성수 | 1.0 | 100 | 체력 재생 2배 (초당 20) |
 | 음유시인 (4.5단계) | 트럼펫 | 1.05 | 95 | 적을 춤추게 만드는 방해형. 깃털 베레모 (투구와 같은 규칙으로 날아감) |
 
@@ -213,12 +250,26 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
 ### 무기
 - **돌멩이**: 피해 10, 0.4초마다 연사.
   - 속도 32, 사거리 15m (넘으면 사라짐)
-- **활**: 누르고 있으면 당긴다. 1.5초에 끝까지 당겨지고, 놓으면 쏜다.
-  - 피해 35~55, 속도 42~72 (당긴 정도에 비례). 0.08초 미만으로 당기면 안 나감
-  - 다시 쏘려면 1.0초 기다려야 함
+- **활** (사용자 요청으로 버프 — "계속 압박하는 무기"): 누르고 있으면 당긴다. 1초에 끝까지 당겨지고(1.5→1.0), 놓으면 쏜다.
+  - 차지 비율 = `GameData.bow_t(당긴 시간)`: 0.15초(`min_charge`)에서 0, 1초에서 1. 피해 15~50, 속도 28~72를 이 비율로 보간 (예전 35~55·42~72).
+  - 0.15초보다 빨리 놓으면 거기까지 마저 당긴 뒤 최소 세기로 쏜다 (`bow_release`). 예전엔 0.08초 미만이면 안 나갔음.
+  - 다시 쏘려면 0.3초 기다려야 함 (1.0→0.3). 짧게 끊어 쏘면 0.45초마다 한 발 (1.4초에 3발).
+  - **R = 당기기 취소** (`cancel_draw`, 우클릭은 조준이라 R로 정함). 화살은 안 나가고, 공격 키를 한 번 뗄 때까지 다시 안 당긴다 (`draw_block`).
+  - 끝까지 당기면 내 화면에 `bow_full` 소리 + 조준점 고리가 초록으로 바뀌고 번쩍 퍼진다 (`ChargeRing.flash`).
+  - 화살은 중력 14로 포물선, 날아가는 방향을 본다. 약하게 쏠수록 느려서 더 크게 휜다.
   - 끝까지 당긴 채로 1초가 넘으면 조준이 후들거린다.
   - 3초가 되면 손이 미끄러져 엉뚱한 방향으로 나간다 ("손이 미끄러졌다!").
-- **석궁**: 피해 75 (헤드샷이면 한 방). 장전 4초, 속도 100, 중력 6.
+- **석궁**: 피해 75 (헤드샷이면 한 방). 속도 100, 중력 2 (사용자 요청 6→2: 거의 직선).
+  - **휠 장전** (사용자 요청 — 예전 4초 자동 장전은 없앰): 쏘면 0칸, 마우스 휠을 **아래로**(사용자 요청 — 위로는 완전히 무시, `wind_dir` "down"/"up"으로 바꿀 수 있음) `notches`(25칸, 사용자 요청으로 10→25)칸 굴려야 다시 쏜다.
+    - 한 칸으로 치는 최소 간격 `notch_gap` 0.04초 (사용자 요청 0.15→0.04, 가장 빨라도 25칸 ≈ 1초). player.gd가 **실제 시간(ms)**으로 재서 그 안에 온 휠은 버림 (프리스핀 휠·터치패드 막기).
+    - 중간에 멈춰도 진행도 유지, 다 감았으면 휠 무시, 쏜 직후 `cd` 0.25초는 휠 안 먹음. 넘어지거나 춤춰도 감을 수 있다 (공격이 아니라서).
+    - **감는 중 이동 속도 ×0.75** (`reload_speed`, 사용자 요청 0.9→0.75). '감는 중' = 마지막 휠 칸 뒤 `reload_window`(0.3초) 동안 (`player.wind_t`) —
+      칸 사이에 속도가 튀지 않게. 다 감으면 바로 풀리고, 멈추고 0.3초 지나도 풀림 (진행도는 유지). 쏘기만 하고 안 감으면 안 느려짐. 달리기 등과 곱연산.
+    - 부활하면 장전된 채 (예전에도 부활 = cd 0). 다른 병과는 휠 동작 없음 (`wind` 액션은 석궁을 들었을 때만 `wind_req`).
+    - 코드: 입력 `player.wind_req` → `Combat._xbow_wind`(칸 세기) → `_xbow_anim`(나·봇·친구: 칸이 늘면 `xbow_click`, 모션 진행도 `xb_show`가 `show_rate`로 따라감, 걸쇠 0.63·볼트 0.86에서 소리).
+    - 1인칭·3인칭 장전 모션은 `xb_show`를 본다 (감다 멈추면 모션도 거기서 멈춤). HUD: 조준점 고리 = 감은 칸 + 아래 "6/25", 무기 칸 "휠을 굴려 감기 · 6/25칸".
+    - 봇: 난이도별 초당 `DIFF.xbow_wind`칸 (10 / 13 / 16 → 25칸에 2.5 / 1.9 / 1.6초). 친구대전: 상태 배열 끝(17번)에 `xb_wind`.
+    - `xbow_click`은 합성 자리 소리. `audio/sfx/xbow_click.ogg`를 넣고 `Sfx.FILES`에 더하면 파일로 바뀐다 (RECIPES에선 지울 것).
   - 장전 중엔 화면이 위로 들리는 모션이 나온다. 아래로 내리면 화면을 가려서 바꿨다.
 - **성수** (성직자): 최대 3개까지 들고 있고, 3초마다 1개씩 찬다. 한 번 던지면 0.4초 기다린다.
   - 땅에 닿으면 깨지면서 반경 3m 웅덩이가 3초 동안 남는다.
@@ -239,8 +290,8 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
   - 잡고 있으면 속도 ×1.05.
 - **황금 붕어빵** (특수, 사용자 요청 — HTML에 없음): 수치는 `GameData.ITEM.golden_fish`·`WEAPONS.star`·`STAR_FX`·`BGM.star`.
   - 등장: 15~25초마다 40% 확률. 맵에 하나만, 누가 무적이면 안 나옴, 40초 뒤 사라짐. SNIPER_SPOTS 중 다른 특수 아이템과 12m 이상 떨어진 곳.
-    금색 빛기둥 + 바닥 고리, 배너 "황금 붕어빵이 나타났다!" / "먹으면 5초 동안 무적". 친구대전은 저격총처럼 방장이 만들고 먹기를 허락 ("gf").
-  - 닿으면 바로 먹고 **5초 무적** (들고 다니지 않음, 또 먹으면 5초로 다시). "냠!" + 차임, "황금 붕어빵! 5초 무적". 봇·친구가 먹으면 배너 + 그 자리에서 작게 차임.
+    금색 빛기둥 + 바닥 고리, 배너 "황금 붕어빵이 나타났다!" / "먹으면 8초 동안 무적". 친구대전은 저격총처럼 방장이 만들고 먹기를 허락 ("gf").
+  - 닿으면 바로 먹고 **8초 무적** (사용자 요청으로 5→8초. 들고 다니지 않음, 또 먹으면 8초로 다시). "냠!" + 차임, "황금 붕어빵! 8초 무적". 봇·친구가 먹으면 배너 + 그 자리에서 작게 차임.
   - 무적이 막는 것: 모든 피해·넉백(`damage()` 맨 앞), 닭·말 몸통에 넘어짐, 성수 둔화, 음유시인 춤. 내가 급회전·착지로 넘어지는 건 그대로.
   - 몸박치기: 무적 중에 적과 몸이 닿으면 피해 20 + 큰 넉백 (`WEAPONS.star`, 같은 적은 0.5초에 한 번). 친구에겐 "st" 사건 → 친구 쪽이 판정.
   - 연출 (`scripts/fx/star_fx.gd`): 몸 전체 금색↔흰색 번쩍(초당 8번, `material_overlay` — 캐릭터마다 따로 만든 재질이라 공유 재질은 안 건드림),
@@ -412,6 +463,41 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
 - **설정 파일**: `user://settings.cfg` (`GameData.settings_path`). `[game]`에 병과·난이도·감도·시점·닉네임, `[audio]`에 master·music·sfx.
   - 테스트는 `settings_path`를 다른 파일로 바꿔서 내 설정을 안 건드린다.
 
+## 효과음 (사용자가 만든 파일 — `audio/sfx/`, `scripts/sfx.gd`)
+
+- `Sfx.FILES`(이름 → 파일 목록)에 있으면 파일, 없으면 `RECIPES` 합성. 둘에 같은 이름이 있으면 안 됨 (`test_fx`가 확인).
+- 파일 소리 연결:
+
+| 소리 이름 | 파일 | 언제 |
+|---|---|---|
+| `throw` | `stone_whoosh.ogg` | 돌멩이 던지기 |
+| `bow` | `stone_whoosh.ogg` | 활 쏘기 — **활 쏘기 소리 = 돌 던지기 소리 (사용자 요청)** |
+| `bow_draw` | `bow_draw.ogg` | 활 당기기 시작 (2.95초, 놓거나 쏘면 `reset_charge`가 `Sfx.stop(snd_bow)`) |
+| `thunk` | `arrow_thunk.ogg` | 화살·볼트·돌이 벽·땅에 맞음 |
+| `xbow` | `xbow.ogg` | 석궁 쏘기 |
+| `xbow_crank` | `xbow_crank.ogg` | (지금 안 씀 — 휠 장전은 칸마다 합성 `xbow_click`) |
+| `xbow_latch` | `xbow_latch.ogg` | 석궁 장전 — 걸쇠 |
+| `holy_throw` | `holy_throw.ogg` | 성수 던지기 |
+| `glass` | `glass_0.ogg`, `glass_1.ogg` | 성수병 깨짐 (무작위, 같은 걸 연달아 안 고름) |
+| `ak` · `sniper` | `ak.ogg` · `sniper.ogg` | AK 한 발 · 저격총 |
+| `thud_heavy` · `thud` | `body_hit.ogg` | 세게 맞음 · 맞음 (같은 파일을 작게 0.6·높게 1.15) |
+| `clang` | `clang.ogg` | 투구 날아감 |
+| `squeak` · `fanfare` · `gasp` | 같은 이름 .ogg | 트럼펫 삑사리 · 팡파레 · 헐떡임 |
+| `cluck` · `horn` · `nyam` · `neigh` | 같은 이름 .ogg | 닭 · 쟁탈전 뿔나팔 · 황금 붕어빵 · 말 울음 |
+| `gallop` | `gallop_loop.ogg` | 말 달리는 동안 계속 (반복 소리) |
+
+- 합성 그대로: `trip`·`hit`·`head`·`kill`·`hurt`·`pickup`·`chime`·`bell`·`slide`·`slip`·`jump`·`sizzle`·`reload`(성수 한 병 참)·`seat`(볼트 끼우기)·`stamp`. 결과 화면 `play_stinger`는 따로.
+- **크기·음높이 조절**은 `game_data.gd`만: `SFX_GAIN`(소리별 크기 배율, 기본 1) · `SFX_PITCH`(소리별 음높이 배율). 크기 = `vol_at(위치)` × `SFX_GAIN` × `SFX_VOL`.
+  파일 소리는 칠 때마다 음높이 ±`PITCH_JITTER`(0.04), 음악인 `SFX_NO_JITTER`(fanfare·horn)는 안 흔듦.
+- **거리·남의 소리** (사용자 요청, `GameData.SFX_DIST`, `Sfx.vol_at`): 1/(1+(거리/8)^1.5) — 8m 절반, 50~80m에서 0까지 (HTML 1/(1+거리/9)보다 거리감이 큼).
+  내 캐릭터 자리(0.5m 안)에서 난 소리 = 내 소리, 그 밖(적·아군·봇, 먼 곳에 꽂힌 내 화살)은 ×0.7. 위치 없는 소리(맞힘·처치·아야·UI)는 그대로. 트럼펫 멜로디도 같은 규칙.
+- `play()`는 번호를 돌려줌 (안 났으면 0). `stop(번호)`는 그 소리가 아직 그 플레이어에서 나고 있을 때만 끈다. 플레이어는 쉬는 것부터, 다 바쁘면 가장 오래된 것.
+- **반복 소리** `Sfx.loop(owner, 이름, 위치, 음높이)`: 매 물리 프레임 부른다 (owner마다 전용 플레이어, 크기·음높이만 갱신). 안 부르면 다음 `_process`에서 저절로 꺼짐,
+  `loop_stop(owner)`로 바로 끔, 일시정지면 멈췄다 이어서, `Sfx.playing`이 false면 전부 끔. 헤드리스는 시작할 때 `played`에 한 번만.
+  말: `Items.gallop_sfx` — 속도 > `GALLOP.min_speed`일 때, 음높이 = 속도/`HORSE_SPEED`로 `pitch_min`~`pitch_max`. 내 말·봇 말·친구 말 모두, `dismount`에서 끔.
+- **석궁 장전 소리** (휠 장전): `Combat._xbow_anim` — 휠 한 칸마다 `xbow_click`, 모션 진행도 `xb_show`가 `XBOW_RELOAD_SND` latch(0.63) → `xbow_latch`, seat(0.86) → `seat`. 3인칭·봇·친구도 들림.
+  `xbow_crank.ogg`(시위 끊어 당기기)는 지금 안 쓴다 (휠 장전으로 바뀌며 칸마다 끼릭으로 대신함).
+
 ## 멀티플레이 (9단계 — 구현됨, 같은 와이파이만)
 
 사용자와 정한 것: **중계 서버 없이 같은 와이파이(LAN)에서만**. ENet 직접 연결이라 PC 전용이다 (웹 빌드에선 안 됨).
@@ -463,6 +549,105 @@ TABS 느낌 로우폴리 + 굵은 줄눈·또렷한 모양. **겉모양만** 바
   작은 소품 = `_clutter = true`인 동안 만든 조각 (덧문·꽃 상자·덩굴·횃불·현수막) + 들꽃·자갈.
 - 굴뚝 연기·나비/새는 **아직 안 함** (사용자가 나중에 말하면).
 
+## UI 스타일 — 마을 게시판 (규칙 요약. 새 화면·새 UI는 이걸 따른다)
+
+시안 `reference/ui_design/` (Guide.jpg가 규칙, 1920×1080 → 게임은 ×0.667). 광장 게시판에 대충 못질해 붙인 공고문 느낌.
+- **색** (`GameData.UI`, `UiKit.c(키)`): 잉크 `ink` 0x2b1d12(모든 외곽선·양피지 위 글자), 양피지 `parch` 0xf4e4bc, 나무 `wood`/`wood_hi`/`wood_lo`,
+  금칠 `gilt`/`gilt_hi`/`gilt_lo`, 형광펜 `marker` 0xffd84a(강조·고름·내 줄·알림), 체력 `hp`, 팀 `blue`·`red`(팀 글자색은 `MODES.control.teams.*.ink`).
+  나무판 위 글자 = `cream`(+ 잉크 외곽선), 양피지 위 보조 글자 = `brown`·`faded`. 색 숫자는 game_data.gd에만.
+- **재질 3개뿐**: 나무(`wood` — 간판·제목·HUD 나무판), 양피지(`parch` — 설명·쪽지·큰 판·보조 버튼), 금칠(`gilt` — **주요 버튼 하나만**). 테이프·나사 대신 쇠못·밧줄.
+  큰 판 = 양피지 + 못 4 (`menu._big_board`), 페이지 제목 = 밧줄에 매달린 나무 간판 (`menu._head2`), 알림 = 양피지 쪽지 + 못 1.
+- **`UiKit.Board`** (PanelContainer, `_draw`로 직접 그림 — 텍스처·셰이더 없음): `Board.new(kind, pad)` + nails 0/1/2/4, ropes, rope_len, arrow(이정표), tilt(배경만 ±3°), paint(바탕색), ring(형광펜 테 = 고름), bands(위 색 띠).
+  버튼은 `UiKit.primary`(금칠)·`ghost`/`back`(양피지)·`_kit_button` → `KitButton`(Button 그대로, `selected` = 형광펜). 눌리는 판은 `board_tap`/`sign_tap` + `Face`(마우스 올림 들림·누름).
+  Container 자식은 rotation이 초기화되니 기울일 땐 `UiKit.tilted(ctrl, deg)`로 감싼다. 숫자 있는 판은 안 기울인다.
+- **글꼴**: 본문·제목 = 도현 (+ Noto 대체 폰트 · … ⚠). 손글씨 개구 = `UiKit.scribble` — 한마디·쪽지·팁·결과 문구에만, 한 화면에 1~2곳.
+  나무판 위 = `UiKit.wood_text`(크림 + 잉크 외곽선 `outline_for`), 양피지 위 = 잉크. 줄 높이가 커서 판이 높아지면 `UiKit.trim_font`.
+  **새 글자를 쓰면** `test_ui_kit`의 글꼴 검사가 도현·Noto(전체 문자열)와 개구(손글씨 문구)에 다 있는지 본다 (웹에선 없는 글자가 □). 긴 줄표(—)는 폰트에 없으니 "-"를 쓴다.
+- **말투** (Guide "말투"): 농담은 제목·한마디에만, 수치·조작 안내는 정확하고 짧게. 나가기 = "도망가기", 불러오는 중 = "돌 줍는 중..."(웹 `export_presets.cfg` head_include), "돌멩이".
+- **HUD 규칙**: 가운데 40%는 비움(조준점·고리·맞힘 X·쪽지·배너·사망 쪽지만), 정보는 네 모서리 + 위 가운데, 모서리 판 높이 1080p 120px(게임 80) 이하,
+  팀 = 색 + 글자 + 방패 귀퉁이 모양. `test_match`가 확인한다. 자세한 건 아래 "경기 화면 HUD".
+- **자막(잠깐 뜨는 글자)은 배경 없이 외곽선+그림자만. 배경판은 고정 HUD 패널·메뉴에만.** `UiKit.caption(l)` (수치 `UI_KIT.caption`: 큰 글자 외곽선 10~14, 작은 글자 6~8, 잉크 그림자 0.8). 배너·조준점 아래 자막·데미지 숫자·춤춰라!·삑!·무적 남은 시간·아이템 안내 줄·사망 자막. 사진: `tests/screenshot_captions.gd` (하늘·바닥·성벽).
+
+## UI: 마을 게시판 스타일 (사용자 요청 — 화면별 기록)
+
+시안: `reference/ui_design/` (Guide = 규칙). 광장 게시판에 대충 못질해 붙인 공고문. **재질은 나무·양피지·금칠 셋뿐**, 테이프·나사 대신 쇠못·밧줄.
+- **1단계 (완료)**: 공용 재료만 `ui_kit.gd`에 만들고 설정 패널에만 입힘. 다른 화면은 primary·ghost·back·navbtn이 새 모양을 쓰면서 자동으로 따라왔고, 배치는 아직 예전 그대로.
+- 색: `GameData.UI` (ink·parch·wood/_hi/_lo·gilt/_hi/_lo·marker·hp·blue·red + 글자용 cream·cream_dim·brown·faded, 어두운 판용 dust·sky). 옛 키(gold·line·mute·blood…)는 없앴다.
+  hud.gd 상수(PARCH·GOLD·BLOOD·MOSS·MUTE·STEEL·INK·SHADOW)는 const라 값을 한 번 더 적었다 — test_ui_kit가 같은지 확인.
+- 판 모양 수치: `GameData.UI_KIT` (외곽선·그림자·모서리·나뭇결·쇠못·밧줄·이정표 끝·글자 외곽선·마우스 올림). 시안 px × 0.667.
+- `UiKit.Board` (PanelContainer, `_draw`로 그림 — 텍스처·셰이더 없음): kind "wood"(그라데이션 + 판자 이음선 + seed 고정 물결 결·옹이, 위 밝은 띠) / "parch"(왼쪽 위 밝게·오른쪽 아래 누렇게·가장자리 그늘) / "gilt".
+  잉크 외곽선은 판 안쪽, 아래로 단단한 그림자. 옵션 nails 0/1(위 가운데)/2/4, arrow(이정표, 오른쪽 여백에 UI_KIT.arrow_tip), ropes(위로 밧줄 2개), tilt(배경만, ±3° 한도), paint(바탕색 바꾸기).
+- 버튼: `KitButton`(Button 그대로 — text·pressed·disabled). Button 글자는 투명, 판 안의 `caption`이 같은 글자를 그린다. `selected = true` → 형광펜 바탕.
+  `primary` = 금칠 판(쇠못 2, 잉크 글자, 화면에 하나), `ghost`·`back` = 양피지, `navbtn` = 이정표 Tap(hero는 금칠). 고른 표시는 `selected`로 (예전 stylebox 덮어쓰기·modulate 대신).
+  `Face`: host 위를 덮는 빈 Control. 안의 판을 Tween으로 움직여서(마우스 올림 = 살짝 들리고 -1°, 이정표는 오른쪽으로 7px, 누름 = 그림자 쪽으로 꾹) Container가 rotation을 되돌리지 않는다.
+- 기울이기: Container 자식은 rotation·scale이 초기화된다 → `UiKit.tilted(ctrl, deg)`로 감싸서 넣는다. ±3° 이하, **숫자 있는 판은 안 기울인다**.
+- 글자: 나무판 위 = `UiKit.wood_text(l, size)` (cream + 잉크 외곽선 `outline_for(size)` 3~9 + 아래 그림자), 양피지 위 = 잉크색. 개구 = `UiKit.scribble(...)`.
+- 사진으로 확인: `tests/screenshot_ui.gd` (설정·메인·재료 견본).
+- **메인 메뉴 (완료, 시안 Main)**: `menu._build_main` — 화면 전체 Control에 시안 좌표(×0.667)로 놓음. 수치·문구는 `GameData.MAIN_MENU`, 버전은 `GameData.VERSION`.
+  - 뒤는 맵 도는 구경 카메라 그대로, 화면 전체 그늘(`_screen`의 bg, meta "bg") 대신 왼쪽만 어둡게. 다른 페이지로 가면 bg를 다시 켬 (`show_page`).
+  - 왼쪽 위: 밧줄에 매달린 나무 간판 "중세난장판"(쇠못 4, -2°) + 양피지 "일단 던져."(개구, +3°). 예전 영어·설명 문단은 뺐다.
+  - 세로 나무 기둥 + 이정표 5개(`_nav_sign`, `UiKit.sign_tap`): 일반대전(빨간 도장 "준비 중" → 알림) / AI대전(가장 큼·개구 "멍청한 봇이랑 한판") / 친구대전("친구를 넘어뜨리자") / 설정 / 도망가기(양피지 = 나가기).
+    아이콘은 `UiKit.NAV_ICONS` SVG 문자열 (칼·로봇·사람 둘·톱니·문 화살표). 마우스 올리면 오른쪽으로 7px(시안 10px)·-1° + 판이 금칠 노랑 (`Face.hover_paint`, 사용자 요청 — 예전엔 AI대전만 늘 금칠).
+  - 오른쪽 위 "오늘의 팁"(못 1, +2.5°): `MAIN_MENU.tips`에서 메인을 열 때마다 하나. 줄 바꿈은 \n으로 직접 (개구가 브라우저보다 넓어서 자동 줄바꿈이면 한 글자만 넘어감).
+    규칙에 맞게 고친 것: 활은 "끝까지 당긴 채 3초"(slip_t는 다 당긴 뒤부터 셈), 성수는 "남이 던진" 웅덩이만 느려짐. 규칙이 바뀌면 팁도 고칠 것.
+  - 오른쪽 병과 무리: `menu_crowd.gd` (야만인·궁수·음유시인·성직자, 느린 대기 = 몸 좌우·고개 까딱). `Menu._process`가 메인이 보일 때만 `set_active(true)`.
+  - 왼쪽 아래 "v0.2 · 같은 와이파이 친구대전 지원" (웹에선 버전만).
+  - 사진: `tests/screenshot_ui.gd`가 main·main_hover를 찍고 팁마다 줄 수(OK/WRAP!)를 출력한다.
+- **병과 선택 (완료, 시안 ClassSelect)**: `menu._build_class` — 화면 전체 Control(시안 좌표 1280×720 가운데 맞춤), 배경 `UiKit.Wall`(판자벽). 수치·문구는 `GameData.CLASS_PAGE`.
+  - 메뉴 그늘을 끄는 페이지 = `Menu.FULL_PAGES` (main·class).
+  - 위 양피지 "누가 나갈래?"(못 2, -1.5°), 오른쪽 벽에 작게 "AI대전 · 난이도 · 모드"(`_class_sub`).
+  - 왼쪽 큰 액자: `scripts/ui/model_stage.gd` (SubViewport 하나에 고른 병과 DerpModel, 천천히 좌우). 병과 화면이 보일 때만 그림 (`Menu._process`).
+    빨간 "합격" 도장(14°) — 다른 카드를 고르면 Tween으로 쾅 + `Sfx "stamp"`.
+  - 오른쪽 정보 양피지(못 4): 이름(형광펜 밑줄) + "무기: X", 개구 한마디(`CLASS_PAGE.lines`), 점선, 체력·속도·사거리 막대 + 숫자, 한 줄 설명(`blurbs`, {cd}처럼 무기 값 채움).
+    숫자는 `GameData.class_stats(k)`: 속도 = 걷기 / 달리기(×SPRINT), 사거리 = `weapon_reach` (눈높이 1.62m에서 수평으로 쏴 땅에 닿는 거리, range 상한. 트럼펫은 range). 막대 = 병과 중 최대값 대비. 시안 숫자보다 실제 값 우선.
+  - 아래 카드 5장(양피지·못 1·기울기 다름·잉크 숫자 1~5): 그림은 `ModelStage.portrait(k)`로 한 번만 찍은 텍스처 (헤드리스면 없음). 고른 카드 = `Board.ring` 형광펜 테, 마우스 올리면 들림.
+  - **카드를 누르면 고르기만** (`pick_class_card`), 금칠 "이놈으로 출전"(못 4)이 `select_class`. 숫자키 1~5는 예전처럼 바로 시작. "← 뒤로" = 모드 페이지.
+  - 대기실·일시정지의 작은 병과 카드(mini)는 예전 `UiKit.class_card` + `_fill_cards` 그대로.
+- **난이도·모드 페이지**: 같은 양피지 카드(`menu._fill_pick`, `GameData.PICK_CARDS`, 못 1, 위쪽 색 띠 `Board.bands`). 누르면 고르기(형광펜 테), 금칠 "다음"으로 저장하고 넘어감.
+  쟁탈전 카드 띠는 블루|레드. 배치(제목·뒤로)는 아직 예전 `_sheet`/`_pagehead`.
+- 사진: `tests/screenshot_ui.gd`가 diff·mode·class도 찍는다.
+- **경기 화면 HUD (완료, 시안 Hud)**: 수치는 `GameData.HUD_UI`. 기능·계산은 그대로, 그리는 것만 바꿈.
+  - 규칙 (Guide): 가운데 40%는 비움(조준점·고리·맞힘 X·조준점 아래 쪽지·배너·사망 쪽지만), 정보는 네 모서리 + 위 가운데, 모서리 판 높이 80 이하(1080p 120px), 팀 = 색 + 글자 + 방패 귀퉁이.
+    `test_match`가 가운데 40% 겹침·판 높이를 확인한다. 판에 줄을 더하면 이 테스트를 볼 것.
+  - 개인전 위 가운데(`_topbar`): 밧줄 나무 꼬리표 = 남은 시간, 아래 양피지 = 1위 (강조는 [bgcolor] 형광펜).
+  - 쟁탈전 위 가운데(`ControlHud.Top`, 직접 그림): 꼬리표 "쟁탈전 · N판", 블루 방패(오른쪽 아래 귀퉁이 둥글게)·레드 방패(거울) + 이긴 판 동그라미(rounds_to_win개, 이기면 형광펜),
+    가운데 메달 = 바깥 고리 주인 색 + 점령 중인 팀 색 부채꼴(cap_prog), 안쪽 양피지 깃발 = 주인 색(중립 dust, 잠김 회색), 아래 % 막대 둘 + 양피지 상태 쪽지(경합·연장전은 빨간 글자).
+  - 월드: 거점 위 나무 표지판 "거점 Nm"(아래 띠 = 주인 색, 조준점에 가까우면 흐려짐 `sign.fade_r`), 화면 밖이면 가장자리 화살표. 아군 = 이름 + 팀 색 ▼.
+  - 킬피드: 양피지 줄 "공격자 [무기 아이콘] 피해자 [헤드샷 꼬리표]", 이름은 팀 `ink` 색(개인전 잉크), 나는 "나" + 형광펜 밑줄, 내가 낀 줄은 형광펜 테(`Board.ring`).
+    무기 아이콘 = `UiKit.WEAPON_ICONS` (SVG, kind별 11개, 모르는 kind는 돌멩이). 무기를 새로 넣으면 아이콘도 넣을 것.
+  - 왼쪽 아래: 둥근 나무 액자(`Hud.Medal`, 병과 색 동그라미 + 병과 아이콘) + 나무판(이름 `_cls`·체력 숫자·`Hud.HpBar`). 25% 이하면 막대 빨갛게 깜빡, 재생 중엔 초록 빛.
+    투구 없음·성수 젖음·다음 부활 병과는 판 위 작은 양피지 쪽지(`_cls_note`).
+  - 오른쪽 아래: 양피지 칸(못 2) = 무기 아이콘 + 이름(형광펜 밑줄) + 상태 한 줄(+ 음유시인 숨 막대), 위에 Q 안내, 맨 아래 "속도 · Esc 메뉴 · Tab 점수판".
+  - 특수 아이템 안내 줄·무적 막대는 위 가운데 점수판 바로 아래(`_notes`). 속도는 가운데 아래에서 오른쪽 아래로 옮김.
+  - 사망 = 배경 없는 자막: 개구 "넘어졌다... 다시?"(양피지색) + "X에게 당했다" + 무기·부활. Tab 점수판 = 나무판(못 4). pop_msg = 조준점 아래 금색 자막 (배경 없음).
+  - 글자 줄 높이가 커서(대체 폰트) 판이 높아지면 `UiKit.trim_font`로 위아래 빈 줄을 줄인다.
+- **결과 화면 (완료, 시안 Result*.jpg 4장)**: `menu._build_end`, 배치 수치는 `GameData.RESULT_UI`. 연출(아래 "결과 화면 승리·패배 연출")은 그대로.
+  - 왼쪽 위: 밧줄에 매달린 나무 제목 판 "1등!"/"6등..."(지면 바랜 색 `lose_paint`, 긴 제목은 작은 글씨·왼쪽으로) + 쪽지(이기면 노랑·개구). 쟁탈전 승리는 판 대신 팀 깃발 `Pennant` "블루팀 / 승리!" + 라운드 동그라미 `RoundDots`.
+    쟁탈전 패배 = "우물을 빼앗겼다..." + 쪽지 끝 동그라미 + 작은 깃발 "레드팀 승리"(`_end_winner`), 버튼 "우물 되찾기".
+  - 왼쪽 무대 `result_stage.gd`: 개인전 승리 = 나무 시상대 2·1·3 위에 1~3등, 개인전 패배 = 쓰러진 나 + 개구 "(넘어짐 N회)"(죽은 횟수), 쟁탈전 = 나무 발판 위 우리 팀 5명. 내 머리 위 "나" 꼬리표.
+  - 오른쪽 양피지 결과판(못 4): 개인전 = 순위·이름·병과·처치·죽음 (내 줄 = 이기면 형광펜, 지면 하늘색 + 잉크 테),
+    쟁탈전 = 블루·레드 라운드/처치/우물 차지 시간 + 우리 팀 줄 + MVP(거점 시간 가장 긴 사람, 0이면 처치왕) 또는 "거점 위에 서 있던 시간: 나 N초".
+  - 오른쪽 아래: 양피지 "메인 메뉴"·"병과 다시 고르기" + 금칠 `_end_again`. 결과 화면 뒤 그늘은 옅게(`bg_a`).
+- **남은 화면 (완료)**: 수치는 `GameData.PAGE_UI`. 제목은 모두 매달린 나무 간판(`_head2`), 내용은 양피지 큰 판 + 못 4(`_big_board`).
+  - 일시정지: 판 안에 병과 카드 5장(작은 양피지 카드 `_fill_cards`, 못 1, 고름 = 형광펜 테) + 금칠 계속하기 + 양피지 설정·메뉴로 나가기. 일시정지 → 설정은 설정 패널 그대로.
+  - 나가기 안내(웹): "도망 성공!" + 정확한 안내 + 금칠 "다시 하러 가기". 친구대전: 양피지 글자 칸(`_field`), 금칠 방 만들기, 양피지 참가.
+  - 대기실: 나무 "방 코드" + 형광펜 쪽지 코드, 판 안에 모드·사람 목록(쟁탈전이면 팀 = 작은 방패 `TeamShield` 색 + "블루"/"레드" 글자, 방장 = 형광펜 꼬리표)·내 병과 카드·팀 바꾸기·금칠 게임 시작.
+  - 알림(toast): 아래 가운데 양피지 쪽지 + 못 1, 나타날 때 위에서 살짝 떨어지며 못을 축으로 흔들림 (`PAGE_UI.toast.wobble`).
+- 옛 `UiKit.class_card`(어두운 병과 카드)는 지웠다. `score_table`·`team_table`(크림 글자)은 Tab 점수판(나무판)만 쓴다.
+
+## 결과 화면 승리·패배 연출 (사용자 요청 — HTML엔 없음)
+
+수치·문구는 `GameData.RESULT`·`RESULT_LINES`·`STINGER`. 코드는 `menu.gd`의 결과 부분 (`_show_end`·`_play_end_fx`·`_end_fx_reset`).
+- 판정: 개인전 1~3등 = 승리(제목 "N등!"), 4등부터 패배("N등..."). 쟁탈전은 내 팀 = 이긴 팀이면 승리("블루팀 승리!"), 아니면 "패배...". 무승부는 연출·소리 없이 예전 그대로.
+- 문구: 목록에서 무작위로 골라 제목 판 아래 노란 쪽지(-3°). 패배면 '한 판 더' → "복수하러 간다".
+- 소리: `Sfx.play_stinger("victory"/"defeat")` (전용 플레이어, SFX 버스, 헤드리스에선 `last_stinger`만 남김). BGM은 0.3초 만에 줄고, 효과음이 끝나면(`Sfx.stinger_done`) 메뉴 곡이 1.5초 페이드인.
+- 승리: 0초 `Engine.time_scale` 0.3을 실제 0.6초 → 0.3초 제목 판이 떨어져 통통·좌우 흔들 → 0.5초 효과음 + 금빛 햇살(`Sunburst`) + 색종이(CPUParticles2D, 쟁탈전은 팀 색+금).
+- 패배: 0초 뒤 화면 회색(화면 텍스처 셰이더) → 0.3초 판이 떨어져 오른쪽 못이 빠지고 10° 기울어짐 → 0.5초 효과음 → 0.6초 먹구름(`Clouds`)·비.
+- 1.4초부터 점수판 줄이 0.06초 간격으로 펼쳐지고 그 뒤 버튼. Tween은 `_track()` (time_scale 무시).
+- 결과 화면을 떠나면(`show_screen`이 end가 아니면) 입자·Tween·time_scale·효과음을 다 되돌린다.
+- 히트스톱은 자기가 늦춘 time_scale만 되돌린다 (`Combat._hs_on`) — 결과 화면 느린 화면을 덮어쓰지 않게. Music 페이드는 실제 시간.
+- 쪽지 글꼴은 개구 (`UiKit.scribble`).
+
 ## 웹 내보내기 (10단계)
 
 ```bash
@@ -475,8 +660,18 @@ cd export/web && python -m http.server 8060   # 브라우저로 http://localhost
 - 웹에선 Esc를 브라우저가 가져가 마우스 잠금만 풀린다 → 잠금이 풀리면 일시정지 (`main._check_web_lock`, HTML pointerlockchange).
 - 웹엔 시스템 폰트가 없어서 폰트에 없는 글자는 □로 나온다. UI 글자를 새로 넣으면 도현·대체 폰트에 있는지 확인할 것.
 - 최적화: 움직이지 않는 맵 조각은 `world_builder._merge_static()`이, 캐릭터의 관절별 조각은 `derp_model._merge()`가 `Meshes.merge()`로 정점 색 메시 하나로 합친다.
-  그리기 호출이 경기 중 약 1300 → 200으로 줄었다. 맵·캐릭터에 조각을 더하면 자동으로 합쳐진다 (눈동자·무기는 안 합침).
+  그리기 호출이 경기 중 약 1300 → 200으로 줄었다. 맵·캐릭터에 조각을 더하면 자동으로 합쳐진다 (눈동자·볼은 안 합침).
   합친 메시는 정점 색 재질(`Meshes.vertex_color_mat`)을 쓴다. 캐릭터 번쩍임은 그 재질도 같이 바뀐다.
+- **최적화 2차** (사용자 요청 — 측정: `tests/perf_profile.gd`, 1280×720 Intel Arc 내장 그래픽):
+  메뉴 180 → 284 FPS (그리기 호출 1135 → 559), 개인전 251 → 319 (620 → 479), 쟁탈전 178 → 266 (774 → 587).
+  - 1인칭 손 화면(`viewmodel.gd`의 화면 크기 SubViewport, MSAA 2배)은 **보일 때만** 그린다. 예전엔 3인칭(기본)·메뉴·죽음 중에도 매 프레임 그렸다.
+  - 손에 든 무기도 그룹 안 조각끼리 합친다 (트럼펫 13 → 1). 반투명 재질(성수병 유리)은 안 합친다 (`_merge_node`).
+  - **2D는 `UiKit.Tris`로 한 번에**: Compatibility 렌더러는 draw_colored_polygon·draw_polyline·draw_circle(부드럽게)을 하나하나 따로 그린다.
+    `Board`는 외곽선·바탕·결·띠·못을 크기·종류·색이 바뀔 때만 삼각형 한 묶음(`_geo.tris`)으로 만들고, 그릴 땐 밧줄·고름 테·그림자 + 그 묶음을 한 번에 (판 하나 40~60번 → 1~2번).
+    쇠못(`add_nail`)·쟁탈전 위 점수판(`ControlHud.Top`, 80 → 33번, 남은 건 글자)도 같은 방식. 부드러운 테두리는 바깥 1px을 투명으로 흐리게 해서 흉내 냄 (사진 비교 차이 0.1~0.5%).
+    **새 HUD·UI 도형을 그릴 땐 draw_* 여러 번 대신 `UiKit.Tris`에 모아 `draw(self)` 한 번.** 볼록 다각형은 `poly`, 오목하면 `Geometry2D.triangulate_polygon` + `raw`.
+  - 남은 큰 것: 캐릭터(한 명 15~25번 + 그림자, 삼각형 1.3만~2.5만), 그림자 패스(약 160번), 외곽선·그림자 있는 글자(줄마다 8~20번).
+  - CPU(스크립트)는 물리 프레임 한 번에 0.5~1.5ms (봇 AI 절반) — `tests/perf_cpu.gd`. `Performance`의 TIME_* 값은 여러 물리 스텝을 묶어 세서 믿지 말 것.
 
 ## PC 내보내기 (친구대전용 exe)
 
@@ -501,6 +696,7 @@ godot --headless --fixed-fps 60 --path . -s tests/test_combat.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_stone.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_bow.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_crossbow.gd
+godot --headless --fixed-fps 60 --path . -s tests/test_close_range.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_holy.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_bot.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_match.gd
@@ -514,6 +710,8 @@ godot --headless --fixed-fps 60 --path . -s tests/test_music.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_fish.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_control.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_map_deco.gd
+godot --headless --fixed-fps 60 --path . -s tests/test_ui_kit.gd
+godot --headless --fixed-fps 60 --path . -s tests/test_result_fx.gd
 ```
 
 새 `class_name` 스크립트를 추가하면 한 번 `godot --headless --editor --path . --quit`로 클래스 목록을 갱신해야 다른 스크립트가 찾는다.

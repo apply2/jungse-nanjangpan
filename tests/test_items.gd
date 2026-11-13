@@ -103,7 +103,7 @@ func _run() -> void:
 	I.spawn_chicken(SHOOTER + Vector3(0.4, 0, 0))
 	await wait(4)
 	check("닭에 닿으면 잡음", p.has_chicken and p.wep == "chicken" and I.chickens.is_empty() and toasts.has("닭을 잡았다! 클릭해서 던지기"), "wep=%s" % p.wep)
-	check("닭 들면 속도 ×1.05", near(p.max_speed(), G.BASE_SPEED * 1.05, 0.01), "max=%.2f" % p.max_speed())
+	check("닭 들면 속도 ×1.05", near(p.max_speed(), G.BASE_SPEED * float(G.CLASSES[p.cls].speed) * 1.05, 0.01), "max=%.2f" % p.max_speed())
 	await wait(15)  # 잡는 동작(0.15초)
 	p.pitch = -0.15
 	var tripped := false
@@ -127,7 +127,7 @@ func _run() -> void:
 	I.drop_sniper(p.global_position, 5)
 	await wait(2)
 	check("닿으면 줍기", p.has_sniper and p.wep == "sniper" and p.ammo == 5 and not I.sniper.active, "wep=%s ammo=%d" % [p.wep, p.ammo])
-	check("저격총 들면 속도 ×0.9", near(p.max_speed(), G.BASE_SPEED * 0.9, 0.01), "max=%.2f" % p.max_speed())
+	check("저격총 들면 속도 ×0.9", near(p.max_speed(), G.BASE_SPEED * float(G.CLASSES[p.cls].speed) * 0.9, 0.01), "max=%.2f" % p.max_speed())
 	G.third_person = true
 	p.scripted_input = {"f": 0.0, "r": 0.0, "jump": false, "crouch": false, "sprint": false, "aim": true}
 	await wait(40)
@@ -176,7 +176,7 @@ func _run() -> void:
 	I.drop_ak(p.global_position, 25)
 	await wait(2)
 	check("AK 줍기", p.has_ak and p.wep == "ak" and p.ak_ammo == 25 and near(p.swap_t, 0.3, 0.05), "wep=%s" % p.wep)
-	check("AK 들면 속도 ×0.95", near(p.max_speed(), G.BASE_SPEED * 0.95, 0.01), "max=%.2f" % p.max_speed())
+	check("AK 들면 속도 ×0.95", near(p.max_speed(), G.BASE_SPEED * float(G.CLASSES[p.cls].speed) * 0.95, 0.01), "max=%.2f" % p.max_speed())
 	await wait(20)
 	var hp0: float = dm.hp
 	p.scripted_input = FIRE
@@ -224,6 +224,23 @@ func _run() -> void:
 		"mounted=%.2f wep=%s" % [p.mounted, p.wep])
 	await wait(160)
 	check("달아난 말은 사라짐", I.runaways.is_empty(), "n=%d" % I.runaways.size())
+	# 1인칭으로 타면 내 말의 창·머리는 숨김 (뷰모델이 따로 그려서 두 개로 보이던 버그), 3인칭이면 보임, 내리면 다시 보임
+	put(p, SHOOTER, "archer", EAST_YAW)
+	G.third_person = false
+	I.mount(p)
+	await wait(3)
+	var fp_hidden: bool = not (p.horse.lance as Node3D).visible and not (p.horse.hd as Node3D).visible
+	G.third_person = true
+	await wait(3)
+	var tp_shown: bool = (p.horse.lance as Node3D).visible and (p.horse.hd as Node3D).visible
+	G.third_person = false
+	await wait(3)
+	var rider_h: Dictionary = p.horse
+	I.dismount(p)
+	check("1인칭으로 타면 내 말 창·머리 숨김 (창 두 개 버그)", fp_hidden, "")
+	check("3인칭이면 창·머리 보임", tp_shown, "")
+	check("내리면 달아나는 말 창·머리 다시 보임", (rider_h.lance as Node3D).visible and (rider_h.hd as Node3D).visible, "")
+	await wait(160)
 	# 말 몸통에 치이면 넘어짐 (옆에 바짝 붙은 사람)
 	put(p, SHOOTER, "archer", EAST_YAW)
 	put(dm, SHOOTER + Vector3(0, 0, 1.0))

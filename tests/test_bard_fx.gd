@@ -141,10 +141,12 @@ func _run() -> void:
 	var waves := 0
 	var last_w: int = bx._wave_pool.size() + objs_of("wave")
 	var inside := true
+	var born := {}  # 1초 동안 새로 생긴 음표 (벽·땅에 닿아 먼저 사라진 것도 셈 — 나팔 끝 위치에 안 흔들리게)
 	for f in secs(1.0):
 		await physics_frame
 		var aim: Vector3 = bard.aim_dir()
 		for n: Dictionary in bx._fly:
+			born[n.ph] = true
 			if (n.d as Vector3).angle_to(aim) > half + 0.001:
 				inside = false
 		var w: int = objs_of("wave")
@@ -153,7 +155,7 @@ func _run() -> void:
 	bard.scripted_input = IDLE
 	check("음표 방향은 모두 원뿔(반각 25°) 안", inside, "")
 	check("음파 고리: 0.25초마다 (1초에 4개쯤)", waves >= 3 and waves <= 5, "n=%d" % waves)
-	check("음표 생성 간격 0.08초 (1초 동안 ~12개)", bx.fly_count() >= 9, "n=%d" % bx.fly_count())
+	check("음표 생성 간격 0.08초 (1초 동안 ~12개)", born.size() >= 11 and born.size() <= 14, "생김 %d · 지금 %d" % [born.size(), bx.fly_count()])
 	await wait(secs(1.0))
 
 	# ── 벽에 닿으면 튕기고 사라짐 ──

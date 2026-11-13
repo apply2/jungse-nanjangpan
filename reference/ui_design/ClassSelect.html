@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>병과 선택</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&amp;family=Gaegu:wght@700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2b1d12;text-decoration:none}a:hover{color:#2b1d12}
+.wood{background-color:#9a6236;background-image:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 26px,rgba(60,30,10,.38) 26px 29px),repeating-linear-gradient(90deg,rgba(255,220,170,.07) 0 2px,rgba(0,0,0,0) 2px 13px),linear-gradient(180deg,#b57a47,#8a542b)}
+.wall{background-color:#6b3f1f;background-image:repeating-linear-gradient(90deg,rgba(0,0,0,0) 0 236px,rgba(30,14,4,.55) 236px 242px),repeating-linear-gradient(0deg,rgba(255,210,150,.05) 0 3px,rgba(0,0,0,0) 3px 17px),radial-gradient(ellipse at 50% 40%,#8a5630,#5a3218 80%)}
+.parch{background-color:#f4e4bc;background-image:radial-gradient(ellipse at 18% 12%,rgba(255,255,255,.6),rgba(255,255,255,0) 50%),radial-gradient(ellipse at 92% 96%,rgba(150,100,40,.25),rgba(0,0,0,0) 55%)}
+.ink{box-shadow:inset 0 0 0 4px #2b1d12,inset 0 6px 0 4px rgba(255,220,170,.22),0 8px 0 #2b1d12}
+.inkp{box-shadow:inset 0 0 0 3px #2b1d12,inset 0 0 26px rgba(120,80,30,.35),0 6px 0 rgba(43,29,18,.9)}
+.nail{position:absolute;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8e2d8,#77706a 55%,#35302b);box-shadow:0 2px 0 rgba(0,0,0,.45)}
+.marker{background:linear-gradient(180deg,rgba(0,0,0,0) 52%,#ffd84a 52% 90%,rgba(0,0,0,0) 90%)}
+.card{transition:transform .12s;cursor:pointer;border:0;padding:0;font:inherit;color:inherit}
+.card:hover{transform:translateY(-8px) rotate(-1deg)}
+</style>
+</helmet>
+<div class="wall" style="width: 1920px; height: 1080px; position: relative; overflow: hidden; font-family: 'Do Hyeon', sans-serif; color: #2b1d12">
+
+  <!-- 제목 -->
+  <div class="parch inkp" style="position: absolute; left: 50%; top: 40px; transform: translateX(-50%) rotate(-1.5deg); padding: 10px 70px 18px; border-radius: 6px">
+    <div class="nail" style="left: 16px; top: 16px"></div>
+    <div class="nail" style="right: 16px; top: 16px"></div>
+    <h1 style="margin: 0; font-size: 96px; line-height: 1.05; font-weight: 400">누가 나갈래?</h1>
+  </div>
+
+  <!-- 선택한 병과 큰 그림 -->
+  <div style="position: absolute; left: 150px; top: 200px; width: 560px; height: 560px">
+    <div class="parch inkp" style="position: absolute; inset: 20px; border-radius: 8px; transform: rotate(-2deg)"></div>
+    <div class="nail" style="left: 40px; top: 38px"></div>
+    <div class="nail" style="right: 40px; top: 38px"></div>
+    <img src="{{cur.big}}" alt="{{cur.name}}" style="position: absolute; left: 50%; bottom: 46px; height: 470px; transform: translateX(-50%); filter: drop-shadow(0 16px 10px rgba(43,29,18,.35))">
+    <div style="position: absolute; right: -10px; top: 50px; transform: rotate(14deg); color: #c4302b; border: 6px solid #c4302b; border-radius: 12px; padding: 4px 18px 8px; font-size: 64px; line-height: 1; opacity: .9; background: rgba(244,228,188,.35)">합격</div>
+  </div>
+
+  <!-- 정보 패널 -->
+  <div class="parch inkp" style="position: absolute; left: 760px; top: 220px; width: 1010px; height: 520px; border-radius: 8px; padding: 46px 60px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px">
+    <div class="nail" style="left: 18px; top: 18px"></div>
+    <div class="nail" style="right: 18px; top: 18px"></div>
+    <div class="nail" style="left: 18px; bottom: 18px"></div>
+    <div class="nail" style="right: 18px; bottom: 18px"></div>
+    <div style="display: flex; align-items: baseline; gap: 26px">
+      <h2 class="marker" style="margin: 0; font-size: 104px; line-height: 1; font-weight: 400; padding: 0 8px">{{cur.name}}</h2>
+      <span style="font-size: 34px; color: #6b3f1f">무기: {{cur.weapon}}</span>
+    </div>
+    <p style="margin: 0; font-family: 'Gaegu', cursive; font-size: 50px; line-height: 1.05">{{cur.line}}</p>
+    <div style="height: 3px; background: repeating-linear-gradient(90deg,#2b1d12 0 14px,rgba(0,0,0,0) 14px 22px); opacity: .5"></div>
+    <div style="display: grid; grid-template-columns: 120px 1fr 150px; gap: 14px 22px; align-items: center; font-size: 34px">
+      <span>체력</span>
+      <div style="height: 26px; border-radius: 13px; background: #e2c992; box-shadow: inset 0 0 0 3px #2b1d12; overflow: hidden"><div style="height: 100%; width: {{cur.hpW}}; background: #e5484d; box-shadow: inset 0 -6px 0 rgba(0,0,0,.18), inset 0 0 0 3px #2b1d12"></div></div>
+      <span>{{cur.hp}}</span>
+      <span>속도</span>
+      <div style="height: 26px; border-radius: 13px; background: #e2c992; box-shadow: inset 0 0 0 3px #2b1d12; overflow: hidden"><div style="height: 100%; width: {{cur.spW}}; background: #3fa7e0; box-shadow: inset 0 -6px 0 rgba(0,0,0,.18), inset 0 0 0 3px #2b1d12"></div></div>
+      <span>{{cur.speed}}</span>
+      <span>사거리</span>
+      <div style="height: 26px; border-radius: 13px; background: #e2c992; box-shadow: inset 0 0 0 3px #2b1d12; overflow: hidden"><div style="height: 100%; width: {{cur.rgW}}; background: #6cc35a; box-shadow: inset 0 -6px 0 rgba(0,0,0,.18), inset 0 0 0 3px #2b1d12"></div></div>
+      <span>{{cur.range}}</span>
+    </div>
+    <p style="margin: 6px 0 0; font-size: 30px; color: #5a3410">{{cur.desc}}</p>
+  </div>
+
+  <!-- 병과 카드 5장 -->
+  <div style="position: absolute; left: 150px; top: 790px; display: flex; gap: 26px">
+    <sc-for list="{{classes}}" as="c" hint-placeholder-count="5">
+      <button class="card" onClick="{{c.pick}}" aria-label="{{c.name}} 고르기" style="position: relative; background: none; transform: rotate({{c.tilt}})">
+        <div class="parch" style="width: 200px; height: 236px; border-radius: 6px; box-shadow: {{c.ring}}; position: relative; overflow: hidden">
+          <img src="{{c.img}}" alt="" style="position: absolute; left: 50%; top: 14px; height: 172px; transform: translateX(-50%)">
+          <div style="position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 36px">{{c.name}}</div>
+        </div>
+        <div class="nail" style="left: 93px; top: -6px"></div>
+        <span style="position: absolute; left: -10px; top: -12px; width: 40px; height: 40px; border-radius: 8px; background: #2b1d12; color: #fff8e6; font-size: 26px; display: flex; align-items: center; justify-content: center">{{c.key}}</span>
+      </button>
+    </sc-for>
+  </div>
+
+  <!-- 버튼 -->
+  <a href="Main.dc.html" class="parch" style="position: absolute; left: 1330px; top: 790px; width: 140px; height: 90px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 38px; box-shadow: inset 0 0 0 3px #2b1d12, 0 6px 0 #2b1d12">
+    <svg aria-hidden="true" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2b1d12" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m11 18-6-6 6-6"/></svg>뒤로
+  </a>
+  <a href="ClassSelect.dc.html" style="position: absolute; left: 1330px; top: 902px; width: 440px; height: 136px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 66px; background-color: #e2a23a; background-image: repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 26px,rgba(120,60,10,.3) 26px 29px),linear-gradient(180deg,#f6c25a,#d9922e); box-shadow: inset 0 0 0 5px #2b1d12, inset 0 6px 0 5px rgba(255,240,200,.35), 0 10px 0 #2b1d12; transform: rotate(-1deg)">
+    <span class="nail" style="left: 14px; top: 14px"></span>
+    <span class="nail" style="right: 14px; top: 14px"></span>
+    <span class="nail" style="left: 14px; bottom: 14px"></span>
+    <span class="nail" style="right: 14px; bottom: 14px"></span>
+    이놈으로 출전
+  </a>
+  <div style="position: absolute; left: 1494px; top: 808px; font-family: 'Gaegu', cursive; font-size: 30px; color: #ffe9bf; transform: rotate(-3deg)">1~5 키로도 골라요</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"start":{"editor":"enum","options":["barbarian","archer","crossbow","cleric","bard"],"default":"barbarian"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { picked: null };
+  }
+  renderVals() {
+    const D = [
+      { id: 'barbarian', name: '야만인', weapon: '돌멩이', hp: 90, walk: 7.4, run: 10.0, rg: 0.25, range: '15m', img: 'img/barbarian_base_front.png', big: 'img/barbarian_base_q34.png', line: '생각 없음. 돌 있음.', desc: '0.4초마다 돌을 퍼붓는 돌격형. 가장 빠르지만 가장 약하다.' },
+      { id: 'archer', name: '궁수', weapon: '활', hp: 100, walk: 5.4, run: 7.3, rg: 0.75, range: '중거리', img: 'img/archer_base_front.png', big: 'img/archer_base_q34.png', line: '당기다 손 미끄러짐 주의.', desc: '오래 당길수록 세진다. 3초 넘게 버티면 손이 미끄러진다.' },
+      { id: 'crossbow', name: '석궁병', weapon: '석궁', hp: 110, walk: 4.6, run: 6.2, rg: 1.0, range: '원거리', img: 'img/crossbow_base_front.png', big: 'img/crossbow_base_q34.png', line: '한 발이면 끝. 장전은 4초.', desc: '피해 75, 머리에 맞히면 한 방. 대신 느리고 장전이 길다.' },
+      { id: 'cleric', name: '성직자', weapon: '성수', hp: 100, walk: 5.4, run: 7.3, rg: 0.5, range: '포물선', img: 'img/cleric_base_front.png', big: 'img/cleric_base_q34.png', line: '성수 맛 좀 봐라.', desc: '성수병 3개를 모아 던진다. 웅덩이가 적을 지지고 느리게 만든다.' },
+      { id: 'bard', name: '음유시인', weapon: '트럼펫', hp: 95, walk: 5.7, run: 7.7, rg: 0.45, range: '12m 원뿔', img: 'img/bard_base_front.png', big: 'img/bard_base_q34.png', line: '내 연주에 춤춰라.', desc: '트럼펫을 불면 적이 춤춘다. 춤추는 적은 느리고 공격을 못 한다.' },
+    ];
+    const picked = this.state.picked ?? this.props.start ?? 'barbarian';
+    const tilts = ['-2deg', '1.5deg', '-1deg', '2deg', '-1.5deg'];
+    const classes = D.map((c, i) => ({
+      ...c,
+      key: String(i + 1),
+      tilt: tilts[i],
+      ring: c.id === picked
+        ? 'inset 0 0 0 3px #2b1d12, 0 0 0 7px #ffd84a, 0 0 0 10px #2b1d12, 0 10px 0 6px rgba(43,29,18,.6)'
+        : 'inset 0 0 0 3px #2b1d12, inset 0 0 22px rgba(120,80,30,.35), 0 6px 0 rgba(43,29,18,.9)',
+      pick: () => this.setState({ picked: c.id }),
+    }));
+    const c = D.find((x) => x.id === picked) || D[0];
+    const cur = {
+      ...c,
+      speed: c.walk.toFixed(1) + ' / ' + c.run.toFixed(1),
+      hpW: Math.round((c.hp / 110) * 100) + '%',
+      spW: Math.round((c.walk / 7.4) * 100) + '%',
+      rgW: Math.round(c.rg * 100) + '%',
+    };
+    return { classes, cur };
+  }
+}
+</script>
+</body>
+</html>

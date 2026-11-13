@@ -1,5 +1,5 @@
 extends SceneTree
-## 황금 붕어빵 자동 테스트: 등장 자리(다른 아이템과 12m)·무적 중엔 안 나옴·먹기·5초 무적·다시 먹으면 5초로,
+## 황금 붕어빵 자동 테스트: 등장 자리(다른 아이템과 12m)·무적 중엔 안 나옴·먹기·8초 무적·다시 먹으면 8초로,
 ## 피해·넉백·닭·말·둔화·춤 막기, 몸박치기 20(같은 적 0.5초), 반짝임(덮어씌우기·반짝이·빛 2개·끝날 때 깜빡임),
 ## 1인칭 비네트·HUD 막대·뷰모델, 무적 BGM(0.2초 전환·원래 곡 일시정지 후 이어서·경기 끝나면 바로 복구),
 ## 봇(주우러 감·무적이면 돌진·무적인 적은 안 노리고 도망), 친구대전 비트·무기 번호.
@@ -77,7 +77,7 @@ func _run() -> void:
 		put(b, Vector3(40, 0, -40))  # 멀리 치워 둠
 
 	# ── 수치 ──
-	check("수치: 5초·15~25초·40%·40초", is_equal_approx(F.dur, 5.0) and is_equal_approx(F.spawn_min, 15.0) and is_equal_approx(F.spawn_max, 25.0) and is_equal_approx(F.chance, 0.4) and is_equal_approx(F.life, 40.0))
+	check("수치: 8초·15~25초·40%·40초", is_equal_approx(F.dur, 8.0) and is_equal_approx(F.spawn_min, 15.0) and is_equal_approx(F.spawn_max, 25.0) and is_equal_approx(F.chance, 0.4) and is_equal_approx(F.life, 40.0))
 	check("BGM star 키", G.BGM.get("star", "") == "res://audio/bgm_metal_heavy_loop.ogg" and ResourceLoader.exists(G.BGM.star))
 
 	# ── 등장 자리: 다른 아이템과 12m 이상 ──
@@ -104,8 +104,8 @@ func _run() -> void:
 	# ── 먹기 ──
 	put(p, I.fish.pos)
 	await wait(2)
-	check("닿으면 바로 먹음 → 5초 무적", not I.fish.active and p.star_t > 4.8, "star_t=%.2f" % p.star_t)
-	check("화면 문구", toasts.has("황금 붕어빵! 5초 무적"))
+	check("닿으면 바로 먹음 → 8초 무적", not I.fish.active and p.star_t > 7.8, "star_t=%.2f" % p.star_t)
+	check("화면 문구", toasts.has("황금 붕어빵! 8초 무적"))
 	var snd: Array = root.get_node("Sfx").played
 	check("냠! + 차임", snd.has("nyam") and snd.has("chime"))
 	check("무적 BGM으로", M.override_key == "star")
@@ -153,7 +153,7 @@ func _run() -> void:
 	put(p, I.fish.pos)
 	p.star_t = 1.5
 	await wait(2)
-	check("무적 중에 또 먹으면 남은 시간을 5초로", p.star_t > 4.8, "%.2f" % p.star_t)
+	check("무적 중에 또 먹으면 남은 시간을 8초로", p.star_t > 7.8, "%.2f" % p.star_t)
 
 	# ── 몸박치기 ──
 	var v = bots[2]
@@ -217,7 +217,7 @@ func _run() -> void:
 	I._place(I.fish, far_spot, 40.0)
 	put(b0, I.fish.pos)
 	await wait(2)
-	check("봇이 먹으면 배너", banners.has("%s이(가) 황금 붕어빵을 먹었다!" % b0.ent_name) and b0.star_t > 4.8)
+	check("봇이 먹으면 배너", banners.has("%s이(가) 황금 붕어빵을 먹었다!" % b0.ent_name) and b0.star_t > 7.8)
 	check("남이 먹으면 BGM 안 바뀜 (내 무적 곡 그대로)", M.override_key == "star")
 	C.end_star(b0)
 	put(b0, Vector3(40, 0, -40))

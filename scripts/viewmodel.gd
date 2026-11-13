@@ -15,7 +15,7 @@ var _star_on := false
 var _vm := {}        # 무기 키 → 노드
 var _stone_rock: Node3D
 var _bow := {}       # s1, s2, arrow, hand, tz, ty
-var _xb := {}        # xs1, xs2, bolt, ptz, ptx, ph, last
+var _xb := {}        # xs1, xs2, bolt, ptz, ptx, ph
 var _holy_fl: Node3D # 손에 든 성수병
 var _ak_fl: MeshInstance3D  # AK 총구 불꽃
 var _ak_ads := 0.0          # AK 정조준 정도 0~1
@@ -38,7 +38,7 @@ func _ready() -> void:
 	_vp.own_world_3d = true
 	_vp.transparent_bg = true
 	_vp.msaa_3d = Viewport.MSAA_2X
-	_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED  # 보일 때만 그림 (_process) — 3인칭·메뉴·죽음 땐 안 그림
 	add_child(_vp)
 	texture = _vp.get_texture()
 	var cam := Camera3D.new()
@@ -133,7 +133,7 @@ func _build() -> void:
 	hw.add_child(flh)
 	WeaponModels.make_holy(flh)
 	_holy_fl = flh
-	_xb = {"xs1": xs1, "xs2": xs2, "bolt": bolt, "ptz": -0.16 - 0.26 * cos(0.95), "ptx": 0.26 * sin(0.95), "ph": ph, "last": 1.0}
+	_xb = {"xs1": xs1, "xs2": xs2, "bolt": bolt, "ptz": -0.16 - 0.26 * cos(0.95), "ptx": 0.26 * sin(0.95), "ph": ph}
 	# 트럼펫 (4.5단계): 입에 댄 금관이 앞으로 뻗고, 나팔 끝이 오른쪽 아래에 보인다
 	var tw := _group("trumpet", TR_POS)
 	tw.rotation = Vector3(-0.05, -0.1, 0)
@@ -246,6 +246,10 @@ static func smooth(x: float) -> float:
 func _process(dt: float) -> void:
 	var e := player
 	visible = e != null and e.alive and not GameData.third_person and not e.is_scoped()
+	# 최적화: 안 보이면 화면 크기 SubViewport(MSAA 2배)를 그리지 않는다. 예전엔 3인칭(기본)·메뉴에서도 매 프레임 그렸다
+	var mode := SubViewport.UPDATE_ALWAYS if visible and is_visible_in_tree() else SubViewport.UPDATE_DISABLED
+	if _vp.render_target_update_mode != mode:
+		_vp.render_target_update_mode = mode
 	if not e or not e.alive:
 		return
 	var win := get_window().size
@@ -357,7 +361,7 @@ func _update_crossbow(e: PlayerController) -> void:
 	var g: Node3D = _vm.crossbow
 	var ptz: float = u.ptz
 	var ptx: float = u.ptx
-	var pr := WeaponModels.xbow_progress(e.cd)
+	var pr := e.xb_show  # 휠로 감은 만큼 (사용자 요청 휠 장전 — Combat._xbow_anim)
 	var seg := func(a: float, b: float) -> float: return clampf((pr - a) / (b - a), 0, 1)
 	var low: float = smooth(seg.call(0.05, 0.17)) * (1.0 - smooth(seg.call(0.86, 0.97)))
 	var tilt: float = 0.6 * smooth(seg.call(0.05, 0.17)) - 0.35 * smooth(seg.call(0.63, 0.7)) - 0.25 * smooth(seg.call(0.86, 0.97))
@@ -365,7 +369,7 @@ func _update_crossbow(e: PlayerController) -> void:
 	var jerk := 1.0 if draw >= 1 else (floorf(draw * 3) + smooth(fmod(draw * 3, 1.0))) / 3.0
 	var ft := (1.0 - e.fire_anim) / 3.0  # 쏜 직후 시위 떨림
 	var xv := sin(ft * 90) * exp(-ft * 14) * 0.04 if e.fire_anim > 0 and pr < 0.1 else 0.0
-	var nz := (-0.04 if e.cd <= 0 else ptz + (-0.04 - ptz) * jerk) + xv
+	var nz := (-0.04 if pr >= 1.0 else ptz + (-0.04 - ptz) * jerk) + xv
 	WeaponModels.stick(u.xs1, Vector3(ptx, 0.03, ptz), Vector3(0, 0.03, nz), 0.004)
 	WeaponModels.stick(u.xs2, Vector3(0, 0.03, nz), Vector3(-ptx, 0.03, ptz), 0.004)
 	g.position = Vector3(0.16 - 0.06 * low, -0.17 - 0.07 * low, -0.4 - 0.03 * low)
@@ -378,7 +382,7 @@ func _update_crossbow(e: PlayerController) -> void:
 	var bA: float = smooth(seg.call(0.68, 0.76))
 	var bB: float = smooth(seg.call(0.76, 0.86))
 	var bolt: Node3D = u.bolt
-	if e.cd <= 0:
+	if pr >= 1.0:
 		bolt.visible = true
 		bolt.position = Vector3(0, 0.055, -0.44)
 		bolt.rotation = Vector3(0, PI, 0)
@@ -390,25 +394,12 @@ func _update_crossbow(e: PlayerController) -> void:
 		bolt.visible = false
 	# 시위 당기는 손 / 볼트 든 손
 	var ph: Node3D = u.ph
-	if pr < 0.64 and draw > 0 and e.cd > 0:
+	if pr < 0.64 and draw > 0 and pr < 1.0:
 		ph.visible = true
 		ph.position = Vector3(0, 0.04, nz + 0.035)
-	elif pr >= 0.68 and pr < 0.88 and e.cd > 0:
+	elif pr >= 0.68 and pr < 0.88:
 		ph.visible = true
 		ph.position = bolt.position + Vector3(0, -0.01, 0.46)
 	else:
 		ph.visible = false
-	# 소리: 끙차(세 번) · 톱니 딸깍(9번) · 걸쇠 철컥(0.63) · 볼트 착(0.86). 지난 프레임과 이번 사이에 지나간 순간에 낸다
-	var L: float = u.last
-	var cross := func(th: float) -> bool: return L < th and pr >= th
-	for k in 3:
-		if cross.call(0.18 + 0.44 * k / 3.0 + 0.005):
-			Sfx.play("strain")
-	for k in range(1, 10):
-		if cross.call(0.18 + 0.44 * k / 9.0):
-			Sfx.play("ratchet")
-	if cross.call(0.63):
-		Sfx.play("reload")
-	if cross.call(0.86):
-		Sfx.play("seat")
-	u.last = pr
+	# 장전 소리는 Combat._xbow_anim (휠 한 칸마다 끼릭·걸쇠·볼트, 3인칭·봇·친구도 들리게)

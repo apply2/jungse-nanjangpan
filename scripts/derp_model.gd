@@ -52,11 +52,14 @@ var _helm_mats := {}
 var _in_helm := false
 var _fl := false
 
-var _sph := SphereMesh.new()
-var _cyl := CylinderMesh.new()
-var _cone := CylinderMesh.new()
-var _box := BoxMesh.new()
-var _skirt := CylinderMesh.new()  # HTML skirtGeo (위 0.36, 아래 0.5, 높이 0.55)
+# 기본 도형은 모든 모델이 같이 쓴다 (최적화 — 부활할 때마다 새로 만들지 않고, 합칠 때 정점 배열도 한 번만 읽는다)
+static var _sph: SphereMesh
+static var _cyl: CylinderMesh
+static var _cone: CylinderMesh
+static var _box: BoxMesh
+static var _skirt: CylinderMesh  # HTML skirtGeo (위 0.36, 아래 0.5, 높이 0.55)
+static var _tonsure: TorusMesh   # 성직자 머리 고리
+static var _mitre: CylinderMesh  # 성직자 주교 모자
 
 const STEEL := 0xaab3bd
 const STEEL_D := 0x7d858f
@@ -65,23 +68,8 @@ const STEEL_D := 0x7d858f
 func _init(class_key := "archer", team_key := "") -> void:
 	cls = class_key
 	team = team_key
-	_sph.radius = 1.0
-	_sph.height = 2.0
-	_sph.radial_segments = 16
-	_sph.rings = 10
-	_cyl.top_radius = 1.0
-	_cyl.bottom_radius = 1.0
-	_cyl.height = 1.0
-	_cyl.radial_segments = 12
-	_cone.top_radius = 0.0
-	_cone.bottom_radius = 1.0
-	_cone.height = 1.0
-	_cone.radial_segments = 12
-	_box.size = Vector3.ONE
-	_skirt.top_radius = 0.36
-	_skirt.bottom_radius = 0.5
-	_skirt.height = 0.55
-	_skirt.radial_segments = 18
+	if _sph == null:
+		_make_shapes()
 	_build()
 	_merge(self)
 	if GameData.CLASSES[cls].weapon == "trumpet" and Sfx.enabled:
@@ -89,8 +77,43 @@ func _init(class_key := "archer", team_key := "") -> void:
 		add_child(voice)
 
 
+static func _make_shapes() -> void:
+	_sph = SphereMesh.new()
+	_sph.radius = 1.0
+	_sph.height = 2.0
+	_sph.radial_segments = 16
+	_sph.rings = 10
+	_cyl = CylinderMesh.new()
+	_cyl.top_radius = 1.0
+	_cyl.bottom_radius = 1.0
+	_cyl.height = 1.0
+	_cyl.radial_segments = 12
+	_cone = CylinderMesh.new()
+	_cone.top_radius = 0.0
+	_cone.bottom_radius = 1.0
+	_cone.height = 1.0
+	_cone.radial_segments = 12
+	_box = BoxMesh.new()
+	_box.size = Vector3.ONE
+	_skirt = CylinderMesh.new()
+	_skirt.top_radius = 0.36
+	_skirt.bottom_radius = 0.5
+	_skirt.height = 0.55
+	_skirt.radial_segments = 18
+	_tonsure = TorusMesh.new()
+	_tonsure.inner_radius = 0.27 - 0.075
+	_tonsure.outer_radius = 0.27 + 0.075
+	_tonsure.rings = 22
+	_tonsure.ring_segments = 8
+	_mitre = CylinderMesh.new()
+	_mitre.top_radius = 0.12
+	_mitre.bottom_radius = 0.24
+	_mitre.height = 0.46
+
+
 ## 최적화(10단계): 같은 관절에 붙은 움직이지 않는 조각들을 메시 하나로 합친다 (캐릭터 하나 70~100번 → 20번 안팎).
-## 눈동자(굴러다님)와 무기(바꿔 들고 따로 움직임)는 그대로 둔다. 번쩍임은 합친 재질도 같이 바뀐다.
+## 눈동자(굴러다님)·볼(부풂)은 그대로 둔다. 무기는 그룹 안쪽 조각끼리 합친다 (최적화 — 트럼펫 13조각 → 1). 반투명(성수병 유리)은 안 합침.
+## 번쩍임은 합친 재질도 같이 바뀐다.
 func _merge(n: Node3D) -> void:
 	part_count = _count_meshes(n)
 	var skip := {}
@@ -98,9 +121,7 @@ func _merge(n: Node3D) -> void:
 		skip[pp.m] = true
 	for c in cheeks:
 		skip[c] = true
-	for w: Node3D in weapons.values():
-		skip[w] = true
-	_merge_node(n, skip)
+	_merge_node(n, skip)  # 무기 그룹도 안쪽 조각끼리 합친다 (그룹 노드는 남아서 보이기·배율·위치는 그대로)
 
 
 static func _count_meshes(n: Node) -> int:
@@ -115,7 +136,7 @@ func _merge_node(n: Node3D, skip: Dictionary) -> void:
 	for c in n.get_children():
 		if skip.has(c):
 			continue
-		if c is MeshInstance3D and c.get_child_count() == 0 and (c as MeshInstance3D).material_override is StandardMaterial3D:
+		if c is MeshInstance3D and c.get_child_count() == 0 and (c as MeshInstance3D).material_override is StandardMaterial3D 				and ((c as MeshInstance3D).material_override as StandardMaterial3D).transparency == BaseMaterial3D.TRANSPARENCY_DISABLED:  # 성수병 유리 같은 반투명은 따로
 			var mi := c as MeshInstance3D
 			groups[mi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF].append(mi)
 		elif c is Node3D:
@@ -129,7 +150,7 @@ func _merge_node(n: Node3D, skip: Dictionary) -> void:
 		for mi: MeshInstance3D in list:
 			items.append([mi.mesh, (mi.material_override as StandardMaterial3D).albedo_color, mi.transform])
 		var out := MeshInstance3D.new()
-		out.mesh = Meshes.merge(items)
+		out.mesh = Meshes.merge(items, true)
 		out.material_override = _vc_mat(in_helm)
 		out.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		n.add_child(out)
@@ -434,12 +455,7 @@ func _build_head_extras(mouth: MeshInstance3D, tongue: MeshInstance3D) -> void:
 			if tongue:
 				tongue.position = Vector3(0.02, -0.15, 0.345)
 		"cleric":  # 정수리만 벗겨진 수도사 머리 + 발그레한 볼
-			var tm := TorusMesh.new()
-			tm.inner_radius = 0.27 - 0.075
-			tm.outer_radius = 0.27 + 0.075
-			tm.rings = 22
-			tm.ring_segments = 8
-			_part(tm, 0x7a4a2c, Vector3(0, 0.07, 0), Vector3.ONE, head)
+			_part(_tonsure, 0x7a4a2c, Vector3(0, 0.07, 0), Vector3.ONE, head)
 			for sx in [1, -1]:
 				_part(_sph, 0xf09a9a, Vector3(sx * 0.18, -0.09, 0.23), Vector3(0.06, 0.04, 0.02), head)
 		"crossbow":  # 사슬 목가리개
@@ -459,6 +475,7 @@ func _build_weapons(K: Dictionary) -> void:
 		if key == "trumpet":  # 트럼펫은 손이 아니라 입에 붙인다 (고개를 들면 같이 들림)
 			var w := _group(Vector3(0, -0.15, 0.27), head)
 			WeaponModels.make_trumpet(w, _mat)
+			w.scale = Vector3.ONE * GameData.held_scale(key)  # 마우스피스(원점)는 입에 그대로, 나팔 쪽으로 커짐
 			weapons[key] = w
 			continue
 		var w := _group(Vector3.ZERO, hand_r)
@@ -482,7 +499,14 @@ func _build_weapons(K: Dictionary) -> void:
 				c.g.scale = Vector3.ONE * 0.75
 				c.g.position = Vector3(0, 0.05, 0.08)
 				w.add_child(c.g)
+		w.scale = Vector3.ONE * GameData.held_scale(key)  # 3인칭에서 잘 보이게 (원점 = 손잡이라 손에서 안 떨어짐)
 		weapons[key] = w
+
+
+## 내 캐릭터: HELD_SCALE_SELF가 있는 무기만 배율을 바꿈 (어깨 너머 화면에서 조준점을 가리지 않게)
+func set_mine(mine: bool) -> void:
+	for key: String in weapons:
+		(weapons[key] as Node3D).scale = Vector3.ONE * GameData.held_scale(key, mine)
 
 
 func _make_arm(sx: float, K: Dictionary) -> Node3D:
@@ -533,11 +557,7 @@ func _build_helm() -> void:
 			_part(_sph, GameData.C.gold, Vector3(-0.17, 0.3, -0.1), Vector3(0.06, 0.06, 0.04), helm)  # 깃털 꽂은 금 브로치
 			_part(_sph, T.gem, Vector3(-0.17, 0.3, -0.06), Vector3(0.035, 0.035, 0.025), helm)
 		"cleric":  # 주교 모자
-			var mt := CylinderMesh.new()
-			mt.top_radius = 0.12
-			mt.bottom_radius = 0.24
-			mt.height = 0.46
-			_part(mt, 0xf4efe2, Vector3(0, 0.43, 0), Vector3.ONE, helm)
+			_part(_mitre, 0xf4efe2, Vector3(0, 0.43, 0), Vector3.ONE, helm)
 			_part(_cyl, GameData.C.gold, Vector3(0, 0.22, 0), Vector3(0.245, 0.05, 0.245), helm)
 			var ms := _part(_box, GameData.C.gold, Vector3(0, 0.43, 0.19), Vector3(0.045, 0.44, 0.02), helm)
 			ms.rotation.x = -0.25
@@ -633,8 +653,9 @@ func animate(p, dt: float) -> void:
 		arm_l.rotation.x -= p.rec * 0.45
 		upper.rotation.x -= p.rec * 0.12
 	# 석궁 장전: 석궁을 내리고 왼팔로 시위를 끙끙 당긴다 (처음 12%에 내리고 마지막 10%에 다시 듦)
-	if wep == "crossbow" and p.cd > 0:
-		var q := WeaponModels.xbow_progress(p.cd)
+	var xq: Variant = p.get("xb_show")  # 휠 장전 진행도 (메뉴의 가짜 포즈엔 없음 = 장전됨)
+	if wep == "crossbow" and xq != null and float(xq) < 1.0:
+		var q := float(xq)
 		var xr := clampf(minf(q / 0.12, (0.95 - q) / 0.1), 0, 1)
 		arm_r.rotation.x += xr * 0.9
 		arm_l.rotation.x += xr * (0.6 + sin(t * 7) * 0.35)

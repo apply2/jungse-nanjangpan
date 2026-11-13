@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>UI 키트와 규칙</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&amp;family=Gaegu:wght@700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2b1d12}a:hover{color:#2b1d12}
+.wood{background-color:#9a6236;background-image:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 22px,rgba(60,30,10,.38) 22px 25px),repeating-linear-gradient(90deg,rgba(255,220,170,.07) 0 2px,rgba(0,0,0,0) 2px 13px),linear-gradient(180deg,#b57a47,#8a542b)}
+.wall{background-color:#6b3f1f;background-image:repeating-linear-gradient(90deg,rgba(0,0,0,0) 0 236px,rgba(30,14,4,.55) 236px 242px),radial-gradient(ellipse at 50% 40%,#8a5630,#5a3218 80%)}
+.parch{background-color:#f4e4bc;background-image:radial-gradient(ellipse at 18% 12%,rgba(255,255,255,.6),rgba(255,255,255,0) 50%),radial-gradient(ellipse at 92% 96%,rgba(150,100,40,.25),rgba(0,0,0,0) 55%)}
+.ink{box-shadow:inset 0 0 0 4px #2b1d12,inset 0 6px 0 4px rgba(255,220,170,.22),0 6px 0 #2b1d12}
+.inkp{box-shadow:inset 0 0 0 3px #2b1d12,inset 0 0 22px rgba(120,80,30,.32),0 6px 0 rgba(43,29,18,.9)}
+.nail{position:absolute;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#e8e2d8,#77706a 55%,#35302b);box-shadow:0 1px 0 rgba(0,0,0,.45)}
+.out{color:#fff8e6;-webkit-text-stroke:7px #2b1d12;paint-order:stroke fill}
+.marker{background:linear-gradient(180deg,rgba(0,0,0,0) 52%,#ffd84a 52% 90%,rgba(0,0,0,0) 90%)}
+.h{margin:0 0 14px;font-size:34px;font-weight:400}
+.arrow{clip-path:polygon(0 0,88% 0,100% 50%,88% 100%,0 100%)}
+.sign{filter:drop-shadow(3px 0 0 #2b1d12) drop-shadow(-3px 0 0 #2b1d12) drop-shadow(0 3px 0 #2b1d12) drop-shadow(0 -3px 0 #2b1d12) drop-shadow(0 6px 0 rgba(43,29,18,.9))}
+</style>
+</helmet>
+<div class="wall" style="width: 1920px; height: 1080px; position: relative; overflow: hidden; font-family: 'Do Hyeon', sans-serif; color: #2b1d12">
+  <div class="parch inkp" style="position: absolute; left: 50px; top: 40px; right: 50px; bottom: 40px; border-radius: 10px; padding: 44px 56px; box-sizing: border-box; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto 1fr 1fr; gap: 30px 50px">
+    <div class="nail" style="left: 18px; top: 18px"></div>
+    <div class="nail" style="right: 18px; top: 18px"></div>
+    <div class="nail" style="left: 18px; bottom: 18px"></div>
+    <div class="nail" style="right: 18px; bottom: 18px"></div>
+
+    <div style="grid-column: 1 / span 3; display: flex; align-items: baseline; gap: 30px">
+      <h1 style="margin: 0; font-size: 76px; font-weight: 400"><span class="marker">마을 게시판</span> 스타일</h1>
+      <p style="margin: 0; font-family: 'Gaegu', cursive; font-size: 38px">광장 게시판에 대충 못질해 붙인 공고문. 재질은 딱 세 가지만.</p>
+    </div>
+
+    <!-- 재질 -->
+    <section>
+      <h2 class="h">재질 3가지</h2>
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; gap: 16px; align-items: center">
+          <div class="wood ink" style="width: 110px; height: 70px; border-radius: 10px; position: relative"><div class="nail" style="left: 8px; top: 8px"></div><div class="nail" style="right: 8px; top: 8px"></div></div>
+          <div><div style="font-size: 30px">나무판</div><div style="font-size: 22px; color: #5a3410">간판·버튼·체력 틀. 글자는 흰색+잉크 외곽선</div></div>
+        </div>
+        <div style="display: flex; gap: 16px; align-items: center">
+          <div class="parch inkp" style="width: 110px; height: 70px; border-radius: 6px"></div>
+          <div><div style="font-size: 30px">양피지</div><div style="font-size: 22px; color: #5a3410">설명·쪽지·킬피드·무기 칸. 글자는 잉크색</div></div>
+        </div>
+        <div style="display: flex; gap: 16px; align-items: center">
+          <div style="display: flex; gap: 6px"><div style="width: 52px; height: 70px; background: #3d6fd6; border-radius: 6px 6px 22px 6px; box-shadow: inset 0 0 0 3px #2b1d12, 0 5px 0 #2b1d12"></div><div style="width: 52px; height: 70px; background: #d8453b; border-radius: 6px 6px 6px 22px; box-shadow: inset 0 0 0 3px #2b1d12, 0 5px 0 #2b1d12"></div></div>
+          <div><div style="font-size: 30px">칠한 방패</div><div style="font-size: 22px; color: #5a3410">팀 정보만. 색 + 글자(블루/레드) 늘 같이</div></div>
+        </div>
+        <p style="margin: 6px 0 0; font-family: 'Gaegu', cursive; font-size: 30px; line-height: 1.1">테이프·나사 ✗ → 쇠못·밧줄로.<br>중세에 테이프는 없음.</p>
+      </div>
+    </section>
+
+    <!-- 색 -->
+    <section>
+      <h2 class="h">색</h2>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; font-size: 22px">
+        <div style="display: flex; gap: 10px; align-items: center"><span style="width: 44px; height: 44px; border-radius: 8px; background: #2b1d12"></span><span>잉크 #2B1D12<br>모든 외곽선·글자</span></div>
+        <div style="display: flex; gap: 10px; align-items: center"><span style="width: 44px; height: 44px; border-radius: 8px; background: #f4e4bc; box-shadow: inset 0 0 0 3px #2b1d12"></span><span>양피지 #F4E4BC</span></div>
+        <div style="display: flex; gap: 10px; align-items: center"><span style="width: 44px; height: 44px; border-radius: 8px; background: #9a6236"></span><span>나무 #9A6236</span></div>
+        <div style="display: flex; gap: 10px; align-items: center"><span style="width: 44px; height: 44px; border-radius: 8px; background: #f2b44a"></span><span>금칠 #F2B44A<br>주요 버튼 하나만</span></div>
+        <div style="display: flex; gap: 10px; align-items: center"><span style="width: 44px; height: 44px; border-radius: 8px; background: #ffd84a"></span><span>형광펜 #FFD84A<br>강조·선택·알림</span></div>
+        <div style="display: flex; gap: 10px; align-items: center"><span style="width: 44px; height: 44px; border-radius: 8px; background: #6cc35a"></span><span>체력 #6CC35A</span></div>
+        <div style="display: flex; gap: 10px; align-items: center"><span style="width: 44px; height: 44px; border-radius: 8px; background: #3d6fd6"></span><span>블루팀 #3D6FD6</span></div>
+        <div style="display: flex; gap: 10px; align-items: center"><span style="width: 44px; height: 44px; border-radius: 8px; background: #d8453b"></span><span>레드팀 #D8453B</span></div>
+      </div>
+    </section>
+
+    <!-- 글꼴 -->
+    <section>
+      <h2 class="h">글꼴 2개</h2>
+      <div style="display: flex; flex-direction: column; gap: 14px">
+        <div class="wood ink" style="border-radius: 12px; padding: 10px 22px 14px">
+          <div class="out" style="font-size: 64px; line-height: 1">도현 100%</div>
+          <div style="font-size: 22px; color: #ffe9bf">제목·버튼·숫자 (지금 게임 폰트 그대로)</div>
+        </div>
+        <div style="padding: 4px 6px">
+          <div style="font-family: 'Gaegu', cursive; font-size: 54px; line-height: 1">넘어졌다... 다시?</div>
+          <div style="font-size: 22px; color: #5a3410">개구 Bold: 한마디·낙서·팁에만 (한 화면에 1~2곳)</div>
+        </div>
+        <p style="margin: 0; font-size: 22px; color: #5a3410">외곽선: 나무판 위 큰 글자 8~14px, 작은 글자 5~6px</p>
+      </div>
+    </section>
+
+    <!-- 버튼 -->
+    <section>
+      <h2 class="h">버튼 3종</h2>
+      <div style="display: flex; flex-direction: column; gap: 22px; align-items: flex-start">
+        <div class="sign"><div class="wood arrow" style="width: 380px; height: 76px; display: flex; align-items: center; padding-left: 26px; box-sizing: border-box"><span class="out" style="font-size: 42px">이정표 (메인 메뉴)</span></div></div>
+        <div style="position: relative; width: 340px; height: 84px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 42px; background: linear-gradient(180deg,#f6c25a,#d9922e); box-shadow: inset 0 0 0 4px #2b1d12, 0 7px 0 #2b1d12"><span class="nail" style="left: 10px; top: 10px"></span><span class="nail" style="right: 10px; top: 10px"></span>금칠 판 (주요 1개)</div>
+        <div class="parch" style="width: 250px; height: 64px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 34px; box-shadow: inset 0 0 0 3px #2b1d12, 0 5px 0 #2b1d12">양피지 (보조)</div>
+      </div>
+    </section>
+
+    <!-- HUD 규칙 -->
+    <section>
+      <h2 class="h">경기 화면 규칙</h2>
+      <ol style="margin: 0; padding-left: 28px; font-size: 26px; line-height: 1.35">
+        <li>가운데 40%는 비운다 (조준점·알림 쪽지만)</li>
+        <li>정보는 네 모서리 + 위 가운데 점수판에만</li>
+        <li>1080p 기준 패널 높이 120px 이하</li>
+        <li>기울기는 ±3° 이하. 숫자는 안 기울인다</li>
+        <li>팀은 색 + 글자 + 모양(방패 귀퉁이)으로</li>
+        <li>라운드는 0:0 대신 동그라미 2개 (3판 2선승)</li>
+        <li>킬피드는 화살표 대신 무기 아이콘</li>
+      </ol>
+    </section>
+
+    <!-- 말투 -->
+    <section>
+      <h2 class="h">말투: 짧고 멍청하게</h2>
+      <div style="display: grid; grid-template-columns: 1fr 34px 1.3fr; gap: 8px 10px; font-size: 26px; align-items: center">
+        <span style="color: #7b5a3a">캐릭터 선택</span><span>→</span><span class="marker">누가 나갈래?</span>
+        <span style="color: #7b5a3a">선택 완료</span><span>→</span><span class="marker">이놈으로 출전</span>
+        <span style="color: #7b5a3a">게임 종료</span><span>→</span><span class="marker">도망가기</span>
+        <span style="color: #7b5a3a">불러오는 중</span><span>→</span><span class="marker">돌 줍는 중…</span>
+        <span style="color: #7b5a3a">사망</span><span>→</span><span class="marker">넘어졌다... 다시?</span>
+        <span style="color: #7b5a3a">돌맹이 / 돌탱이</span><span>→</span><span class="marker">돌멩이 (맞춤법)</span>
+      </div>
+      <p style="margin: 12px 0 0; font-size: 22px; color: #5a3410">농담은 제목·한마디에만. 수치·조작 안내는 정확하고 짧게.</p>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

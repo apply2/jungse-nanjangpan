@@ -78,10 +78,29 @@ func _run() -> void:
 	C.items.ak_timer = 9999.0
 	C.items.horse_timer = 9999.0
 
-	# ── 효과음 합성 ──
-	var w = S.render(S.RECIPES.sniper)
-	var n_exp := int((0.7 + 0.02) * S.RATE) + 1
-	check("저격총 소리 길이 0.72초", absi(w.data.size() / 2 - n_exp) <= 1, "samples=%d" % (w.data.size() / 2))
+	# ── 효과음: 파일·합성 ──
+	var missing := []
+	for key in S.FILES:
+		for path in S.FILES[key]:
+			if not ResourceLoader.exists(path):
+				missing.append(path)
+	check("FILES에 적은 소리 파일이 다 있음", missing.is_empty(), str(missing))
+	var both: Array = S.RECIPES.keys().filter(func(key): return S.FILES.has(key))
+	check("RECIPES와 FILES 이름이 안 겹침", both.is_empty(), str(both))
+	check("안 쓰는 합성 소리는 지움", not (S.RECIPES.has("hoof") or S.RECIPES.has("strain") or S.RECIPES.has("ratchet")), "")
+	# 거리·남의 소리 크기 (GameData.SFX_DIST)
+	put(p, HERE, "archer", 0.0)
+	await wait(2)
+	var D: Dictionary = G.SFX_DIST
+	var me_pos: Vector3 = p.global_position
+	check("내 자리 소리 = 1", S.vol_at(me_pos) == 1.0, "%.2f" % S.vol_at(me_pos))
+	var v8: float = S.vol_at(me_pos + Vector3(D.ref, 0, 0))
+	check("남의 소리: ref 거리에서 절반 × others", near(v8, 0.5 * D.others, 0.01), "%.3f" % v8)
+	var v30: float = S.vol_at(me_pos + Vector3(30, 0, 0))
+	check("30m는 예전(1/(1+d/9))보다 작음", v30 < 0.5 * (1.0 / (1.0 + 30.0 / 9.0)), "%.3f" % v30)
+	check("가까울수록 큼", S.vol_at(me_pos + Vector3(3, 0, 0)) > v8 and v8 > v30, "")
+	check("max 넘으면 0", S.vol_at(me_pos + Vector3(D.max + 1, 0, 0)) == 0.0, "")
+	var w = S.render(S.RECIPES.trip)
 	var peak := 0
 	for i in range(0, w.data.size(), 2):
 		peak = maxi(peak, absi(w.data.decode_s16(i)))
@@ -114,6 +133,33 @@ func _run() -> void:
 	C.stop_hit_stop()
 	G.hitstop_enabled = false
 	await wait(2)
+
+	# ── 킬 마커: 내가 막타 → 조준점 가운데 해골 (사용자 요청) ──
+	var sk = hud._skull
+	var K: Dictionary = G.HUD_UI.kill_skull
+	check("내가 처치하면 해골 (헤드샷 아니면 흰색)", sk.plays == 1 and not sk.head and sk.state().a > 0.3, "plays=%d" % sk.plays)
+	sk.play(false)  # 시간 재기용으로 다시 (연속 킬 = 처음부터)
+	var s0: float = sk.state().s
+	OS.delay_msec(int(float(K.punch_t) * 1000.0) + 20)
+	var s1: float = sk.state().s
+	check("처음엔 크게(1.3배) → 0.1초 뒤 원래 크기", near(s0, float(K.punch), 0.05) and s1 == 1.0, "%.2f → %.2f" % [s0, s1])
+	OS.delay_msec(int(float(K.hold) * 1000.0) - 50)
+	check("0.5초 동안은 그대로 (반투명 0.6)", near(sk.state().a, float(K.alpha), 0.001) and K.alpha == 0.6, "a=%.2f" % sk.state().a)
+	sk._process(0.0)
+	check("해골은 그룹째 흐리게 (겹친 조각이 비치지 않게)", sk._grp.visible and near(sk._grp.self_modulate.a, float(K.alpha), 0.001), "a=%.2f" % sk._grp.self_modulate.a)
+	OS.delay_msec(int(float(K.fade) * 1000.0) / 2 + 50)
+	var a_mid: float = sk.state().a
+	OS.delay_msec(int(float(K.fade) * 1000.0))
+	check("0.25초 동안 0.6 → 0으로 흐려지다 사라짐", a_mid > 0.05 and a_mid < float(K.alpha) - 0.05 and sk.state().a == 0.0, "중간 %.2f → %.2f" % [a_mid, sk.state().a])
+	var plays0: int = sk.plays
+	put(bots[2], HERE + Vector3(4, 0, 3), "archer")
+	await wait(2)
+	C.damage(bots[2], p, 999, "crossbow", true, Vector3(1, 0, 0))
+	check("헤드샷 킬은 빨간 해골", sk.plays == plays0 + 1 and sk.head, "plays=%d head=%s" % [sk.plays, sk.head])
+	put(bots[3], HERE + Vector3(4, 0, -3), "archer")
+	await wait(2)
+	C.damage(bots[3], bots[4], 999, "stone", false, Vector3(1, 0, 0))
+	check("봇이 봇을 죽이면 내 화면엔 해골 없음", sk.plays == plays0 + 1, "plays=%d" % sk.plays)
 
 	# ── 래그돌 ──
 	check("죽으면 모델 대신 래그돌", dm.model == null and dm.ragdoll != null and C.ragdolls.has(dm.ragdoll), "")
@@ -187,12 +233,95 @@ func _run() -> void:
 	p.scripted_input = IDLE
 	check("저격총 쏘면 흔들림 0.5 + 소리", p.shake > 0.4 and S.played.has("sniper"), "shake=%.2f" % p.shake)
 
+	# ── 무기 소리가 나는 곳 ──
+	# 활: 누르면 당기는 소리, 놓으면 휙 (돌 던지는 소리와 같은 파일) + 당기는 소리 끔
+	put(p, HERE, "archer", 0.0)
+	await wait(5)
+	S.played.clear()
+	p.scripted_input = FIRE
+	await wait(30)
+	check("활 당기면 bow_draw", S.played.has("bow_draw") and p.charging, str(S.played))
+	p.scripted_input = IDLE
+	await wait(2)
+	check("놓으면 bow + 당기는 소리 끔", S.played.has("bow") and p.snd_bow == 0 and not p.charging, str(S.played))
+	check("활 쏘는 소리 = 돌 던지는 소리 (사용자 요청)", S.FILES.bow == S.FILES.throw, "")
+	# 석궁 3인칭 장전: 끊어 당기기 3번 · 걸쇠 · 볼트
+	var tp0: bool = G.third_person
+	G.third_person = true
+	put(p, HERE, "crossbow", 0.0)
+	await wait(5)
+	S.played.clear()
+	p.scripted_input = FIRE
+	await wait(2)
+	p.scripted_input = IDLE
+	var wind_in: Dictionary = IDLE.duplicate()
+	wind_in["wind"] = true
+	await wait(20)  # 쏜 직후(cd)엔 휠이 안 먹음
+	for i in int(G.WEAPONS.crossbow.notches):  # 휠 한 칸씩
+		p.scripted_input = wind_in
+		await wait(1)
+		p.scripted_input = IDLE
+		await wait(9)
+	await wait(30)
+	var cnt := func(n: String) -> int: return S.played.count(n)
+	check("석궁 3인칭 휠 장전 소리: 칸마다 끼릭 · latch 1 · seat 1", S.played.has("xbow") and cnt.call("xbow_click") == int(G.WEAPONS.crossbow.notches) and cnt.call("xbow_latch") == 1 and cnt.call("seat") == 1, str(S.played))
+	G.third_person = tp0
+	# 봇 석궁 장전도 들림
+	put(dm, HERE + Vector3(6, 0, 0), "crossbow")
+	await wait(3)
+	S.played.clear()
+	dm.scripted_input = FIRE
+	await wait(2)
+	dm.scripted_input = IDLE
+	await wait(20)
+	for i in int(G.WEAPONS.crossbow.notches):
+		dm.scripted_input = wind_in
+		await wait(1)
+		dm.scripted_input = IDLE
+		await wait(9)
+	await wait(30)
+	check("봇 석궁 장전 소리도 남", cnt.call("xbow_click") == int(G.WEAPONS.crossbow.notches) and cnt.call("xbow_latch") == 1, str(S.played))
+	# 성수: 던지면 holy_throw, 깨지면 glass
+	put(p, HERE, "cleric", 0.0)
+	p.pitch = -0.5
+	await wait(5)
+	S.played.clear()
+	p.scripted_input = FIRE
+	await wait(2)
+	p.scripted_input = IDLE
+	await wait(90)
+	check("성수 던지면 holy_throw, 깨지면 glass", S.played.has("holy_throw") and S.played.has("glass") and not S.played.has("throw"), str(S.played))
+	# 말: 달리면 gallop (반복 소리 한 번만 쌓임), hoof는 없음
+	put(p, HERE, "archer", -PI / 2)
+	await wait(3)
+	S.played.clear()
+	C.items.mount(p)
+	p.scripted_input = {"f": 1.0, "r": 0.0, "jump": false, "crouch": false, "sprint": false}
+	await wait(40)
+	check("말 달리면 gallop (한 번만 쌓임), hoof 없음", S.played.count("gallop") == 1 and not S.played.has("hoof"), str(S.played))
+	p.scripted_input = IDLE
+	C.items.dismount(p)
+	check("내리면 반복 소리 지움", S._loops.is_empty(), "n=%d" % S._loops.size())
+
+	# ── 최적화: 1인칭 손 화면(SubViewport)은 보일 때만 그림 ──
+	var vp: SubViewport = hud._vm._vp
+	G.third_person = true
+	await wait(3)
+	check("3인칭이면 1인칭 손 화면을 안 그림", vp.render_target_update_mode == SubViewport.UPDATE_DISABLED, str(vp.render_target_update_mode))
+	G.third_person = false
+	await wait(3)
+	check("1인칭이면 그림", vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS, str(vp.render_target_update_mode))
+	G.third_person = true
+	await wait(2)
+
 	# ── 내가 죽으면 래그돌을 따라가는 카메라 ──
 	put(p, HERE, "archer", 0.0)
 	await wait(3)
+	var plays_before_death: int = hud._skull.plays
 	C.damage(p, dm, 9999, "stone", false, Vector3(1, 0, 0))
 	await wait(90)
 	var pel: Vector3 = p.ragdoll.pelvis()
+	check("내가 남에게 죽으면 해골 없음", hud._skull.plays == plays_before_death, "plays=%d" % hud._skull.plays)
 	check("죽음 카메라가 래그돌 골반을 봄", p.cam.global_position.distance_to(pel) < 7.5 and (-p.cam.global_basis.z).dot((pel - p.cam.global_position).normalized()) > 0.95,
 		"dist=%.1f" % p.cam.global_position.distance_to(pel))
 
@@ -204,6 +333,12 @@ func _run() -> void:
 		check(k2 + " 래그돌 점 8개", m.mk.size() == 8, "")
 		var body_n: int = count_meshes(m) - m.weapons.values().reduce(func(acc, w): return acc + count_meshes(w), 0)
 		check(k2 + " 몸 조각을 관절별로 합침 (손에 드는 무기 빼고 14개 이하)", body_n <= 14, "합치기 전 %d개(무기 포함) → 몸 %d개" % [m.part_count, body_n])
+		var wk: String = G.CLASSES[k2].weapon
+		var wn: int = count_meshes(m.weapons[wk])
+		# 최적화: 무기 그룹 안 조각도 합침 (활은 활대·시위가 다른 부모라 2, 성수병은 반투명 유리 2개를 따로 둬서 3)
+		check(k2 + " 손에 든 무기 조각 합침 (%s)" % wk, wn <= 3, "%d개" % wn)
+		if wk == "trumpet":
+			check("트럼펫 13조각 → 1", wn == 1, "%d개" % wn)
 		m.free()
 	check("의상 조각 (야만인 표범무늬·수염, 궁수 리벳, 석궁병 방패, 성직자 영대)", counts.barbarian > 70 and counts.archer > 45 and counts.crossbow > 45 and counts.cleric > 40, str(counts))
 

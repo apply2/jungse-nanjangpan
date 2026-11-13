@@ -4,6 +4,7 @@ extends VBoxContainer
 ## 마우스 감도·시점(HTML .sens·.seg) + 그래픽 품질(낮음·보통·높음) + 볼륨 세 개(전체·배경음악·효과음) + 조작키 목록.
 ## 바꾸면 바로 GameData에 넣고 user://settings.cfg에 저장한다. 볼륨은 바로 버스에 반영돼 미리 들어볼 수 있다.
 ## 화면에 보일 때마다 GameData에서 다시 읽는다 (다른 패널이나 V키로 바뀌었을 수 있어서).
+## 모양: 마을 게시판 — 나무판(쇠못 4개)에 양피지 쪽지를 핀으로 붙임. 숫자 있는 쪽지는 안 기울인다.
 
 @export var show_keys := true
 
@@ -14,14 +15,21 @@ var _sens_o: Label
 var _view_btns := {}
 var _gfx_btns := {}
 var _vol := {}  # 키 → {s: HSlider, o: Label}
+var _body: VBoxContainer  # 나무판 안쪽 (쪽지들)
 
 
 func _ready() -> void:
-	add_theme_constant_override("separation", 14)
+	add_theme_constant_override("separation", 0)
+	var board := UiKit.Board.new("wood", Vector4(14, 14, 14, 12))
+	board.nails = 4
+	add_child(board)
+	_body = VBoxContainer.new()
+	_body.add_theme_constant_override("separation", 8)
+	board.add_child(_body)
 	var top := HBoxContainer.new()
 	top.alignment = BoxContainer.ALIGNMENT_CENTER
 	top.add_theme_constant_override("separation", 12)
-	add_child(top)
+	_body.add_child(top)
 	_build_sens(top)
 	_build_view(top)
 	_build_gfx()
@@ -45,14 +53,27 @@ func refresh() -> void:
 	_sync_view()
 
 
-func _panel(parent: Node, pad: Vector4) -> PanelContainer:
-	var pc := PanelContainer.new()
-	pc.add_theme_stylebox_override("panel", UiKit.box(UiKit.ink(0.7), Color.TRANSPARENT, 0, 8, pad))
-	parent.add_child(pc)
+## 양피지 쪽지 하나 (위 가운데 쇠못). tilt ≠ 0이면 살짝 기울여 붙인다 — 숫자 쪽지는 0
+func _panel(parent: Node, pad: Vector4, tilt := 0.0) -> PanelContainer:
+	var pc := UiKit.Board.new("parch", pad)
+	pc.nails = 1
+	if tilt != 0.0:
+		var w := UiKit.tilted(pc, tilt)
+		w.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		parent.add_child(w)
+	else:
+		pc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		parent.add_child(pc)
 	return pc
 
 
-## 금색으로 차는 가로 슬라이더 (HTML .sens input)
+func _title(text: String, parent: Node) -> Label:
+	var l := UiKit.label(text, 15, UiKit.c("ink"), parent)
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return l
+
+
+## 가로 슬라이더 (HTML .sens input): 어두운 나무 홈 + 형광펜으로 참 + 쇠못 손잡이
 func _slider(lo: float, hi: float, step: float, w: float) -> HSlider:
 	var s := HSlider.new()
 	s.min_value = lo
@@ -61,27 +82,29 @@ func _slider(lo: float, hi: float, step: float, w: float) -> HSlider:
 	s.custom_minimum_size = Vector2(w, 20)
 	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	s.focus_mode = Control.FOCUS_NONE
-	var track := UiKit.box(Color(1, 1, 1, 0.18), Color.TRANSPARENT, 0, 3)
-	track.content_margin_top = 3
-	track.content_margin_bottom = 3
+	var track := UiKit.box(UiKit.c("wood_lo"), UiKit.c("ink"), 2, 4)
+	track.content_margin_top = 4
+	track.content_margin_bottom = 4
 	s.add_theme_stylebox_override("slider", track)
-	var fill := UiKit.box(UiKit.c("gold"), Color.TRANSPARENT, 0, 3)
-	fill.content_margin_top = 3
-	fill.content_margin_bottom = 3
+	var fill := UiKit.box(UiKit.c("marker"), UiKit.c("ink"), 2, 4)
+	fill.content_margin_top = 4
+	fill.content_margin_bottom = 4
 	s.add_theme_stylebox_override("grabber_area", fill)
 	s.add_theme_stylebox_override("grabber_area_highlight", fill)
+	s.add_theme_icon_override("grabber", UiKit.nail_icon(7.0))
+	s.add_theme_icon_override("grabber_highlight", UiKit.nail_icon(8.0))
 	return s
 
 
 func _build_sens(parent: Node) -> void:
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 10)
-	_panel(parent, Vector4(14, 8, 14, 8)).add_child(hb)
-	UiKit.label("마우스 감도", 14, UiKit.c("parch"), hb).size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_panel(parent, Vector4(14, 12, 14, 8)).add_child(hb)
+	_title("마우스 감도", hb)
 	var R: Array = GameData.SENS_RANGE
 	_sens_s = _slider(R[0], R[1], R[2], 130)
 	hb.add_child(_sens_s)
-	_sens_o = UiKit.label("", 14, UiKit.c("parch"), hb)
+	_sens_o = UiKit.label("", 15, UiKit.c("ink"), hb)
 	_sens_o.custom_minimum_size.x = 34
 	_sens_o.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_sens_s.value_changed.connect(func(v: float) -> void:
@@ -90,21 +113,17 @@ func _build_sens(parent: Node) -> void:
 		refresh())
 
 
-## 시점 3인칭 / 1인칭 (HTML .seg)
+## 시점 3인칭 / 1인칭 (HTML .seg) — 양피지 버튼, 고른 것 = 형광펜
 func _build_view(parent: Node) -> void:
 	var sh := HBoxContainer.new()
 	sh.add_theme_constant_override("separation", 6)
-	_panel(parent, Vector4(14, 6, 8, 6)).add_child(sh)
-	UiKit.label("시점", 14, UiKit.c("parch"), sh).size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_panel(parent, Vector4(14, 11, 10, 7), -1.5).add_child(sh)
+	_title("시점", sh)
 	var gap := Control.new()
-	gap.custom_minimum_size.x = 6
+	gap.custom_minimum_size.x = 4
 	sh.add_child(gap)
 	for v in [["tp", "3인칭", true], ["fp", "1인칭", false]]:
-		var b := Button.new()
-		b.text = v[1]
-		b.add_theme_font_size_override("font_size", 16)
-		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		b.focus_mode = Control.FOCUS_NONE
+		var b := UiKit.ghost(v[1], 16, Vector4(16, 6, 16, 6))
 		var tp: bool = v[2]
 		b.pressed.connect(func() -> void:
 			GameData.third_person = tp
@@ -118,20 +137,16 @@ func _build_view(parent: Node) -> void:
 func _build_gfx() -> void:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	add_child(row)
+	_body.add_child(row)
 	var sh := HBoxContainer.new()
 	sh.add_theme_constant_override("separation", 6)
-	_panel(row, Vector4(14, 6, 8, 6)).add_child(sh)
-	UiKit.label("그래픽", 14, UiKit.c("parch"), sh).size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_panel(row, Vector4(14, 11, 10, 7), 1.0).add_child(sh)
+	_title("그래픽", sh)
 	var gap := Control.new()
-	gap.custom_minimum_size.x = 6
+	gap.custom_minimum_size.x = 4
 	sh.add_child(gap)
 	for q: String in GameData.GFX_ORDER:
-		var b := Button.new()
-		b.text = GameData.GFX[q].name
-		b.add_theme_font_size_override("font_size", 16)
-		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		b.focus_mode = Control.FOCUS_NONE
+		var b := UiKit.ghost(GameData.GFX[q].name, 16, Vector4(16, 6, 16, 6))
 		b.pressed.connect(func() -> void:
 			GameData.set_gfx(q)
 			_sync_view())
@@ -139,19 +154,12 @@ func _build_gfx() -> void:
 		_gfx_btns[q] = b
 
 
-## 시점·그래픽 버튼 중 지금 것을 금색으로 (HTML .seg button[aria-pressed])
+## 시점·그래픽 버튼 중 지금 것을 형광펜으로 (HTML .seg button[aria-pressed])
 func _sync_view() -> void:
 	for k: String in _gfx_btns:
-		_seg_style(_gfx_btns[k], k == GameData.gfx_quality)
+		(_gfx_btns[k] as UiKit.KitButton).selected = k == GameData.gfx_quality
 	for k: String in _view_btns:
-		_seg_style(_view_btns[k], (k == "tp") == GameData.third_person)
-
-
-func _seg_style(b: Button, on: bool) -> void:
-	var pad := Vector4(14, 6, 14, 6)
-	var n := UiKit.box(UiKit.c("gold") if on else Color.TRANSPARENT, UiKit.c("gold") if on else UiKit.c("line"), 2, 6, pad)
-	var h := UiKit.box(UiKit.c("gold") if on else Color(1, 1, 1, 0.05), UiKit.c("gold"), 2, 6, pad)
-	UiKit._style_button(b, n, h, n, UiKit.c("ink") if on else UiKit.c("parch"))
+		(_view_btns[k] as UiKit.KitButton).selected = (k == "tp") == GameData.third_person
 
 
 ## 볼륨 슬라이더 세 개 (0~100%) — 움직이면 바로 버스에 반영, 0%면 음소거
@@ -159,18 +167,22 @@ func _build_volume() -> void:
 	var g := GridContainer.new()
 	g.columns = 3
 	g.add_theme_constant_override("h_separation", 14)
-	g.add_theme_constant_override("v_separation", 8)
-	var pc := _panel(self, Vector4(18, 12, 18, 12))
-	pc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	pc.add_child(g)
-	for row: Array in VOL_ROWS:
-		var k: String = row[0]
-		var l := UiKit.label(row[1], 14, UiKit.c("parch"), g)
+	g.add_theme_constant_override("v_separation", 4)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_body.add_child(row)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 2)
+	_panel(row, Vector4(18, 12, 18, 4)).add_child(vb)
+	vb.add_child(g)
+	for vr: Array in VOL_ROWS:
+		var k: String = vr[0]
+		var l := UiKit.label(vr[1], 15, UiKit.c("ink"), g)
 		l.custom_minimum_size.x = 76
 		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		var s := _slider(0, 100, 1, 260)
 		g.add_child(s)
-		var o := UiKit.label("", 14, UiKit.c("parch"), g)
+		var o := UiKit.label("", 15, UiKit.c("ink"), g)
 		o.custom_minimum_size.x = 44
 		o.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		o.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -179,16 +191,18 @@ func _build_volume() -> void:
 			GameData.set_volume(k, v / 100.0)
 			GameData.save_settings()
 			o.text = "%d%%" % roundi(v))
+	# 한마디 (개구 — 이 화면에 한 곳만)
+	var tip := UiKit.scribble("바꾸면 바로 저장돼요.", 18, UiKit.c("brown"), vb)
+	tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 
+## 조작키 쪽지: 작은 나무 키캡 + 설명
 func _build_keys() -> void:
-	var keys := PanelContainer.new()
-	keys.add_theme_stylebox_override("panel", UiKit.box(UiKit.ink(0.72), Color(61 / 255.0, 70 / 255.0, 128 / 255.0, 0.7), 1, 8, Vector4(18, 14, 18, 14)))
-	add_child(keys)
+	var keys := _panel(_body, Vector4(16, 13, 16, 9), 0.6)
 	var kg := GridContainer.new()
 	kg.columns = 2
 	kg.add_theme_constant_override("h_separation", 18)
-	kg.add_theme_constant_override("v_separation", 8)
+	kg.add_theme_constant_override("v_separation", 5)
 	keys.add_child(kg)
 	for kv in [["W A S D", "이동"], ["Space", "점프"], ["Shift", "달리기 · 공격하면 풀림"], ["Ctrl / C", "달리다 누르면 슬라이드, 서 있으면 앉기"],
 			["클릭", "공격 · 활은 누르고 당겼다 놓기"], ["우클릭", "조준 (석궁 · 저격총)"], ["Q", "저격총 ↔ 원래 무기"], ["Tab", "점수판"],
@@ -197,11 +211,10 @@ func _build_keys() -> void:
 		cell.add_theme_constant_override("separation", 10)
 		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		kg.add_child(cell)
-		var dt := PanelContainer.new()
-		dt.add_theme_stylebox_override("panel", UiKit.drop(UiKit.box(UiKit.c("parch"), Color.TRANSPARENT, 0, 4, Vector4(8, 3, 8, 3)), UiKit.c("gold_deep"), 2))
+		var dt := UiKit.Board.new("wood", Vector4(6, 0, 6, 0))
 		dt.custom_minimum_size.x = 84
 		dt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var kl := UiKit.label(kv[0], 14, UiKit.c("ink"), dt)
+		var kl := UiKit.wood_text(UiKit.label(kv[0], 13, UiKit.c("cream"), dt), 13)
 		kl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		cell.add_child(dt)
-		UiKit.label(kv[1], 13, UiKit.c("mute"), cell).size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		UiKit.label(kv[1], 14, UiKit.c("brown"), cell).size_flags_vertical = Control.SIZE_SHRINK_CENTER

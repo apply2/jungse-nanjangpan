@@ -110,6 +110,18 @@ var hold_t := 0.0        # 끝까지 당긴 채 버틴 시간
 var sway_y := 0.0        # 후들거림으로 더한 yaw·pitch (다음 프레임에 빼고 새로 더함)
 var sway_p := 0.0
 var sw_t := 0.0
+var snd_bow := 0         # 활 당기는 소리 번호 (Sfx.play → 놓으면 Sfx.stop)
+var bow_release := false # min_charge 전에 놓음 → 거기까지 마저 당기고 쏜다
+var cancel_req := false  # R: 당기기 취소 (Combat이 처리)
+var draw_block := false  # 취소한 뒤 공격 키를 뗄 때까지 다시 안 당김
+var xb_last := 1.0       # 석궁 장전 모션 진행도 (지난 프레임) — 걸쇠·볼트 소리 순간을 지났는지 보려고
+# 석궁 휠 장전 (사용자 요청) — Combat._xbow_wind·_xbow_anim
+var xb_wind: int = GameData.WEAPONS.crossbow.notches  # 감은 칸 수 (WEAPONS.crossbow.notches면 장전 완료). 친구대전으로 보냄
+var xb_show := 1.0       # 장전 모션 진행도 0~1 (xb_wind/notches를 show_rate로 따라감)
+var xb_heard: int = GameData.WEAPONS.crossbow.notches  # 끼릭 소리를 낸 칸 수 (친구 것도 칸이 늘면 소리)
+var wind_req := 0        # 이번 프레임에 받은 휠 칸 수 (Combat이 가져감)
+var wind_t := 0.0        # '감는 중' 남은 시간 (마지막 칸 뒤 reload_window초) — 이동 속도 ×reload_speed
+var _wind_ms := -100000  # 마지막으로 받은 휠 칸 시각 (실제 ms) — notch_gap 안에 온 휠은 버림
 # 반동 스프링 (HTML rec/recV = 3인칭 몸, vRec/vRecV = 1인칭 화면·손 — 내 캐릭터만 씀)
 var rec := 0.0
 var rec_v := 0.0
@@ -164,6 +176,8 @@ func set_class(c: String) -> void:
 	model.top_level = true
 	model.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(model)
+	if is_local and not GameData.HELD_SCALE_SELF.is_empty():  # 내 무기만 다른 배율 (조준점 가림 방지)
+		model.set_mine(true)
 	if changed:
 		class_changed.emit(c)
 
@@ -193,6 +207,15 @@ func spawn_at(p: Vector3) -> void:
 	fire_held = false
 	aim_held = false
 	reset_charge()
+	draw_block = false
+	cancel_req = false
+	var NX := int(GameData.WEAPONS.crossbow.notches)  # 부활하면 장전된 채 (예전 cd = 0과 같음)
+	xb_wind = NX
+	xb_heard = NX
+	xb_show = 1.0
+	xb_last = 1.0
+	wind_req = 0
+	wind_t = 0.0
 	rec = 0.0
 	rec_v = 0.0
 	v_rec = 0.0
@@ -257,6 +280,9 @@ func die(dir: Vector3) -> void:
 ## 활 당기던 것 풀기 (쏘거나, 넘어지거나, 죽거나, 부활할 때)
 func reset_charge() -> void:
 	charging = false
+	bow_release = false
+	Sfx.stop(snd_bow)
+	snd_bow = 0
 	charge = 0.0
 	hold_t = 0.0
 	sway_y = 0.0
@@ -310,6 +336,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		pitch = clampf(pitch - event.relative.y * s, -1.5, 1.5)
 	elif event.is_action_pressed("swap"):
 		swap_req = true
+	elif event.is_action_pressed("cancel_draw"):
+		cancel_req = true
+	elif event.is_action_pressed("wind") and wep == "crossbow" and alive:  # 석궁일 때만 휠 = 장전
+		# 정한 방향(wind_dir, 기본 아래)만 인정. 반대쪽은 여기서 버림 → 간격(_wind_ms)·감속(wind_t)도 안 건드림
+		if not (event is InputEventMouseButton and event.button_index == GameData.wind_button()):
+			return
+		var now := Time.get_ticks_msec()  # 실제 시간으로 간격을 잼 (프레임과 상관없이)
+		if now - _wind_ms >= int(float(GameData.WEAPONS.crossbow.notch_gap) * 1000.0):
+			_wind_ms = now
+			wind_req += 1
 	elif event.is_action_pressed("toggle_view"):
 		GameData.third_person = not GameData.third_person
 		GameData.save_settings()
@@ -342,6 +378,10 @@ func _physics_process(dt: float) -> void:
 	fire_held = inp.get("fire", false)  # 무기는 Combat이 이 다음에 처리한다
 	if inp.get("swap", false):
 		swap_req = true
+	if inp.get("cancel", false):
+		cancel_req = true
+	if inp.get("wind", false):  # 봇·테스트의 휠 한 칸 (봇은 bot_ai가 속도를 정함)
+		wind_req += 1
 	aim_held = inp.get("aim", false)
 	var wish: Vector3
 	if inp.has("wish"):  # 봇 (HTML botUpdate: 달리기는 봇이 정함)
@@ -366,6 +406,8 @@ func max_speed() -> float:
 		var spr := GameData.SPRINT if sprinting else 1.0
 		var wm: float = GameData.WEAPONS[wep].get("speed_mul", 1.0)  # 저격총 0.9, AK 0.95
 		sp = GameData.BASE_SPEED * GameData.CLASSES[cls].speed * wm * spr
+		if wep == "crossbow" and wind_t > 0 and xb_wind < int(GameData.WEAPONS.crossbow.notches):  # 석궁 휠로 감는 중 (사용자 요청)
+			sp *= float(GameData.WEAPONS.crossbow.reload_speed)
 	if slow_t > 0:
 		sp *= GameData.WEAPONS.holy.slow
 	if has_chicken:

@@ -404,6 +404,7 @@ func mount(e: PlayerController, hd: Dictionary = {}) -> void:
 	e.sliding = false
 	e.fall_t = 0.0
 	var h := WeaponModels.make_horse(true)
+	held_lance(h)
 	add_child(h.g)
 	(h.g as Node3D).global_position = e.global_position
 	(h.g as Node3D).rotation.y = e.yaw + PI
@@ -416,8 +417,51 @@ func mount(e: PlayerController, hd: Dictionary = {}) -> void:
 		banner.emit("%s이(가) 말에 올라탔다!" % e.ent_name, "창에 찔리면 멀리 날아가요 · 피하세요")
 
 
+## 탄 사람 말의 마상창을 3인칭에서 잘 보이게 굵게 (GameData.HELD_SCALE.lance — 보기만, 길이·판정 그대로).
+## 창끝 뾰족한 부분은 tip배, 끝점은 그대로 둔다. 맵에 서 있는 말(진열)은 안 바꿈
+static func held_lance(h: Dictionary) -> void:
+	var ln: Node3D = h.get("lance")
+	if ln == null:
+		return
+	var L: Dictionary = GameData.HELD_SCALE.lance
+	var th := float(L.thick)
+	var ln_k := float(L.len)
+	var tip_k := float(L.tip)
+	ln.scale = Vector3(th, th, ln_k)
+	var tip: MeshInstance3D = null  # 창끝 = 가장 앞(+Z)에 있는 조각
+	for c in ln.get_children():
+		if c is MeshInstance3D and (tip == null or (c as Node3D).position.z > tip.position.z):
+			tip = c
+	if tip:
+		var s := tip.scale  # 원뿔: x·z = 굵기, y = 길이 (+Z로 눕혀 둠)
+		var end := tip.position.z + s.y * 0.5
+		tip.scale = Vector3(s.x * tip_k / th, s.y * tip_k / ln_k, s.z * tip_k / th)
+		tip.position.z = end - tip.scale.y * 0.5
+
+
+## 말 다그닥 (반복 소리): 달리는 동안 매 프레임. 느리면 안 불러서 저절로 꺼진다. 음높이는 속도에 따라
+func gallop_sfx(e: PlayerController, sp: float) -> void:
+	var G: Dictionary = GameData.GALLOP
+	if sp <= float(G.min_speed):
+		return
+	var k := clampf(sp / float(G.speed_ref), 0.0, 1.0)
+	Sfx.loop(e, "gallop", e.global_position, lerpf(float(G.pitch_min), float(G.pitch_max), k))
+
+
+## 1인칭으로 말을 탔으면 내 말의 창·머리는 숨긴다 — 뷰모델이 창과 말 머리를 따로 그려서 두 개로 보였음 (버그 고침).
+## 내 몸(player.gd model.visible)과 같은 조건: 3인칭이고 카메라가 몸에서 떨어져 있을 때만 보임
+static func _hide_fp_parts(e: PlayerController, force_show := false) -> void:
+	var show := force_show or not e.is_local or (e.tp_view() and e.tp_dist > 0.9)
+	for key in ["lance", "hd"]:
+		var n: Node3D = e.horse.get(key)
+		if n:
+			n.visible = show
+
+
 func dismount(e: PlayerController) -> void:
+	Sfx.loop_stop(e)
 	if not e.horse.is_empty():
+		_hide_fp_parts(e, true)  # 달아나는 말은 창·머리가 다 보이게
 		runaways.append({"h": e.horse, "dir": Vector3(-sin(e.yaw), 0, -cos(e.yaw)), "life": GameData.ITEM.runaway})
 		e.horse = {}
 	e.mounted = 0.0
@@ -495,12 +539,14 @@ func update_horses(dt: float) -> void:
 			if e.alive and e.mounted > 0:
 				if e.horse.is_empty():
 					var h := WeaponModels.make_horse(true)
+					held_lance(h)
 					add_child(h.g)
 					e.horse = h
 				var g: Node3D = e.horse.g
 				g.global_position = e.global_position
 				g.rotation.y = e.yaw + PI
 				WeaponModels.anim_horse(e.horse, Vector2(e.velocity.x, e.velocity.z).length(), dt)
+				gallop_sfx(e, Vector2(e.velocity.x, e.velocity.z).length())
 			elif not e.horse.is_empty():
 				dismount(e)
 			continue
@@ -514,11 +560,9 @@ func update_horses(dt: float) -> void:
 		var hg: Node3D = e.horse.g
 		hg.global_position = e.global_position
 		hg.rotation.y = e.yaw + PI
+		_hide_fp_parts(e)
 		WeaponModels.anim_horse(e.horse, sp, dt)
-		e.horse.hoof_t = float(e.horse.get("hoof_t", 0.0)) - dt * (sp / 4)
-		if sp > 2 and e.horse.hoof_t <= 0:  # 다그닥
-			e.horse.hoof_t = 0.28
-			Sfx.play("hoof", e.global_position)
+		gallop_sfx(e, sp)
 		if e.dance_t <= 0:  # 춤추는 동안엔 창도 안 찌름
 			lance_check(e)
 		if e.mounted <= 0:
