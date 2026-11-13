@@ -339,6 +339,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("cancel_draw"):
 		cancel_req = true
 	elif event.is_action_pressed("wind") and wep == "crossbow" and alive:  # 석궁일 때만 휠 = 장전
+		# 정한 방향(wind_dir, 기본 아래)만 인정. 반대쪽은 여기서 버림 → 간격(_wind_ms)·감속(wind_t)도 안 건드림
+		if not (event is InputEventMouseButton and event.button_index == GameData.wind_button()):
+			return
 		var now := Time.get_ticks_msec()  # 실제 시간으로 간격을 잼 (프레임과 상관없이)
 		if now - _wind_ms >= int(float(GameData.WEAPONS.crossbow.notch_gap) * 1000.0):
 			_wind_ms = now

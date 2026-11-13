@@ -160,9 +160,10 @@ const WEAPONS := {
 	#   reload_speed: 휠로 감는 중 이동 속도 배율 (사용자 요청 0.9→0.75 = 25% 느려짐). 곱연산 (달리기 등과 같이 곱함)
 	#   reload_window: 마지막 휠 칸 뒤 이만큼은 '감는 중'으로 봄 (칸 사이에 속도가 튀지 않게). 다 감으면 바로 풀림
 	#   show_rate: 장전 모션이 진행도를 따라가는 속도 (초당) / cd: 쏜 직후 휠도 안 먹는 시간
+	#   wind_dir: 장전으로 치는 휠 방향 "down"(아래로 굴림) / "up". 반대 방향은 완전히 무시 (진행·간격·감속 다 안 건드림). 사용자 요청 = "down"
 	#   grav 6→2 (사용자 요청: 거의 직선, 85m에서 0.7m 떨어짐)
 	"crossbow": {"name": "석궁", "dmg": 75, "reload_speed": 0.75, "reload_window": 0.3, "notches": 25, "notch_gap": 0.04, "show_rate": 3.0, "cd": 0.25,
-		"speed": 100, "grav": 2, "kb": 11, "up": 5, "radius": 0.05},
+		"wind_dir": "down", "speed": 100, "grav": 2, "kb": 11, "up": 5, "radius": 0.05},
 	"sniper": {"name": "대물 저격총", "ammo": 5, "kb": 0, "speed_mul": 0.9},
 	"ak": {"name": "AK-47", "dmg": 23, "min_dmg": 18, "fall0": 30, "fall1": 80, "range": 120, "rate": 0.12, "mag": 25,
 		"kb": 1.2, "up": 0, "hip": 0.03, "ads": 0.006, "bloom": 0.006, "max_bloom": 0.05, "speed_mul": 0.95, "zoom": 1.6, "swap": 0.3},
@@ -778,6 +779,7 @@ const NET := {
 }
 var hitstop_enabled := true   # false면 히트스톱 안 함 (자동 테스트용 — 프레임 수로 시간을 재니까)
 var land_trip_override := -1.0  # 테스트: 0 이상이면 착지 넘어짐 확률을 이걸로
+var wind_dir_override := ""  # 테스트: "down"/"up"이면 석궁 휠 방향을 이걸로 (WEAPONS는 상수라 못 바꿔서)
 var squeak_override := -1.0   # 테스트: 0 이상이면 트럼펫 삑사리 확률을 이걸로 (무작위 때문에 테스트가 흔들리지 않게)
 
 # ── 런타임 설정 (user://settings.cfg에 저장 — HTML localStorage aa-cls / aa-diff / aa-sens / aa-view) ──
@@ -919,6 +921,12 @@ func class_stats(k: String) -> Dictionary:
 	return out
 
 
+## 석궁 장전으로 치는 휠 버튼 (WEAPONS.crossbow.wind_dir: "down" → 휠 아래, "up" → 휠 위)
+func wind_button() -> MouseButton:
+	var d: String = wind_dir_override if wind_dir_override != "" else str(WEAPONS.crossbow.get("wind_dir", "down"))
+	return MOUSE_BUTTON_WHEEL_UP if d == "up" else MOUSE_BUTTON_WHEEL_DOWN
+
+
 ## 활 차지 비율 0~1: min_charge까지 당기면 0, full이면 1 (피해·화살 속도 보간에 씀)
 func bow_t(charge: float) -> float:
 	var B: Dictionary = WEAPONS.bow
@@ -1007,7 +1015,8 @@ func _setup_input() -> void:
 		var mb := InputEventMouseButton.new()
 		mb.button_index = mouse[action]
 		InputMap.action_add_event(action, mb)
-	# 석궁 휠 장전 (사용자 요청): 휠 위·아래 한 칸 = 한 번. 석궁을 들었을 때만 쓴다 (다른 병과는 휠 동작 없음)
+	# 석궁 휠 장전 (사용자 요청): 휠 한 칸 = 한 번. 석궁을 들었을 때만 쓴다 (다른 병과는 휠 동작 없음)
+	# 둘 다 등록해 두고, 어느 쪽을 칠지는 player.gd가 wind_button()으로 거른다 (wind_dir을 바꿔도 바로 먹게)
 	if not InputMap.has_action("wind"):
 		InputMap.add_action("wind")
 	for b: MouseButton in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:

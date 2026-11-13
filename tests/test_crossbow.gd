@@ -86,6 +86,14 @@ func spin(k: int, gap_frames := 10) -> void:
 		await wait(gap_frames - 1)
 
 
+## 진짜 마우스 휠 한 칸 (눌림 이벤트)
+func wheel(b: MouseButton) -> InputEventMouseButton:
+	var ev := InputEventMouseButton.new()
+	ev.button_index = b
+	ev.pressed = true
+	return ev
+
+
 func _run() -> void:
 	await wait(3)
 	G = root.get_node("GameData")
@@ -133,14 +141,20 @@ func _run() -> void:
 	await wait(120)
 	await hold(20)
 	check("멈춰도 6칸 그대로, 아직 못 쏨", p.xb_wind == 6 and new_shots.is_empty(), "wind=%d" % p.xb_wind)
-	# 프리스핀·터치패드: notch_gap(0.04초, 실제 시간) 안에 들어온 휠은 버림
-	for i in 5:
-		var ev := InputEventMouseButton.new()
-		ev.button_index = MOUSE_BUTTON_WHEEL_DOWN if i % 2 else MOUSE_BUTTON_WHEEL_UP
-		ev.pressed = true
-		p._unhandled_input(ev)
+	# 휠 방향: 기본은 아래로 굴릴 때만 (사용자 요청, wind_dir). 위로 굴리면 완전히 무시
+	check("장전 방향 기본 = 아래", X.wind_dir == "down" and G.wind_button() == MOUSE_BUTTON_WHEEL_DOWN, str(X.wind_dir))
+	for i in 3:
+		p._unhandled_input(wheel(MOUSE_BUTTON_WHEEL_UP))
+	check("휠 위로 굴리면 안 쳐줌 (진행 그대로·줄지도 않음)", p.wind_req == 0 and p.xb_wind == 6, "req=%d wind=%d" % [p.wind_req, p.xb_wind])
 	await wait(2)
-	check("0.04초 안에 휠 5번 → 한 칸만 (위·아래 다 인정)", p.xb_wind == 7, "wind=%d" % p.xb_wind)
+	check("휠 위로는 감속도 안 걸림", p.wind_t == 0.0 and near(p.max_speed(), walk, 0.01), "wind_t=%.2f max=%.2f" % [p.wind_t, p.max_speed()])
+	# 프리스핀·터치패드: notch_gap(0.04초, 실제 시간) 안에 들어온 휠은 버림. 바로 앞의 위쪽 휠은 간격도 안 잡아먹음
+	p._unhandled_input(wheel(MOUSE_BUTTON_WHEEL_UP))
+	for i in 5:
+		p._unhandled_input(wheel(MOUSE_BUTTON_WHEEL_DOWN))
+	await wait(2)
+	check("0.04초 안에 휠 아래 5번 → 한 칸만 (위쪽 휠은 간격에 안 셈)", p.xb_wind == 7, "wind=%d" % p.xb_wind)
+	check("아래로 감으면 감속", p.wind_t > 0 and near(p.max_speed(), walk * float(X.reload_speed), 0.01), "max=%.2f" % p.max_speed())
 	OS.delay_msec(int(float(X.notch_gap) * 1000.0) + 10)
 	var ev2 := InputEventMouseButton.new()
 	ev2.button_index = MOUSE_BUTTON_WHEEL_DOWN
@@ -148,7 +162,19 @@ func _run() -> void:
 	p._unhandled_input(ev2)
 	await wait(2)
 	check("간격이 지나면 다시 한 칸", p.xb_wind == 8, "wind=%d" % p.xb_wind)
-	await spin(NX - 8)
+	# wind_dir = "up"으로 바꾸면 반대로
+	G.wind_dir_override = "up"
+	OS.delay_msec(int(float(X.notch_gap) * 1000.0) + 10)
+	p._unhandled_input(wheel(MOUSE_BUTTON_WHEEL_DOWN))
+	await wait(2)
+	var w_down: int = p.xb_wind
+	OS.delay_msec(int(float(X.notch_gap) * 1000.0) + 10)
+	p._unhandled_input(wheel(MOUSE_BUTTON_WHEEL_UP))
+	await wait(2)
+	check("wind_dir = up이면 위만 인정 (아래는 무시)", w_down == 8 and p.xb_wind == 9, "아래 뒤 %d, 위 뒤 %d" % [w_down, p.xb_wind])
+	G.wind_dir_override = ""
+	OS.delay_msec(int(float(X.notch_gap) * 1000.0) + 10)
+	await spin(NX - 9)
 	check("남은 칸 다 감으면 장전 완료 (걸쇠·볼트 소리)", p.xb_wind == NX and S.played.has("xbow_latch") and S.played.has("seat"), str(S.played))
 	await spin(2)
 	check("다 감았으면 휠 무시", p.xb_wind == NX, "wind=%d" % p.xb_wind)
