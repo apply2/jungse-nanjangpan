@@ -137,18 +137,20 @@ func _run() -> void:
 	# ── 킬 마커: 내가 막타 → 조준점 가운데 해골 (사용자 요청) ──
 	var sk = hud._skull
 	var K: Dictionary = G.HUD_UI.kill_skull
-	check("내가 처치하면 해골 (헤드샷 아니면 흰색)", sk.plays == 1 and not sk.head and sk.state().a > 0.5, "plays=%d" % sk.plays)
+	check("내가 처치하면 해골 (헤드샷 아니면 흰색)", sk.plays == 1 and not sk.head and sk.state().a > 0.3, "plays=%d" % sk.plays)
 	sk.play(false)  # 시간 재기용으로 다시 (연속 킬 = 처음부터)
 	var s0: float = sk.state().s
 	OS.delay_msec(int(float(K.punch_t) * 1000.0) + 20)
 	var s1: float = sk.state().s
 	check("처음엔 크게(1.3배) → 0.1초 뒤 원래 크기", near(s0, float(K.punch), 0.05) and s1 == 1.0, "%.2f → %.2f" % [s0, s1])
 	OS.delay_msec(int(float(K.hold) * 1000.0) - 50)
-	check("0.5초 동안은 그대로", sk.state().a == 1.0, "a=%.2f" % sk.state().a)
+	check("0.5초 동안은 그대로 (반투명 0.6)", near(sk.state().a, float(K.alpha), 0.001) and K.alpha == 0.6, "a=%.2f" % sk.state().a)
+	sk._process(0.0)
+	check("해골은 그룹째 흐리게 (겹친 조각이 비치지 않게)", sk._grp.visible and near(sk._grp.self_modulate.a, float(K.alpha), 0.001), "a=%.2f" % sk._grp.self_modulate.a)
 	OS.delay_msec(int(float(K.fade) * 1000.0) / 2 + 50)
 	var a_mid: float = sk.state().a
 	OS.delay_msec(int(float(K.fade) * 1000.0))
-	check("0.25초 동안 흐려지다 사라짐", a_mid > 0.1 and a_mid < 0.9 and sk.state().a == 0.0, "중간 %.2f → %.2f" % [a_mid, sk.state().a])
+	check("0.25초 동안 0.6 → 0으로 흐려지다 사라짐", a_mid > 0.05 and a_mid < float(K.alpha) - 0.05 and sk.state().a == 0.0, "중간 %.2f → %.2f" % [a_mid, sk.state().a])
 	var plays0: int = sk.plays
 	put(bots[2], HERE + Vector3(4, 0, 3), "archer")
 	await wait(2)

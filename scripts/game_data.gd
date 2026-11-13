@@ -566,8 +566,9 @@ const HUD_UI := {
 	"xbow_label_font": 15,                # 석궁 휠 장전 "6/10" (조준점 고리 아래)
 	# 킬 마커 (사용자 요청, 오버워치처럼): 내가 막타를 치면 조준점 가운데 해골. 시간은 실제 시간 (히트스톱에 안 느려짐)
 	#   size: 지름 px / punch: 처음 배율 → punch_t초 만에 1 / hold: 그대로 / fade: 흐려지며 사라짐
+	#   alpha: 가장 진할 때 불투명도 (사용자 요청 0.6 — 반투명. hold 동안 이 값, fade는 이 값 → 0. 헤드샷 빨강도 같음)
 	#   color: 보통 흰색, head_color: 헤드샷 빨강 / tex: 이 그림이 있으면 그걸 씀 (없으면 도형으로 그린 임시 해골)
-	"kill_skull": {"size": 30.0, "punch": 1.3, "punch_t": 0.1, "hold": 0.5, "fade": 0.25,
+	"kill_skull": {"size": 30.0, "punch": 1.3, "punch_t": 0.1, "hold": 0.5, "fade": 0.25, "alpha": 0.6,
 		"color": 0xffffff, "head_color": 0xd8453b, "tex": "res://ui/kill_skull.png"},
 	"top": {"top": 12.0, "rope": 16.0, "timer_font": 22, "tag_pad": Vector4(14, 0, 14, 2), "tag_r": 5.0,
 		"leader_font": 15, "leader_pad": Vector4(12, 3, 12, 5), "gap": -2},

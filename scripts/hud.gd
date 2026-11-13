@@ -1043,17 +1043,27 @@ class KillSkull extends Control:
 	var head := false
 	var _t0 := -1           # 시작 시각 (ms), -1이면 안 보임
 	var _tex: Texture2D = null
+	# 반투명(alpha 0.6)이라 조각(외곽선·머리뼈·눈)을 따로 흐리게 그리면 겹친 곳이 비쳐 보인다
+	# → CanvasGroup 안에서 불투명하게 그리고 그룹 전체를 한 번에 흐리게 (self_modulate)
+	var _grp: CanvasGroup
+	var _pen: Node2D
 
 	func _ready() -> void:
 		var path := str(GameData.HUD_UI.kill_skull.tex)
 		if ResourceLoader.exists(path):
 			_tex = load(path)
+		_grp = CanvasGroup.new()
+		add_child(_grp)
+		_pen = Node2D.new()
+		_grp.add_child(_pen)
+		_pen.draw.connect(_paint)
+		_grp.visible = false
 
 	func play(is_head: bool) -> void:
 		head = is_head
 		plays += 1
 		_t0 = Time.get_ticks_msec()
-		queue_redraw()
+		_refresh()
 
 	## 지금 보이는 정도 {a: 불투명도, s: 배율}. 끝났으면 a = 0
 	func state() -> Dictionary:
@@ -1063,10 +1073,10 @@ class KillSkull extends Control:
 		var t := (Time.get_ticks_msec() - _t0) / 1000.0
 		var pt := float(K.punch_t)
 		var s := 1.0 + (float(K.punch) - 1.0) * (1.0 - ease(clampf(t / pt, 0.0, 1.0), 0.4)) if t < pt else 1.0
-		var a := 1.0
+		var a := float(K.alpha)  # 가장 진할 때도 반투명 (사용자 요청)
 		var fade_at := pt + float(K.hold)
 		if t > fade_at:
-			a = maxf(0.0, 1.0 - (t - fade_at) / float(K.fade))
+			a *= maxf(0.0, 1.0 - (t - fade_at) / float(K.fade))
 		return {"a": a, "s": s}
 
 	func _process(_dt: float) -> void:
@@ -1074,36 +1084,41 @@ class KillSkull extends Control:
 			return
 		if state().a <= 0:
 			_t0 = -1
-		queue_redraw()
+		_refresh()
 
-	func _draw() -> void:
+	func _refresh() -> void:
+		var a: float = state().a
+		_grp.visible = a > 0
+		_grp.self_modulate.a = a  # 불투명도는 그룹 전체에 한 번만
+		_pen.queue_redraw()
+
+	## 불투명하게 그림 (흐림은 _grp가)
+	func _paint() -> void:
 		var st := state()
-		var a: float = st.a
-		if a <= 0:
+		if float(st.a) <= 0:
 			return
 		var K: Dictionary = GameData.HUD_UI.kill_skull
 		var r: float = float(K.size) * float(st.s) * 0.5
 		var c := GameData.col(int(K.head_color if head else K.color))
-		c.a = a
 		if _tex:
 			var sz := Vector2(r * 2, r * 2)
-			draw_texture_rect(_tex, Rect2(-sz / 2, sz), false, c)
+			_pen.draw_texture_rect(_tex, Rect2(-sz / 2, sz), false, c)
 			return
-		var ink := Color(Hud.INK, a)
+		var ink := Hud.INK
 		var crown := Vector2(0, -r * 0.18)
 		var jaw := Rect2(-r * 0.5, r * 0.2, r, r * 0.62)
 		# 잉크 외곽선
-		draw_circle(crown, r * 0.82 + 2.5, ink)
-		draw_rect(jaw.grow(2.5), ink)
+		_pen.draw_circle(crown, r * 0.82 + 2.5, ink)
+		_pen.draw_rect(jaw.grow(2.5), ink)
 		# 머리뼈 + 턱
-		draw_circle(crown, r * 0.82, c)
-		draw_rect(jaw, c)
+		_pen.draw_circle(crown, r * 0.82, c)
+		_pen.draw_rect(jaw, c)
 		# 눈구멍·코·이빨
 		for sx in [-1.0, 1.0]:
-			draw_circle(Vector2(sx * r * 0.33, -r * 0.12), r * 0.24, ink)
-		draw_colored_polygon(PackedVector2Array([Vector2(0, r * 0.12), Vector2(-r * 0.11, r * 0.34), Vector2(r * 0.11, r * 0.34)]), ink)
+			_pen.draw_circle(Vector2(sx * r * 0.33, -r * 0.12), r * 0.24, ink)
+		_pen.draw_colored_polygon(PackedVector2Array([Vector2(0, r * 0.12), Vector2(-r * 0.11, r * 0.34), Vector2(r * 0.11, r * 0.34)]), ink)
 		for tx in [-0.25, 0.0, 0.25]:
-			draw_line(Vector2(tx * r, r * 0.5), Vector2(tx * r, r * 0.82), ink, maxf(1.5, r * 0.08))
+			_pen.draw_line(Vector2(tx * r, r * 0.5), Vector2(tx * r, r * 0.82), ink, maxf(1.5, r * 0.08))
 
 
 ## 십자 조준점 — HTML .xh: 막대 4개(2×9)와 점, 빨리 움직이거나 공중이면 벌어짐(--gap)
