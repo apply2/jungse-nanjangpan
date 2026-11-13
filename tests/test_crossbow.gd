@@ -97,7 +97,7 @@ func _run() -> void:
 	if new_shots.size() == 1:
 		var pr: Dictionary = new_shots[0]
 		check("속도 100", near((pr.vel as Vector3).length(), 100.0, 0.5), "v=%.1f" % (pr.vel as Vector3).length())
-		check("중력 6, 피해 75", pr.grav == 6.0 and pr.dmg == 75.0, "grav=%.0f dmg=%.0f" % [pr.grav, pr.dmg])
+		check("중력 2 (거의 직선), 피해 75", pr.grav == 2.0 and pr.dmg == 75.0, "grav=%.0f dmg=%.0f" % [pr.grav, pr.dmg])
 	check("장전 4초", near(p.cd, 4.0 - DT, 0.03), "cd=%.3f" % p.cd)
 	check("쏘면 큰 반동 (몸 10, 화면 11 — 한 프레임 감쇠 뒤)", p.rec_v > 7.0 and p.v_rec_v > 7.0, "rec_v=%.2f v_rec_v=%.2f" % [p.rec_v, p.v_rec_v])
 

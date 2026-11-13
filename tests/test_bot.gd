@@ -185,11 +185,12 @@ func _run() -> void:
 	var detail := []
 	for s in shots:
 		var dist: float = s._dist
-		var exp_dmg := roundf(lerpf(35, 55, clampf(dist / 34.0, 0.35, 1.0)))
+		var BW: Dictionary = G.WEAPONS.bow
+		var exp_dmg := roundf(lerpf(BW.dmg_min, BW.dmg_max, G.bow_t(clampf(dist / 34.0, 0.35, 1.0) * float(BW.full))))
 		detail.append("%.0fm:%.0f/%.0f" % [dist, s.dmg, exp_dmg])
-		if s.dmg > exp_dmg + 2:  # 생각 사이 물러난 거리(최대 ~3m)만큼 여유
+		if s.dmg > exp_dmg + 4:  # 생각 사이 물러난 거리(최대 ~3m)만큼 여유 (피해 폭이 넓어져 2→4)
 			over += 1
-		if absf(s.dmg - exp_dmg) <= 2:
+		if absf(s.dmg - exp_dmg) <= 4:
 			on_target += 1
 	check("활 봇: 거리/34만큼 당겨 쏨", shots.size() >= 1 and over == 0 and on_target >= 1, " ".join(detail))
 

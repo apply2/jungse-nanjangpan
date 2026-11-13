@@ -144,13 +144,16 @@ const CLASS_CHIP := {"barbarian": 0xf2a04e, "archer": 0xe8857a, "crossbow": 0x9f
 const WEAPONS := {
 	"stone": {"name": "돌멩이", "dmg": 10, "cd": 0.4, "speed": 32, "grav": 16, "range": 15, "kb": 4, "up": 2.6, "radius": 0.12,
 		"color": 0x8b8f96, "size": 0.11},  # size: 돌 모양 반지름 (손에 든 것·날아가는 것)
-	# nock: 쏜 뒤 다음 화살 거는 시간 / full: 끝까지 당기는 시간 / min_charge: 이보다 짧게 당기면 안 나감
+	# 사용자 요청 궁수 버프 (계속 압박하는 무기): 짧게 끊어 연사, 꽉 당기면 세고 곧게. 차지 비율 = bow_t(당긴 시간)
+	# nock: 쏜 뒤 다음 화살 거는 시간 (1.0→0.3) / full: 끝까지 당기는 시간 (1.5→1.0)
+	# min_charge: 최소 당김 (0.08→0.15). 이보다 빨리 놓으면 min_charge까지 마저 당긴 뒤 최소 세기로 쏜다
+	# dmg·speed는 차지 비율 0→1로 보간 (35~55 → 15~50: 0.45초마다 연사하니 한 발은 약하게. 속도 42→28로 약할수록 크게 휨)
 	# 끝까지 당긴 채 sway_start초가 지나면 후들거림(진폭 sway_k×초, 최대 sway_max), slip_t초가 되면 손이 미끄러짐
-	"bow": {"name": "활", "dmg_min": 35, "dmg_max": 55, "nock": 1.0, "full": 1.5, "speed_min": 42, "speed_max": 72,
-		"grav": 14, "kb": 6.5, "up": 3.4, "radius": 0.05, "min_charge": 0.08,
+	"bow": {"name": "활", "dmg_min": 15, "dmg_max": 50, "nock": 0.3, "full": 1.0, "speed_min": 28, "speed_max": 72,
+		"grav": 14, "kb": 6.5, "up": 3.4, "radius": 0.05, "min_charge": 0.15,
 		"sway_start": 1.0, "sway_k": 0.05, "sway_max": 0.11, "slip_t": 3.0, "slip_yaw": 0.6, "slip_pitch": [-0.35, 0.55]},
-	# cd = 장전 시간. 누르고 있으면 장전 끝나는 대로 다시 쏜다
-	"crossbow": {"name": "석궁", "dmg": 75, "cd": 4.0, "speed": 100, "grav": 6, "kb": 11, "up": 5, "radius": 0.05},
+	# cd = 장전 시간. 누르고 있으면 장전 끝나는 대로 다시 쏜다. grav 6→2 (사용자 요청: 거의 직선, 85m에서 0.7m 떨어짐)
+	"crossbow": {"name": "석궁", "dmg": 75, "cd": 4.0, "speed": 100, "grav": 2, "kb": 11, "up": 5, "radius": 0.05},
 	"sniper": {"name": "대물 저격총", "ammo": 5, "kb": 0, "speed_mul": 0.9},
 	"ak": {"name": "AK-47", "dmg": 23, "min_dmg": 18, "fall0": 30, "fall1": 80, "range": 120, "rate": 0.12, "mag": 25,
 		"kb": 1.2, "up": 0, "hip": 0.03, "ads": 0.006, "bloom": 0.006, "max_bloom": 0.05, "speed_mul": 0.95, "zoom": 1.6, "swap": 0.3},
@@ -520,7 +523,7 @@ const CLASS_PAGE := {
 	# 아래 한 줄 설명. {..}는 WEAPONS 값으로 채움 (game_data를 고치면 문구도 따라감)
 	"blurbs": {
 		"barbarian": "{cd}초마다 돌을 퍼붓는 돌격형. 가장 빠르지만 가장 약하다.",
-		"archer": "오래 당길수록 세진다. 끝까지 당긴 채 {slip_t}초 버티면 손이 미끄러진다.",
+		"archer": "짧게 끊어 쏘면 연사, 끝까지 당기면 {dmg_max} 피해. 화살은 포물선으로 떨어진다.",
 		"crossbow": "피해 {dmg}, 머리에 맞히면 한 방. 대신 느리고 장전이 {cd}초.",
 		"cleric": "성수병 {max_charges}개를 모아 던진다. 웅덩이가 적을 지지고 느리게 만든다.",
 		"bard": "트럼펫을 불면 적이 춤춘다. 춤추는 적은 느리고 공격을 못 한다.",
@@ -547,6 +550,7 @@ const CLASS_PAGE := {
 ## 정보는 네 모서리 + 위 가운데 점수판, 판 높이 1080p 120px(= 80) 이하, 팀은 색 + 글자 + 방패 귀퉁이
 const HUD_UI := {
 	"edge": 20.0,                         # 화면 가장자리 여백 (30px)
+	"bow_full_pop": 3.0,                  # 활을 끝까지 당기면 조준점 고리가 번쩍 퍼짐 (초당 줄어드는 양 — 1/3초)
 	"top": {"top": 12.0, "rope": 16.0, "timer_font": 22, "tag_pad": Vector4(14, 0, 14, 2), "tag_r": 5.0,
 		"leader_font": 15, "leader_pad": Vector4(12, 3, 12, 5), "gap": -2},
 	"ctrl": {"w": 507.0, "h": 166.0, "line": 2.7, "drop": 4.0,
@@ -896,6 +900,12 @@ func class_stats(k: String) -> Dictionary:
 	return out
 
 
+## 활 차지 비율 0~1: min_charge까지 당기면 0, full이면 1 (피해·화살 속도 보간에 씀)
+func bow_t(charge: float) -> float:
+	var B: Dictionary = WEAPONS.bow
+	return clampf((charge - float(B.min_charge)) / (float(B.full) - float(B.min_charge)), 0.0, 1.0)
+
+
 ## 눈높이에서 정면(수평)으로 쐈을 때 땅에 닿는 거리 (m). range가 있으면 거기까지. 원뿔 무기(트럼펫)는 range
 func weapon_reach(w: String) -> float:
 	var W: Dictionary = WEAPONS[w]
@@ -961,6 +971,7 @@ func _setup_input() -> void:
 		"move_forward": [KEY_W], "move_back": [KEY_S], "move_left": [KEY_A], "move_right": [KEY_D],
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "crouch": [KEY_CTRL, KEY_C],
 		"toggle_view": [KEY_V], "swap": [KEY_Q], "interact": [KEY_E], "scoreboard": [KEY_TAB],
+		"cancel_draw": [KEY_R],  # 활 당기기 취소 (사용자 요청)
 		"class_1": [KEY_1], "class_2": [KEY_2], "class_3": [KEY_3], "class_4": [KEY_4], "class_5": [KEY_5],  # 병과 고르는 화면에서만
 	}
 	for action: String in keys:

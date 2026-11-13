@@ -463,7 +463,7 @@ func _aim_solve(e: PlayerController, t: PlayerController) -> Dictionary:
 	var W2: Dictionary = GameData.WEAPONS[e.wep]
 	var v: float
 	if e.wep == "bow":
-		v = lerpf(W2.speed_min, W2.speed_max, want_charge / float(W2.full))
+		v = lerpf(W2.speed_min, W2.speed_max, GameData.bow_t(want_charge))
 	else:
 		v = W2.speed
 	var g: float = W2.grav

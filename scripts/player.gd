@@ -111,6 +111,9 @@ var sway_y := 0.0        # 후들거림으로 더한 yaw·pitch (다음 프레�
 var sway_p := 0.0
 var sw_t := 0.0
 var snd_bow := 0         # 활 당기는 소리 번호 (Sfx.play → 놓으면 Sfx.stop)
+var bow_release := false # min_charge 전에 놓음 → 거기까지 마저 당기고 쏜다
+var cancel_req := false  # R: 당기기 취소 (Combat이 처리)
+var draw_block := false  # 취소한 뒤 공격 키를 뗄 때까지 다시 안 당김
 var xb_last := 1.0       # 석궁 장전 진행도 (지난 프레임) — 장전 소리 순간을 지났는지 보려고
 # 반동 스프링 (HTML rec/recV = 3인칭 몸, vRec/vRecV = 1인칭 화면·손 — 내 캐릭터만 씀)
 var rec := 0.0
@@ -197,6 +200,8 @@ func spawn_at(p: Vector3) -> void:
 	fire_held = false
 	aim_held = false
 	reset_charge()
+	draw_block = false
+	cancel_req = false
 	rec = 0.0
 	rec_v = 0.0
 	v_rec = 0.0
@@ -261,6 +266,7 @@ func die(dir: Vector3) -> void:
 ## 활 당기던 것 풀기 (쏘거나, 넘어지거나, 죽거나, 부활할 때)
 func reset_charge() -> void:
 	charging = false
+	bow_release = false
 	Sfx.stop(snd_bow)
 	snd_bow = 0
 	charge = 0.0
@@ -316,6 +322,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		pitch = clampf(pitch - event.relative.y * s, -1.5, 1.5)
 	elif event.is_action_pressed("swap"):
 		swap_req = true
+	elif event.is_action_pressed("cancel_draw"):
+		cancel_req = true
 	elif event.is_action_pressed("toggle_view"):
 		GameData.third_person = not GameData.third_person
 		GameData.save_settings()
@@ -348,6 +356,8 @@ func _physics_process(dt: float) -> void:
 	fire_held = inp.get("fire", false)  # 무기는 Combat이 이 다음에 처리한다
 	if inp.get("swap", false):
 		swap_req = true
+	if inp.get("cancel", false):
+		cancel_req = true
 	aim_held = inp.get("aim", false)
 	var wish: Vector3
 	if inp.has("wish"):  # 봇 (HTML botUpdate: 달리기는 봇이 정함)

@@ -42,6 +42,7 @@ var _hitmark: HitMark
 var _cross: Crosshair
 var _vm: ViewModel
 var _ring: ChargeRing
+var _bow_full := false  # 지난 프레임에 활을 끝까지 당겨 있었나 (번쩍 한 번만)
 var _w_icon: TextureRect
 var _w_icon_kind := ""
 var _w_name: Label
@@ -751,13 +752,17 @@ func _update_weapon() -> void:
 			st = "던지는 중" if e.cd > 0 else "누르고 있으면 계속 던짐"
 		"bow":
 			var B: Dictionary = GameData.WEAPONS.bow
+			var full_now := e.charging and e.charge >= float(B.full)
+			if full_now and not _bow_full:  # 끝까지 당김: 고리가 번쩍 (소리는 Combat)
+				_ring.flash()
+			_bow_full = full_now
 			if e.charging:
-				var p := e.charge / float(B.full)
-				ring = p
-				st = "당기는 중 %d%% · %d 피해" % [roundi(p * 100), roundi(lerpf(B.dmg_min, B.dmg_max, p))]
-				ring_col = BLOOD if p >= 1 else GOLD
+				var bt := GameData.bow_t(e.charge)
+				ring = e.charge / float(B.full)
+				st = ("최대! · %d 피해" if full_now else "당기는 중 · %d 피해") % roundi(lerpf(B.dmg_min, B.dmg_max, bt))
+				ring_col = MOSS if full_now else GOLD
 			else:
-				st = "화살 거는 중" if e.cd > 0 else "누르고 당겼다 놓기"
+				st = "화살 거는 중" if e.cd > 0 else "짧게 연사 · 꽉 당기면 세게 · R 취소"
 			if e.hold_t > float(B.sway_start):
 				st = "팔이 후들거린다! %.1f초 뒤 놓침" % maxf(0.0, float(B.slip_t) - e.hold_t)
 				ring_col = BLOOD
@@ -949,6 +954,7 @@ class Scope extends Control:
 class ChargeRing extends Control:
 	var _v := -1.0
 	var _c := Hud.GOLD
+	var _pop := 0.0  # 활을 끝까지 당기면 1 → 0: 바깥으로 퍼지는 고리
 
 	func set_value(v: float, c: Color) -> void:
 		if v == _v and c == _c:
@@ -957,7 +963,18 @@ class ChargeRing extends Control:
 		_c = c
 		queue_redraw()
 
+	func flash() -> void:
+		_pop = 1.0
+		queue_redraw()
+
+	func _process(dt: float) -> void:
+		if _pop > 0:
+			_pop = maxf(0.0, _pop - dt * float(GameData.HUD_UI.bow_full_pop))
+			queue_redraw()
+
 	func _draw() -> void:
+		if _pop > 0:
+			draw_arc(Vector2.ZERO, 24 + 14 * (1.0 - _pop), 0, TAU, 48, Color(Hud.MOSS, _pop), 3.0, true)
 		if _v < 0:
 			return
 		draw_arc(Vector2.ZERO, 24, 0, TAU, 48, Color(Hud.INK, 0.3), 3.5, true)

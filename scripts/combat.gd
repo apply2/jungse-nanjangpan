@@ -556,6 +556,7 @@ func weapon_update(e: PlayerController, held: bool, dt: float) -> void:
 			Trumpet.try_fanfare(self, e)
 	if e.swap_t > 0 or e.fall_t > 0 or dancing or (mode and mode.no_attack(e)):  # 쟁탈전: 스폰룸 안·라운드 사이엔 공격 금지
 		e.trig_prev = held
+		e.cancel_req = false
 		if dancing and e.charging:  # 당기던 활은 놓침 (춤 끝나고 놓아도 안 나감)
 			e.reset_charge()
 		return
@@ -580,6 +581,7 @@ func weapon_update(e: PlayerController, held: bool, dt: float) -> void:
 		"trumpet":  # 위에서 Trumpet.update가 처리
 			pass
 	e.trig_prev = held
+	e.cancel_req = false
 
 
 ## Q: 저격총·AK ↔ 원래 무기 — HTML playerUpdate의 qPressed
@@ -603,15 +605,39 @@ func grab_chicken(e: PlayerController) -> void:
 	Sfx.play("cluck", e.global_position)
 
 
-## 활: 누르면 당기고 놓으면 쏜다. 끝까지 당긴 채 오래 버티면 후들거리다 손이 미끄러진다.
+## 활: 누르면 당기고 놓으면 쏜다. 세기 = GameData.bow_t(당긴 시간) — min_charge에서 0, full에서 1 (사용자 요청 궁수 버프).
+## min_charge보다 빨리 놓으면 거기까지 마저 당긴 뒤 최소 세기로 쏜다 (짧게 끊어 연사).
+## R(cancel_req) = 당기기 취소 — 화살은 안 나가고, 공격 키를 한 번 뗄 때까지 다시 안 당긴다.
+## 끝까지 당기면 내 화면에 소리·고리로 알림. 끝까지 당긴 채 오래 버티면 후들거리다 손이 미끄러진다.
 func _bow_update(e: PlayerController, held: bool, dt: float) -> void:
 	var B: Dictionary = GameData.WEAPONS.bow
 	var full: float = B.full
-	if held and e.cd <= 0:
+	var min_c: float = B.min_charge
+	if e.cancel_req:
+		e.cancel_req = false
+		if e.charging:
+			e.reset_charge()
+			e.draw_block = true
+			if e.is_local:
+				toast.emit("당기기 취소")
+	if e.draw_block:
+		if not held:
+			e.draw_block = false
+		return
+	if e.charging and not held and e.charge < min_c:
+		e.bow_release = true  # 너무 빨리 놓음: 최소까지 마저 당기고 쏜다
+	if (held or e.bow_release) and e.cd <= 0:
 		if not e.charging:  # 당기기 시작: 끼익 (놓거나 쏘면 reset_charge가 끔)
 			e.snd_bow = Sfx.play("bow_draw", e.global_position)
 		e.charging = true
+		var was := e.charge
 		e.charge = minf(full, e.charge + dt)
+		if was < full and e.charge >= full and e.is_local:
+			Sfx.play("bow_full")  # 끝까지 당김 (조준점 고리도 초록으로 번쩍 — hud)
+		if e.bow_release and e.charge >= min_c:
+			fire(e, "bow", GameData.bow_t(e.charge))
+			e.reset_charge()
+			return
 		if e.charge >= full:
 			e.hold_t += dt
 			if e.hold_t > float(B.sway_start):  # 팔이 후들후들 — 조준이 직접 흔들린다
@@ -635,8 +661,7 @@ func _bow_update(e: PlayerController, held: bool, dt: float) -> void:
 					toast.emit("손이 미끄러졌다!")
 					Sfx.play("slip")
 	elif not held and e.charging:
-		if e.charge >= float(B.min_charge):
-			fire(e, "bow", e.charge / full)
+		fire(e, "bow", GameData.bow_t(e.charge))
 		e.reset_charge()
 
 
