@@ -88,6 +88,18 @@ func _run() -> void:
 	var both: Array = S.RECIPES.keys().filter(func(key): return S.FILES.has(key))
 	check("RECIPES와 FILES 이름이 안 겹침", both.is_empty(), str(both))
 	check("안 쓰는 합성 소리는 지움", not (S.RECIPES.has("hoof") or S.RECIPES.has("strain") or S.RECIPES.has("ratchet")), "")
+	# 거리·남의 소리 크기 (GameData.SFX_DIST)
+	put(p, HERE, "archer", 0.0)
+	await wait(2)
+	var D: Dictionary = G.SFX_DIST
+	var me_pos: Vector3 = p.global_position
+	check("내 자리 소리 = 1", S.vol_at(me_pos) == 1.0, "%.2f" % S.vol_at(me_pos))
+	var v8: float = S.vol_at(me_pos + Vector3(D.ref, 0, 0))
+	check("남의 소리: ref 거리에서 절반 × others", near(v8, 0.5 * D.others, 0.01), "%.3f" % v8)
+	var v30: float = S.vol_at(me_pos + Vector3(30, 0, 0))
+	check("30m는 예전(1/(1+d/9))보다 작음", v30 < 0.5 * (1.0 / (1.0 + 30.0 / 9.0)), "%.3f" % v30)
+	check("가까울수록 큼", S.vol_at(me_pos + Vector3(3, 0, 0)) > v8 and v8 > v30, "")
+	check("max 넘으면 0", S.vol_at(me_pos + Vector3(D.max + 1, 0, 0)) == 0.0, "")
 	var w = S.render(S.RECIPES.trip)
 	var peak := 0
 	for i in range(0, w.data.size(), 2):

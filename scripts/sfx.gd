@@ -105,16 +105,27 @@ func _process(_dt: float) -> void:
 	_update_loops()
 
 
-## pos에서 난 소리가 들리는 크기 (경기 중이 아니면 0) — HTML vol(): 1/(1+거리/9)
+## pos에서 난 소리가 들리는 크기 (경기 중이 아니면 0). 수치는 GameData.SFX_DIST (사용자 요청 — HTML 1/(1+거리/9)보다 거리에 따라 더 줄어듦)
+##   1 / (1 + (거리/ref)^rolloff), fade_from~max에서 0까지. 내 캐릭터 자리(self_r 안)가 아니면 남의 소리라 × others
 func vol_at(pos: Vector3) -> float:
 	if not playing:
 		return 0.0
+	var D: Dictionary = GameData.SFX_DIST
 	var from: Vector3 = Vector3.ZERO
+	var alive := false
 	if listener and listener.get("alive"):
 		from = listener.global_position
+		alive = true
 	elif listener_cam:
 		from = listener_cam.global_position
-	return 1.0 / (1.0 + pos.distance_to(from) / 9.0)
+	var d := pos.distance_to(from)
+	if alive and d < float(D.self_r):  # 내 소리
+		return 1.0
+	var v := 1.0 / (1.0 + pow(d / float(D.ref), float(D.rolloff)))
+	var f0 := float(D.fade_from)
+	if d > f0:
+		v *= clampf((float(D.max) - d) / (float(D.max) - f0), 0.0, 1.0)
+	return v * float(D.others)
 
 
 ## 결과 화면 효과음 (GameData.STINGER, 반복 없음). 전용 플레이어 하나 — Sfx.playing과 상관없이 나고 일시정지 중에도 돈다.

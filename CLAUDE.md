@@ -455,6 +455,8 @@ HTML에서 볼 함수는 줄 번호와 함께 적었다. 줄 번호는 원본 �
 - 합성 그대로: `trip`·`hit`·`head`·`kill`·`hurt`·`pickup`·`chime`·`bell`·`slide`·`slip`·`jump`·`sizzle`·`reload`(성수 한 병 참)·`seat`(볼트 끼우기)·`stamp`. 결과 화면 `play_stinger`는 따로.
 - **크기·음높이 조절**은 `game_data.gd`만: `SFX_GAIN`(소리별 크기 배율, 기본 1) · `SFX_PITCH`(소리별 음높이 배율). 크기 = `vol_at(위치)` × `SFX_GAIN` × `SFX_VOL`.
   파일 소리는 칠 때마다 음높이 ±`PITCH_JITTER`(0.04), 음악인 `SFX_NO_JITTER`(fanfare·horn)는 안 흔듦.
+- **거리·남의 소리** (사용자 요청, `GameData.SFX_DIST`, `Sfx.vol_at`): 1/(1+(거리/8)^1.5) — 8m 절반, 50~80m에서 0까지 (HTML 1/(1+거리/9)보다 거리감이 큼).
+  내 캐릭터 자리(0.5m 안)에서 난 소리 = 내 소리, 그 밖(적·아군·봇, 먼 곳에 꽂힌 내 화살)은 ×0.7. 위치 없는 소리(맞힘·처치·아야·UI)는 그대로. 트럼펫 멜로디도 같은 규칙.
 - `play()`는 번호를 돌려줌 (안 났으면 0). `stop(번호)`는 그 소리가 아직 그 플레이어에서 나고 있을 때만 끈다. 플레이어는 쉬는 것부터, 다 바쁘면 가장 오래된 것.
 - **반복 소리** `Sfx.loop(owner, 이름, 위치, 음높이)`: 매 물리 프레임 부른다 (owner마다 전용 플레이어, 크기·음높이만 갱신). 안 부르면 다음 `_process`에서 저절로 꺼짐,
   `loop_stop(owner)`로 바로 끔, 일시정지면 멈췄다 이어서, `Sfx.playing`이 false면 전부 끔. 헤드리스는 시작할 때 `played`에 한 번만.

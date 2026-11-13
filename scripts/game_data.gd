@@ -651,6 +651,10 @@ const PITCH_JITTER := 0.04                      # 파일 소리 음높이 흔들
 const SFX_NO_JITTER := ["fanfare", "horn"]
 const SFX_GAIN := {"thud": 0.6}                 # 소리별 크기 배율 (기본 1.0) — 크기 조절은 여기서
 const SFX_PITCH := {"thud": 1.15}               # 소리별 음높이 배율
+# 거리·남의 소리 (사용자 요청 — HTML은 1/(1+거리/9)라 멀어도 잘 안 줄었음). Sfx.vol_at
+#   크기 = 1 / (1 + (거리/ref)^rolloff), fade_from~max 사이에서 0까지 더 줄임.
+#   내 캐릭터 자리(self_r 안)에서 난 소리 = 내 소리, 나머지(적·아군·봇)는 × others
+const SFX_DIST := {"ref": 8.0, "rolloff": 1.5, "fade_from": 50.0, "max": 80.0, "others": 0.7, "self_r": 0.5}
 const XBOW_RELOAD_SND := {"pull0": 0.18, "pull": 0.44, "latch": 0.63, "seat": 0.86}  # 석궁 장전 진행도에서 소리 나는 순간
 const GALLOP := {"min_speed": 2.0, "pitch_min": 0.85, "pitch_max": 1.2, "speed_ref": HORSE_SPEED}  # 말 속도 → 다그닥 음높이
 const HITSTOP_SCALE := 0.12   # 히트스톱 동안 시간이 이만큼 느리게 흐름
