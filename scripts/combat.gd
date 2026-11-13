@@ -30,6 +30,7 @@ var projectiles: Array[Dictionary] = []
 var world_arrows: Array[Dictionary] = []  # 벽·땅에 꽂힌 화살 {m, life}
 var zones: Array[Dictionary] = []  # 성수 웅덩이 {owner, pos, r, life, tick, disc, rim, t}
 var aim_mk: MeshInstance3D         # 성수 착지 지점 표시 (내 화면)
+var hit_debug                      # 명중 판정 디버그 표시 (scripts/fx/hit_debug.gd, F9 — GameData.debug_hits)
 var ragdolls: Array = []           # 쓰러진 몸 (Ragdoll)
 var hit_stop := 0.0                # 남은 히트스톱 (실제 시간, 초)
 var _hs_on := false                 # 히트스톱이 Engine.time_scale을 늦춰 둔 상태
@@ -63,6 +64,10 @@ func _ready() -> void:
 	aim_mk.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	aim_mk.visible = false
 	add_child(aim_mk)
+	hit_debug = preload("res://scripts/fx/hit_debug.gd").new()
+	hit_debug.name = "HitDebug"
+	hit_debug.combat = self
+	add_child(hit_debug)
 
 
 ## 시작할 때 셰이더를 미리 데울 재질들 — 경기 중에 처음 나오는 효과용 (Main이 ShaderWarm에 넘긴다)
@@ -732,43 +737,42 @@ func tp_aim(e: PlayerController) -> Vector3:
 	return o + d * best
 
 
-## 내가 쏠 때 방향: 3인칭이면 몸에서 나가니까 화면 가운데 지점을 향하게 — HTML playerAimDir
-func player_aim_dir(e: PlayerController, from: Vector3) -> Vector3:
-	var f := e.aim_dir()
-	if not (e.is_local and e.cam and tp_on()):
-		return f
-	var d := tp_aim(e) - from
-	return f if d.dot(f) < 1.5 else d.normalized()
-
-
 ## 내가 쏠 때 나가는 곳·방향 — 화면 가운데 조준선 위로 정확히 (사용자 요청: 좌하탄 고침. HTML은 눈에서 조준점으로 쏴서
 ## 3인칭이면 조준점이 멀 때 가까운 거리에선 조준선보다 왼쪽 아래(카메라가 오른쪽 위라서)로 지나갔다)
 ##   3인칭: 카메라 조준선에서 내 눈에 가장 가까운 점(+FIRE_FWD)에서 조준선 방향 그대로.
 ##          눈 → 그 점, 카메라 → 그 점이 벽에 막히거나 조준점이 그보다 가까우면 예전처럼 눈에서 조준점으로.
 ##   1인칭: 손 자리(눈에서 오른쪽·아래, hand = true일 때)에서 조준점(조준선이 처음 닿는 곳)으로.
-## 돌려주는 값: {pos, dir}
+##
+## 초근접 보정 (사용자 피드백 "가까이서 화살·볼트가 안 맞음"):
+##   - 방향은 언제나 나가는 자리 → 조준점 (예전엔 조준점이 1m(3인칭 1.5m) 안이면 조준선과 나란히 쏴서
+##     1인칭은 손 위치(오른쪽 0.16m)만큼, 3인칭은 눈에서 카메라 방향 그대로 나가 크게 빗나갔다)
+##   - 조준점이 나가는 자리보다 가까우면(FIRE_NEAR) 판정 시작점 from(1인칭 = 눈, 3인칭 = 조준선 위 눈 깊이)에서 조준점으로 쏜다
+##   - from → pos 구간도 첫 프레임에 같이 판정한다 (update_projectiles) → 눈과 손 사이에 있는 적도 맞음
+## 돌려주는 값: {pos, dir, from, aim(조준점)}
 func local_launch(e: PlayerController, kind: String, hand := true) -> Dictionary:
 	var eye := e.eye_pos()
 	var f := e.aim_dir()
 	if not e.cam:
-		return {"pos": eye + f * GameData.FIRE_FWD, "dir": f}
+		return {"pos": eye + f * GameData.FIRE_FWD, "dir": f, "from": eye, "aim": null}
 	var o := e.cam.global_position
 	var target := tp_aim(e)
 	var reach := (target - o).dot(f)
-	if tp_on():
-		var s := maxf(0.0, (eye - o).dot(f)) + GameData.FIRE_FWD
-		var start := o + f * s
-		if reach > s + 0.1 and world_ray(eye, start - eye) >= 1.0 and world_ray(o, start - o) >= 1.0:
-			return {"pos": start, "dir": f}
-		var d := player_aim_dir(e, eye)
-		return {"pos": eye + d * GameData.FIRE_FWD, "dir": d}
+	var from := eye
 	var pos := eye + f * GameData.FIRE_FWD
-	if hand:
+	if tp_on():
+		var base := o + f * maxf(0.0, (eye - o).dot(f))  # 조준선 위, 내 눈 깊이
+		var start := base + f * GameData.FIRE_FWD
+		if world_ray(eye, base - eye) >= 1.0 and world_ray(eye, start - eye) >= 1.0 and world_ray(o, start - o) >= 1.0:
+			from = base
+			pos = start
+	elif hand:
 		var right := Vector3(cos(e.yaw), 0, -sin(e.yaw))
 		pos += right * float(GameData.FIRE_RIGHT.get(kind, GameData.FIRE_RIGHT_DEFAULT))
 		pos.y -= GameData.FIRE_DROP
+	if reach <= (pos - o).dot(f) + GameData.FIRE_NEAR:  # 초근접: 조준점이 나가는 자리보다 가깝다
+		pos = from
 	var to := target - pos
-	return {"pos": pos, "dir": to.normalized() if to.dot(f) > 1.0 else f}
+	return {"pos": pos, "dir": to.normalized() if to.dot(f) > 0.02 else f, "from": from, "aim": target}
 
 
 ## 발사 — HTML fire(). 저격총·AK는 히트스캔, 나머지는 투사체
@@ -850,6 +854,9 @@ func fire(e: PlayerController, kind: String, t := 0.0) -> void:
 			return
 	e.fire_anim = 1.0
 	var pos: Vector3 = launch.pos if e.is_local else eye + dir * GameData.FIRE_FWD
+	var from: Vector3 = launch.from if e.is_local else eye  # 첫 프레임엔 여기서부터 판정 (눈과 나가는 자리 사이 적도 맞게)
+	if GameData.debug_hits:
+		hit_debug.spawn(from, pos, launch.get("aim"))
 	var vel := dir * speed
 	add_child(mesh)
 	mesh.global_position = pos
@@ -861,7 +868,7 @@ func fire(e: PlayerController, kind: String, t := 0.0) -> void:
 	var life: float = float(W.range) / speed if W.has("range") else GameData.PROJ_LIFE
 	projectiles.append({
 		"kind": kind, "pos": pos, "vel": vel, "grav": float(W.grav), "owner": e, "dmg": dmg,
-		"mesh": mesh, "life": life, "radius": float(W.radius),
+		"mesh": mesh, "life": life, "radius": float(W.radius), "from": from,
 		"spin": Vector3(randf_range(-15, 15), randf_range(-15, 15), randf_range(-15, 15)),
 	})
 	if mp() and not e.is_remote:  # 친구 화면에도 같은 투사체를 만든다 (맞았는지는 맞은 사람이 판정)
@@ -999,24 +1006,31 @@ func update_projectiles(dt: float) -> void:
 		var d := vel * dt
 		vel.y -= float(p.grav) * dt
 		p.vel = vel
-		var tw := world_ray(pos, d)
-		var th := INF
-		var hit_e: PlayerController = null
-		var head := false
-		var mid := pos + d * 0.5
-		var seg := d.length()
-		for v in ents:
-			if v == p.owner or not v.alive or ally(p.owner, v) or v.global_position.distance_to(mid) > seg + GameData.PROJ_CULL:
-				continue
-			var r := hit_test(pos, d, v, p.radius)
-			if not r.is_empty() and r.t < th:
-				th = r.t
-				hit_e = v
-				head = r.head
+		# 이번 프레임 판정 선분 o0 → o0 + d0 = 이전 위치 → 다음 위치. 매 프레임 선분으로 재므로 빨라도 뚫고 지나가지 않는다
+		# (석궁 100m/s = 프레임당 1.7m, 몸 두께 0.92m). 첫 프레임은 쏜 사람 눈 쪽(from) → 나가는 자리를 먼저 잰다 (초근접)
+		var o0 := pos
+		var d0 := d
+		var sw := {}
+		if p.has("from"):
+			var fr: Vector3 = p.from
+			p.erase("from")
+			if fr.distance_squared_to(pos) > 1e-6:
+				sw = _sweep(p, fr, pos - fr)
+				if sw.th <= 1 or sw.tw <= 1:
+					o0 = fr
+					d0 = pos - fr
+				else:
+					sw = {}
+		if sw.is_empty():
+			sw = _sweep(p, o0, d0)
+		var tw: float = sw.tw
+		var th: float = sw.th
+		var hit_e: PlayerController = sw.hit_e
+		var head: bool = sw.head
 		var mesh: Node3D = p.mesh
 		var kind: String = p.kind
 		if kind == "chicken" and ((hit_e and th <= tw) or tw <= 1):  # 맞으면 넘어뜨리고, 다시 돌아다님
-			var pt := pos + d * minf(th, tw)
+			var pt := o0 + d0 * minf(th, tw)
 			mesh.queue_free()
 			fx.chunks(pt, 0xfafaf2, Vector3.UP, 8, 4)
 			Sfx.play("cluck", pt)
@@ -1030,11 +1044,13 @@ func update_projectiles(dt: float) -> void:
 			continue
 		if kind == "holy" and ((hit_e and th <= tw) or tw <= 1):  # 사람이든 땅이든 닿으면 깨짐
 			mesh.queue_free()
-			shatter(p.owner, pos + d * minf(th, tw))
+			shatter(p.owner, o0 + d0 * minf(th, tw))
 			projectiles.remove_at(i)
 			continue
 		if hit_e and th <= tw:  # 사람에 맞음
-			var pt := pos + d * th
+			var pt := o0 + d0 * th
+			if GameData.debug_hits:
+				hit_debug.hit(pt, true)
 			var dir := vel.normalized()
 			if kind == "stone":
 				mesh.queue_free()
@@ -1048,7 +1064,9 @@ func update_projectiles(dt: float) -> void:
 			projectiles.remove_at(i)
 			continue
 		if tw <= 1:  # 벽·땅에 맞음
-			var pt := pos + d * tw
+			var pt := o0 + d0 * tw
+			if GameData.debug_hits:
+				hit_debug.hit(pt, false)
 			if kind == "stone":
 				mesh.queue_free()
 				fx.puff(pt, 0xcdbb98, 0.1, 3)
@@ -1077,6 +1095,24 @@ func update_projectiles(dt: float) -> void:
 		if p.life <= 0:  # 사거리 끝
 			mesh.queue_free()
 			projectiles.remove_at(i)
+
+
+## 투사체 선분 o → o+d 판정: {tw: 벽 비율(INF), th: 사람 비율(INF), hit_e, head}. 쏜 사람·아군·멀리 있는 사람은 건너뜀
+func _sweep(p: Dictionary, o: Vector3, d: Vector3) -> Dictionary:
+	if GameData.debug_hits:
+		hit_debug.seg(o, o + d)
+	var res := {"tw": world_ray(o, d), "th": INF, "hit_e": null, "head": false}
+	var mid := o + d * 0.5
+	var seg := d.length()
+	for v in ents:
+		if v == p.owner or not v.alive or ally(p.owner, v) or v.global_position.distance_to(mid) > seg + GameData.PROJ_CULL:
+			continue
+		var r := hit_test(o, d, v, p.radius)
+		if not r.is_empty() and r.t < res.th:
+			res.th = r.t
+			res.hit_e = v
+			res.head = r.head
+	return res
 
 
 ## 맞은 화살을 머리나 몸통에 붙인다 — HTML stickArrow

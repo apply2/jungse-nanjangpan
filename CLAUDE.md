@@ -55,6 +55,7 @@ tests/test_movement.gd 이동 자동 테스트 (HTML과 같은 값이 나오는�
 tests/test_combat.gd   피격·피해·투구·재생·부활·스폰 자동 테스트
 tests/test_stone.gd    돌멩이·투사체·맞은 효과 자동 테스트
 tests/test_bow.gd      활 당기기·세기·후들거림·손 미끄러짐·꽂힘·반동 자동 테스트
+tests/test_close_range.gd 근거리 명중: 1·3·10m × 활 최소/풀·석궁 × 1·3인칭 × 조준점 5곳 표, 0.6m, 첫 프레임 눈→손 판정, 터널링, F9 디버그 표시 자동 테스트
 tests/test_crossbow.gd 석궁 발사·장전 4초·75 피해·헤드샷 한 방·경직·장전 자세 자동 테스트
 tests/test_holy.gd     성수 충전·재충전·포물선·웅덩이 피해·둔화·착지 표시·테두리 색 자동 테스트
 scripts/bot_ai.gd      봇 머리 (HTML botUpdate·aimSolve). 대상 고르기·반응·조준 오차·앞질러 쏘기·포물선·무빙·끼임 탈출·웅덩이 피하기
@@ -127,7 +128,7 @@ AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 
 - HTML처럼 끼이면 점프하는데, 공중에선 끼임 시간이 줄어서 "아무 방향 탈출"은 머리 위가 막혔을 때 정도만 나온다 (HTML도 같음).
 - `scripted_input`이 비어 있지 않으면 AI보다 먼저 쓰인다. 테스트는 `GameData.ai_enabled = false`로 봇을 세워 둔다.
 - 공격 입력은 player.gd가 `fire_held`에 담고, Combat이 이동 다음에 `weapon_update()`로 처리한다. `scripted_input`에 `"fire": true`를 넣으면 테스트·봇도 쏠 수 있다.
-- 3인칭에선 화면 가운데가 가리키는 곳으로 던진다 (HTML `playerAimDir`/`tpAim`).
+- 3인칭에선 화면 가운데가 가리키는 곳으로 던진다 (HTML `playerAimDir`/`tpAim` → `Combat.tp_aim`·`local_launch`).
 - 맞히면 조준점에 X 표시(처치면 빨간색)가 뜬다 — HTML `hitmark`.
 - **킬 마커** (사용자 요청, 오버워치처럼 — HTML엔 없음): 내가 막타를 치면 조준점 가운데 해골 (`Combat.kill_mark(head)` → `hud.kill_mark` → `Hud.KillSkull`).
   1.3배로 튀어나와 0.1초에 원래 크기 → 0.5초 그대로 → 0.25초 흐려짐. 흰색, 헤드샷이면 빨강.
@@ -158,6 +159,15 @@ AI대전 → 난이도 → 병과(클릭 또는 1~4) → 바로 경기. 4분이 
 - 내가 쏘는 투사체·히트스캔은 화면 가운데 조준선 위로 나간다 (`Combat.local_launch`, 사용자 요청 — 좌하탄 고침).
   HTML은 눈에서 조준점으로 쏴서 3인칭이면 조준점이 멀 때 조준선보다 왼쪽 0.85m·아래 0.6m로 지나갔다.
   3인칭은 카메라 조준선에서 눈에 가장 가까운 점부터 조준선 그대로, 1인칭은 손 자리에서 조준점으로. 성수 착지 표시도 같은 계산. 중력 낙하는 그대로.
+- **초근접 명중 보정** (사용자 피드백 "가까이서 화살·볼트가 안 맞음", `Combat.local_launch`·`_sweep`):
+  - 방향은 언제나 나가는 자리 → 조준점. 예전엔 조준점이 1m 안이면 조준선과 나란히 쏴서 1인칭은 손 위치(오른쪽 0.16m)만큼,
+    3인칭은 눈에서 카메라 방향 그대로(내려다보면 발밑으로) 나가 빗나갔다.
+  - 조준점이 나가는 자리보다 가까우면(`FIRE_NEAR`) 판정 시작점 `from`(1인칭 = 눈, 3인칭 = 조준선 위 눈 깊이)에서 조준점으로 쏜다.
+  - 투사체 첫 프레임은 `from` → 나가는 자리 구간을 먼저 판정 (눈과 손 사이에 있는 적). 그 뒤는 예전처럼 매 프레임 이전 위치 → 다음 위치 선분 판정 (터널링 없음).
+  - 친구대전 "f" 사건은 pos·vel만 보낸다 (초근접이면 pos = from이라 친구 쪽도 같은 판정).
+  - 10m에서 가장 약한 화살(28m/s)은 0.9m 떨어져서 몸 가장자리를 겨누면 아래로 지나간다 — 의도한 포물선.
+- **명중 판정 디버그 표시** (`scripts/fx/hit_debug.gd`, Combat 아래 HitDebug): **F9**로 켜고 끔 (`GameData.debug_hits`, 기본 꺼짐, 저장 안 함, 색·시간 `HIT_DEBUG`).
+  모든 캐릭터 히트박스(머리 구·몸 캡슐), 쏜 자리(판정 시작점 하늘색 → 나가는 자리 초록, 조준점 분홍), 프레임마다 판정한 선분(노랑), 맞은 곳(사람 빨강·벽 회색). 벽 뒤도 보임.
 - 3인칭 손에 든 무기는 HTML보다 크다 (`GameData.HELD_SCALE`, 사용자 요청 — 잘 안 보여서. 보기만, 판정 그대로).
   DerpModel 무기 그룹(원점 = 손잡이, 트럼펫은 마우스피스)에 배율을 걸고, 마상창은 탄 사람 말만 `Items.held_lance`로 굵기만(길이 그대로, 창끝 tip배).
   뷰모델·투사체·맵 진열 아이템은 그대로. 내 캐릭터만 다르게: `HELD_SCALE_SELF` (닭 1.0 — 어깨 너머 화면에서 조준점을 가려서).
@@ -672,6 +682,7 @@ godot --headless --fixed-fps 60 --path . -s tests/test_combat.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_stone.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_bow.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_crossbow.gd
+godot --headless --fixed-fps 60 --path . -s tests/test_close_range.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_holy.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_bot.gd
 godot --headless --fixed-fps 60 --path . -s tests/test_match.gd

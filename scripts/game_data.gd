@@ -57,6 +57,11 @@ const FIRE_FWD := 0.35       # 눈에서 조준 방향으로 이만큼 앞에서
 const FIRE_DROP := 0.08      # 내가 쏠 땐 살짝 아래에서 (손 위치 느낌)
 const FIRE_RIGHT := {"stone": 0.12, "bow": 0.16}  # 내가 쏠 땐 오른쪽으로 (나머지 0.08)
 const FIRE_RIGHT_DEFAULT := 0.08
+const FIRE_NEAR := 0.05      # 조준점이 나가는 자리보다 이만큼 이내로 가깝거나 더 가까우면 '초근접' → 판정 시작점(눈 쪽)에서 조준점으로 쏨
+# 명중 판정 디버그 표시 (scripts/fx/hit_debug.gd). key로 켜고 끔, 기본 꺼짐 (debug_hits). life: 경로·표시가 남는 초
+const HIT_DEBUG := {"key": KEY_F9, "life": 3.0,
+	"colors": {"head": 0xff5050, "body": 0xffa040, "from": 0x50d0ff, "spawn": 0x40ff60, "aim": 0xff50ff,
+		"path": 0xffe040, "hit": 0xff2020, "wall": 0xb0b0b0}}
 const PROJ_LIFE := 4.0       # 사거리(range)가 없는 투사체의 수명(초)
 const PROJ_CULL := 3.0       # 이번 이동 거리 + 이만큼보다 먼 캐릭터는 판정 생략
 const TP_AIM_DIST := 300.0   # 3인칭: 화면 가운데가 가리키는 곳을 찾는 거리
@@ -777,6 +782,7 @@ const NET := {
 	"follow": 14.0, "snap_dist": 6.0,   # 남의 캐릭터: 받은 위치로 부드럽게 따라감, 6m 넘게 벌어지면 순간이동
 	"dead_wait": 0.5, "revive_guard": 1.0,  # 죽음 사건보다 상태가 먼저 와도 잠깐 기다림 / 죽은 직후 옛 상태로 안 살아남
 }
+var debug_hits := false     # 명중 판정 디버그 표시 (F9로 켜고 끔, HIT_DEBUG). 저장 안 함
 var hitstop_enabled := true   # false면 히트스톱 안 함 (자동 테스트용 — 프레임 수로 시간을 재니까)
 var land_trip_override := -1.0  # 테스트: 0 이상이면 착지 넘어짐 확률을 이걸로
 var wind_dir_override := ""  # 테스트: "down"/"up"이면 석궁 휠 방향을 이걸로 (WEAPONS는 상수라 못 바꿔서)
@@ -999,6 +1005,7 @@ func _setup_input() -> void:
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "crouch": [KEY_CTRL, KEY_C],
 		"toggle_view": [KEY_V], "swap": [KEY_Q], "interact": [KEY_E], "scoreboard": [KEY_TAB],
 		"cancel_draw": [KEY_R],  # 활 당기기 취소 (사용자 요청)
+		"debug_hits": [HIT_DEBUG.key],  # 명중 판정 디버그 표시 켜고 끄기
 		"class_1": [KEY_1], "class_2": [KEY_2], "class_3": [KEY_3], "class_4": [KEY_4], "class_5": [KEY_5],  # 병과 고르는 화면에서만
 	}
 	for action: String in keys:
